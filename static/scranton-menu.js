@@ -29,7 +29,6 @@
         const st = myStatus();
         document.querySelectorAll('#sc-me .sc-me-dot').forEach((d) => { d.className = `sc-me-dot ${st}`; });
         const chip = document.getElementById('sc-me');
-        if (chip) chip.title = `You · ${STATUSES.find(([k]) => k === st)[1]}`;
     }
 
     function openProfile() {
