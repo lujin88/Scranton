@@ -247,6 +247,21 @@ class ScheduleStore:
         self._fire("delete", result)
         return result
 
+    def set_fields(self, schedule_id: str, **fields) -> dict | None:
+        """Scranton: change 'active' or 'prompt' of one schedule."""
+        allowed = {k: v for k, v in fields.items() if k in ("active", "prompt")}
+        with self._lock:
+            for s in self._schedules:
+                if s.get("id") == schedule_id:
+                    s.update(allowed)
+                    self._save()
+                    result = dict(s)
+                    break
+            else:
+                return None
+        self._fire("update", result)
+        return result
+
     def toggle(self, schedule_id: str) -> dict | None:
         with self._lock:
             for s in self._schedules:

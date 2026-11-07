@@ -62,7 +62,24 @@ id = "daily-backup"
 daily_at = "21:00"
 to = ["pm"]
 channel = "lu-portfolio"
-text = "每日备份和每日总结：按 harness-core AGENTS.md「每日备份」做（GitHub backup 分支 + Obsidian 日志，跑 daily-backup.sh check 把表贴出来），做完在这里 @Lu 一行总结。"
+text = "每日备份：按 harness-core AGENTS.md「每日备份」做（GitHub backup 分支 + Obsidian 日志），跑 daily-backup.sh check，把表贴在这里。"
+
+# Daily plan and summary from the PM. Lu can turn both off in Settings → Profile.
+[[team.schedules]]
+id = "daily-plan"
+daily_at = "08:30"
+to = ["pm"]
+channel = "lu-portfolio"
+daily = true
+text = "今日计划：按 handoff.md「下一步」和各人手上的活，列出今天每个人做什么（谁｜做什么｜要不要等 Lu），最后一行写今天需要 @Lu 决定的事（没有就写没有）。不超过 10 行。"
+
+[[team.schedules]]
+id = "daily-summary"
+daily_at = "21:05"
+to = ["pm"]
+channel = "lu-portfolio"
+daily = true
+text = "每日总结：今天做完了什么（附 PR 链接）｜卡在哪、谁卡住了｜等 Lu 决定的事｜明天先做什么。只写真实发生的，不超过 10 行，最后 @Lu。"
 
 # --- lu-portfolio 群里的成员 ---
 

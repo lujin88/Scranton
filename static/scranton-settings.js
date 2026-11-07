@@ -78,6 +78,9 @@
             const q = await api('/api/scranton/quiet');
             const slot = root && root.querySelector('#sc-quiet');
             if (slot && q && q.from) slot.innerHTML = quietView(q);
+            const d = await api('/api/scranton/daily');
+            const ds = root && root.querySelector('#sc-daily');
+            if (ds && d) ds.innerHTML = `<label class="sc-switch-row"><input type="checkbox" id="sc-d-on"${d.enabled ? ' checked' : ''}><span class="sc-switch"></span><span>${d.enabled ? 'On' : 'Off'}${(d.times || []).length ? ' · ' + d.times.map(esc).join(' and ') : ''}</span></label><span class="sc-st-saved" id="sc-d-saved"></span>`;
         }
         if (section === 'agents' && agentOpen === '__new') {
             body.innerHTML = '<div class="sc-st-loading">Loading…</div>';
@@ -121,7 +124,9 @@
             </div>
             <footer class="sc-st-foot"><span class="sc-st-saved" id="sc-pf-saved"></span><button type="button" class="sc-btn primary" data-a="save-profile">Save changes</button></footer>
             <header class="sc-st-sub"><h3>Quiet hours</h3><p>Agents keep working but don't @ you, unless something is high-risk or broken. No sounds.</p></header>
-            <div class="sc-quiet" id="sc-quiet"></div>`;
+            <div class="sc-quiet" id="sc-quiet"></div>
+            <header class="sc-st-sub"><h3>Daily plan and summary</h3><p>Your project manager posts the day's plan in the morning and a summary in the evening.</p></header>
+            <div class="sc-quiet" id="sc-daily"></div>`;
     }
     function quietView(q) {
         return `<label class="sc-switch-row"><input type="checkbox" id="sc-q-on"${q.enabled ? ' checked' : ''}><span class="sc-switch"></span><span>On</span></label>
@@ -471,6 +476,13 @@
             return;
         }
         if (e.target.id && e.target.id.startsWith('sc-new-')) return;
+        if (e.target.id === 'sc-d-on') {
+            const r = await api('/api/scranton/daily', { enabled: e.target.checked });
+            const lbl = e.target.parentElement.querySelector('span:last-child');
+            if (lbl) lbl.textContent = (r && r.enabled ? 'On' : 'Off') + (lbl.textContent.includes('·') ? ' ·' + lbl.textContent.split('·').slice(1).join('·') : '');
+            flash('sc-d-saved', 'Saved.');
+            return;
+        }
         if (e.target.id && e.target.id.startsWith('sc-q-')) {
             const q = { enabled: root.querySelector('#sc-q-on').checked, from: root.querySelector('#sc-q-from').value, to: root.querySelector('#sc-q-to').value };
             const r = await api('/api/scranton/quiet', q);

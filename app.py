@@ -252,15 +252,30 @@ def _seed_team_schedules(cfg: dict):
         if not sid or sid in seeded or not _re.fullmatch(r"\d{1,2}:\d{2}", at) or not to or not text:
             continue
         try:
-            schedules.create(prompt=text, targets=to, channel=str(item.get("channel", "general")),
-                             interval_seconds=86400, daily_at=at, created_by="Scranton")
+            created = schedules.create(prompt=text, targets=to, channel=str(item.get("channel", "general")),
+                                       interval_seconds=86400, daily_at=at, created_by="Scranton")
         except ValueError:
             continue
+        room_settings.setdefault("seeded_schedule_ids", {})[sid] = created.get("id")
         seeded.add(sid)
         changed = True
+    # The 21:00 backup used to carry the summary too; the summary is its own post now.
+    for s in schedules.list_all():
+        if s.get("created_by") == "Scranton" and str(s.get("prompt", "")).startswith("每日备份和每日总结"):
+            new = next((str(i.get("text", "")) for i in (cfg or {}).get("team", {}).get("schedules", []) or [] if i.get("id") == "daily-backup"), "")
+            if new:
+                schedules.set_fields(s["id"], prompt=new)
+                room_settings.setdefault("seeded_schedule_ids", {})["daily-backup"] = s["id"]
+                changed = True
     if changed:
         room_settings["seeded_schedules"] = sorted(seeded)
         _save_settings()
+
+
+def _daily_ids(cfg: dict) -> list[str]:
+    ids = room_settings.get("seeded_schedule_ids", {}) or {}
+    daily = [str(i.get("id")) for i in (cfg or {}).get("team", {}).get("schedules", []) or [] if i.get("daily")]
+    return [ids[d] for d in daily if d in ids]
 
 
 def _save_settings():
@@ -2448,6 +2463,23 @@ async def scranton_connections():
 @app.post("/api/scranton/connections/{provider}/login")
 async def scranton_connection_login(provider: str):
     return JSONResponse(await asyncio.to_thread(_sc_team.open_login, provider))
+
+
+@app.get("/api/scranton/daily")
+async def scranton_daily_get():
+    ids = _daily_ids(config)
+    on = [x for x in (schedules.get(i) for i in ids) if x]
+    return JSONResponse({"enabled": bool(on) and all(x.get("active", True) for x in on),
+                         "times": [x.get("daily_at") for x in on]})
+
+
+@app.post("/api/scranton/daily")
+async def scranton_daily_set(request: Request):
+    """Daily plan (morning) and summary (evening) from the PM: on or off."""
+    on = bool((await request.json()).get("enabled"))
+    for i in _daily_ids(config):
+        schedules.set_fields(i, active=on)
+    return JSONResponse({"ok": True, "enabled": on})
 
 
 @app.get("/api/scranton/quiet")
