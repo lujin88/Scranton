@@ -205,9 +205,10 @@ def ensure_running(names: list[str], config: dict) -> dict:
                 out["failed"][n] = f"'{cmd}' isn't installed on this Mac"
                 continue
             cwd = Path(os.path.expanduser(str(a.get("cwd", "."))))
-            if not (cwd if cwd.is_absolute() else ROOT / cwd).is_dir():
+            known = {os.path.expanduser(k) for k in ((config or {}).get("team", {}).get("projects", {}) or {})}
+            if not (cwd if cwd.is_absolute() else ROOT / cwd).is_dir() and str(cwd) not in known:
                 out["failed"][n] = f"its folder {a.get('cwd')} doesn't exist"
-                continue
+                continue   # (a known project folder is cloned by scranton.sh start-agent)
             try:
                 pid_file.unlink()
             except FileNotFoundError:

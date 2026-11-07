@@ -77,6 +77,21 @@ start_agent() {
     [ -n "$cmd" ] || { echo "  $name is not in config.toml"; return; }
     if ! command -v "$cmd" >/dev/null 2>&1; then echo "  $name skipped: '$cmd' is not installed"; return; fi
     dir=$(cfg "$name" cwd ".")
+    if [ ! -d "$dir" ]; then
+        # A known project ([team.projects] in config.toml)? Get it from GitHub once.
+        url=$("$PY" -c "$LOADCFG;import os,sys;p=c.get('team',{}).get('projects',{});print(next((u for k,u in p.items() if os.path.expanduser(k)==sys.argv[1]),''))" "$dir")
+        if [ -n "$url" ]; then
+            mkdir -p "$(dirname "$dir")"
+            # Several teammates may start at once: only one clones, the others wait for it.
+            if mkdir "$dir.cloning" 2>/dev/null; then
+                echo "  $name: getting $(basename "$dir") from GitHub (first time only)..."
+                git clone --quiet "$url" "$dir" 2>&1 | tail -2 || true
+                rmdir "$dir.cloning"
+            else
+                i=0; while [ -d "$dir.cloning" ] && [ "$i" -lt 600 ]; do sleep 1; i=$((i + 1)); done
+            fi
+        fi
+    fi
     if [ ! -d "$dir" ]; then echo "  $name skipped: folder $dir doesn't exist (clone the project next to Scranton, or change cwd in config.toml)"; return; fi
     # Teammates that change code get their own git worktree (same repo, own folder and
     # branch), so two of them never edit the same checkout. Created once, kept afterwards.
