@@ -629,6 +629,39 @@ window.scNormalizeMentions = function (text) {
                 localStorage.setItem('scranton-at-count', JSON.stringify(all));
             } catch (_) { /* storage blocked */ }
         }
-        return orig.apply(this, arguments);
+        const sent = input ? input.value : '';
+        const r = orig.apply(this, arguments);
+        try { suggestTracking(sent); } catch (_) { /* never block sending */ }
+        return r;
     };
+
+    // Several tasks in one message → offer to have the PM track them in Notion.
+    function countTasks(text) {
+        const lines = String(text).split('\n').map((l) => l.trim()).filter(Boolean);
+        const items = lines.filter((l) => /^([-*•·]|\d+[.)、]|[一二三四五六七八九十]+[、.])\s*\S/.test(l));
+        return items.length;
+    }
+    function suggestTracking(text) {
+        const n = countTasks(text);
+        const team = (window.scGetTeam && window.scGetTeam()) || {};
+        if (n < 3 || !team.pm || String(window.activeChannel || '').startsWith('dm-pm')) return;
+        document.getElementById('sc-track')?.remove();
+        const bar = document.createElement('div');
+        bar.id = 'sc-track';
+        bar.innerHTML = `<span>${n} tasks in that message</span>`
+            + `<button type="button" data-a="track">Track them in Notion</button><button type="button" class="x" data-a="no" aria-label="No thanks">${window.scIcon ? window.scIcon('close', 16) : '✕'}</button>`;
+        const row = document.getElementById('input-row');
+        row?.parentElement?.insertBefore(bar, row);
+        const t = setTimeout(() => bar.remove(), 20000);
+        bar.onclick = (e) => {
+            const a = e.target.closest('[data-a]')?.dataset.a;
+            if (!a) return;
+            clearTimeout(t); bar.remove();
+            if (a === 'track' && window.ws && window.ws.readyState === WebSocket.OPEN) {
+                const who = (window.scMe && window.scMe()) || 'Lu';
+                window.ws.send(JSON.stringify({ type: 'message', sender: who, channel: window.activeChannel || 'general', attachments: [],
+                    text: `@pm 把我上一条里的 ${n} 件事加进 Notion「Scranton tasks」跟踪（任务｜负责人｜状态｜消息链接），发我链接，之后状态有变就更新。` }));
+            }
+        };
+    }
 })();

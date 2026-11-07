@@ -325,3 +325,17 @@ body.sc-welcome-open #sc-empty-room { display: none; }
 .sc-time input { background: var(--ds-field) !important; border: 0 !important; border-radius: var(--ds-r-control); height: 36px; padding: 0 10px; color: var(--ds-text); font: inherit; }
 .sc-am-sub { width: 250px !important; }
 .sc-am-sub button > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* working row: lines up with messages; neutral dots */
+#sc-working { padding: 8px 0 12px !important; }
+.sc-working-av > span { width: 32px !important; height: 32px !important; }
+.sc-dots i { background: var(--ds-text-3) !important; }
+.sc-working-bubble { background: transparent !important; padding: 0 4px !important; color: var(--ds-text-2); }
+/* "N tasks → track in Notion" suggestion above the composer */
+#sc-track {
+    display: flex; align-items: center; gap: 10px; max-width: var(--ds-read-w); margin: 0 auto 6px !important;
+    padding: 6px 6px 6px 14px; background: var(--ds-raised); border-radius: var(--ds-r-card); color: var(--ds-text-2); font-size: var(--ds-fs-sm);
+}
+#sc-track span { flex: 1; }
+#sc-track button { border: 0; background: var(--ds-accent); color: #fff; font: inherit; font-size: var(--ds-fs-sm); height: 30px; padding: 0 12px; border-radius: var(--ds-r-control); cursor: pointer; }
+#sc-track button.x { background: none; color: var(--ds-text-2); width: 30px; padding: 0; display: grid; place-items: center; }
+#sc-track button.x:hover { background: var(--ds-hover); }

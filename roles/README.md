@@ -11,6 +11,6 @@ They don't replace the originals.
 
 Drafts written by Scranton on 2026-11-08 (marked 草稿 at the top; they apply once Lu confirms):
 `growth.md`, `customer-support.md`, `hardware-advisor.md`, `web-developer-cursor.md`,
-`video-editor.md` (originals weren't recovered), and three roles added for a one-person
-company: `release-ops.md`, `legal-privacy.md`, `data-analyst.md`. These should move to
+`video-editor.md` (originals weren't recovered), and two roles added for a one-person
+company: `release-ops.md`, `legal-privacy.md`. Data and metrics are part of `growth.md`. These should move to
 harness-core `roles/` by PR once confirmed (only Lu merges that).

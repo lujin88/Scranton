@@ -314,6 +314,12 @@
         const origEv = handleServerEvent;
         handleServerEvent = function (event) {
             if (event && event.type === 'scranton_team_changed') { loadTeam(); return; }
+            if (event && event.type === 'scranton_doing') {
+                window.scDoing = window.scDoing || {};
+                window.scDoing[String(event.agent).replace(/-\d+$/, '')] = event.text || '';
+                if (window.scRenderWorking) window.scRenderWorking();
+                return;
+            }
             return origEv.apply(this, arguments);
         };
     }

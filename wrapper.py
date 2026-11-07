@@ -488,6 +488,10 @@ def _quiet_note(now=None) -> str:
             f"or something is broken for real users; collect questions for her and post them after {end}.")
 
 
+# Where the agent was last asked something, so problems are reported there.
+_LAST_PLACE = {"channel": "general", "thread": None}
+
+
 def _requeue(queue_file: Path, lines: list[str]) -> None:
     """Put undelivered mentions back. Appending (never rewriting) can't erase a
     mention the server adds at the same moment; order inside one batch doesn't matter."""
@@ -595,6 +599,8 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                         if key not in places:
                             places.append(key)
                     thread_root = places[-1][1] if places else None
+                    if places:
+                        _LAST_PLACE["channel"], _LAST_PLACE["thread"] = places[-1]
                     if custom_prompt:
                         prompt = custom_prompt
                     elif job_id:
@@ -994,8 +1000,13 @@ def main():
         nonlocal _activity_checker
         _activity_checker = checker
 
+    _describe = [None]       # set below on macOS/Linux: reads the agent's screen
+    _app_name = {"claude": "Claude", "codex": "ChatGPT", "cursor": "Cursor"}.get(_provider_from_command(command), "the app")
+    _reported = {}           # problem key -> when we last said it in the chat
+
     def _activity_monitor():
         last_active = None
+        last_doing = None
         last_report_time = 0
         REPORT_INTERVAL = 3  # re-send state every 3s while active (keeps server lease fresh)
         while True:
@@ -1005,6 +1016,19 @@ def main():
             try:
                 active = _activity_checker()
                 now = time.time()
+                doing, problem = ("", None)
+                if _describe[0]:
+                    try:
+                        doing, problem = _describe[0]()
+                    except Exception:
+                        doing, problem = ("", None)
+                if problem and now - _reported.get(problem, 0) > 1800:
+                    # say it once (per 30 min) where the agent was last asked
+                    _reported[problem] = now
+                    from wrapper_unix import problem_text
+                    cur, _ = get_identity()
+                    _post(server_port, cur, get_token(), _LAST_PLACE["channel"], _LAST_PLACE["thread"],
+                          problem_text(problem, _app_name))
                 # Send on state change, periodically while active (refresh lease),
                 # or periodically while idle (keep presence alive)
                 IDLE_REPORT_INTERVAL = 8  # keep-alive while idle
@@ -1012,12 +1036,13 @@ def main():
                     active != last_active
                     or (active and now - last_report_time >= REPORT_INTERVAL)
                     or (not active and now - last_report_time >= IDLE_REPORT_INTERVAL)
+                    or (active and doing != last_doing)
                 )
                 if should_send:
                     current_name, _ = get_identity()
                     current_token = get_token()
                     url = f"http://127.0.0.1:{server_port}/api/heartbeat/{current_name}"
-                    body = json.dumps({"active": active}).encode()
+                    body = json.dumps({"active": active, "doing": doing if active else ""}).encode()
                     req = urllib.request.Request(
                         url,
                         method="POST",
@@ -1027,6 +1052,7 @@ def main():
                     resp = urllib.request.urlopen(req, timeout=5)
                     resp_code = resp.getcode()
                     last_active = active
+                    last_doing = doing
                     last_report_time = now
             except Exception:
                 pass
@@ -1043,6 +1069,8 @@ def main():
         from wrapper_unix import get_activity_checker, run_agent
 
         unix_session_name = f"agentchattr-{assigned_name}"
+        from wrapper_unix import describe_screen
+        _describe[0] = lambda: describe_screen(unix_session_name)
         _set_activity_checker(get_activity_checker(
             unix_session_name, trigger_flag=_trigger_flag,
             provider=_provider_from_command(command),

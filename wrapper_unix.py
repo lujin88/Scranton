@@ -232,6 +232,75 @@ def _without_codex_input_animation(output: bytes) -> bytes:
     return "\n".join(lines).encode("utf-8")
 
 
+# ---- what the agent is doing / why it stopped, read from its screen ----------
+_SPINNER = re.compile(r"^\s*[✻✶✳✢✽✺*·•◦⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]\s+([A-Z][A-Za-z ]{2,30})(?:…|\.\.\.)")
+_ACTION = re.compile(r"^\s*[⏺●•]\s+(?:[\w.-]+ - )?([A-Za-z_][\w.:-]*)(?: \(MCP\))?\((.{0,120})")
+_NICE = {
+    "read": "Reading {}", "write": "Writing {}", "edit": "Editing {}", "update": "Editing {}", "multiedit": "Editing {}",
+    "bash": "Running {}", "grep": "Searching", "glob": "Looking for files", "search": "Searching",
+    "webfetch": "Reading a web page", "websearch": "Searching the web", "task": "Handing part of it to a helper",
+    "todowrite": "Planning", "notebookedit": "Editing a notebook",
+}
+_PROBLEMS = [
+    ("limit", re.compile(r"usage limit|limit reached|hit your limit|rate.?limit|quota (?:exceeded|reached)|out of (?:credits|messages)", re.I),
+     "I stopped: my {app} plan has hit its usage limit. I'll continue when it resets, or switch me to another app in my profile."),
+    ("login", re.compile(r"please (?:run )?/login|not logged in|log ?in again|invalid api key|authentication (?:failed|error)|token (?:has )?expired", re.I),
+     "I stopped: {app} needs you to sign in again. Settings → Connections → Switch account."),
+    ("error", re.compile(r"\bAPI Error\b|Internal server error|overloaded_error|Connection error", re.I),
+     "I hit an error from {app} and stopped. Open my terminal to see it, or restart me."),
+]
+
+
+_CODEX = re.compile(r"^\s*[•●]\s+(Running|Reading|Editing|Searching|Exploring|Updating|Thinking|Working)\b\s*(.{0,60})")
+
+
+def _short(path: str) -> str:
+    path = path.strip().strip('"\'').split(",")[0].strip()
+    return path.rsplit("/", 1)[-1][:48] if "/" in path else path[:48]
+
+
+def describe_screen(tmux_session: str) -> tuple[str, str | None]:
+    """(what it's doing in a few words, problem key or None) from the bottom of the screen."""
+    text = pane_text(tmux_session, 60)
+    if not text:
+        return "", None
+    lines = [l for l in text.splitlines() if l.strip()]
+    bottom = "\n".join(lines[-10:])
+    problem = next((key for key, rx, _ in _PROBLEMS if rx.search(bottom)), None)
+    doing = ""
+    for l in reversed(lines[-40:]):
+        m = _ACTION.match(l)
+        if m:
+            name = m.group(1).split("__")[-1].lower()
+            arg = m.group(2).rstrip(")")
+            if name in ("chat_send", "send"):
+                doing = "Writing a reply"
+            elif name in ("chat_read", "read_messages", "chat_messages"):
+                doing = "Reading the chat"
+            else:
+                tpl = _NICE.get(name)
+                doing = tpl.format(_short(arg) if "{}" in tpl else "") if tpl else name.replace("_", " ").capitalize()
+            break
+        c = _CODEX.match(l)
+        if c:
+            doing = f"{c.group(1)} {c.group(2).strip()}".strip()
+            break
+    for l in reversed(lines[-8:]):
+        m = _SPINNER.match(l)
+        if m:
+            phase = m.group(1).strip()
+            doing = f"{phase} · {doing}" if doing and phase.lower() not in doing.lower() else (doing or phase)
+            break
+    return doing[:80], problem
+
+
+def problem_text(key: str, app: str) -> str:
+    for k, _, msg in _PROBLEMS:
+        if k == key:
+            return msg.format(app=app or "the app")
+    return ""
+
+
 def get_activity_checker(session_name, trigger_flag=None, *, provider=""):
     """Return a callable that detects tmux pane output by hashing content."""
     last_hash = [None]

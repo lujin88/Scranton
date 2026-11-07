@@ -2837,6 +2837,20 @@ async def rename_agent_label(name: str, request: Request):
     return JSONResponse({"ok": True, "new_name": new_id})
 
 
+_sc_doing: dict[str, str] = {}
+
+
+async def _broadcast_json(payload: dict):
+    data = json.dumps(payload)
+    dead = set()
+    for client in list(ws_clients):
+        try:
+            await client.send_text(data)
+        except Exception:
+            dead.add(client)
+    ws_clients.difference_update(dead)
+
+
 @app.post("/api/heartbeat/{agent_name}")
 async def heartbeat(agent_name: str, request: Request):
     """Wrapper calls this to keep presence alive and report activity.
@@ -2864,6 +2878,12 @@ async def heartbeat(agent_name: str, request: Request):
             was_active = mcp_bridge._activity.get(current_name, False)
             mcp_bridge.set_active(current_name, active_val)
             _activity_changed = was_active != active_val
+        # Scranton: a few words on what it's doing ("Reading page.tsx"), for "X is working · …"
+        if "doing" in body:
+            doing = str(body.get("doing") or "")[:80] if body.get("active") else ""
+            if _sc_doing.get(current_name, "") != doing:
+                _sc_doing[current_name] = doing
+                await _broadcast_json({"type": "scranton_doing", "agent": current_name, "text": doing})
     except Exception:
         pass  # No body = plain heartbeat
     # Immediately broadcast on activity state change (don't wait for background checker)

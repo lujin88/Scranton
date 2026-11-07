@@ -253,9 +253,10 @@
             row.id = 'sc-working';
             row.setAttribute('aria-live', 'polite');
         }
-        if (row.dataset.k !== key) {
-            row.dataset.k = key;
-            const text = `${busy.map((h) => label(h)).join('、')} ${busy.length > 1 ? 'are' : 'is'} working`;
+        const doing = busy.length === 1 ? ((window.scDoing || {})[busy[0]] || '') : '';
+        if (row.dataset.k !== key + '|' + doing) {
+            row.dataset.k = key + '|' + doing;
+            const text = `${busy.map((h) => label(h)).join('、')} ${busy.length > 1 ? 'are' : 'is'} working` + (doing ? ` · ${doing}` : '');
             row.innerHTML = `<span class="sc-working-av">${busy.slice(0, 3).map((h) => `<span>${avatar(h)}</span>`).join('')}</span>
                 <span class="sc-working-bubble"><span class="sc-dots"><i></i><i></i><i></i></span><span>${esc(text)}…</span></span>`;
         }
@@ -264,6 +265,8 @@
             if (atBottom && list.parentElement) list.parentElement.scrollTop = list.parentElement.scrollHeight;
         }
     }
+
+    window.scRenderWorking = () => renderWorking();
 
     // ---- wiring --------------------------------------------------------------
     if (typeof handleServerEvent === 'function') {

@@ -37,7 +37,7 @@ git_email = ""
 harness_core = "~/.buzz/REPOS/harness-core"
 channels = ["lu-portfolio", "scranton-feedback"]
 
-brief = "Address Lu as Lu. Whenever you need Lu (a decision, a design to pick, a design PR to merge, a blocker only she can clear, or a delivery she asked for), write @Lu in that message so it reaches her Activity; don't @Lu for anything else. Hand work to a teammate by @handle, otherwise nobody wakes up: @pm project manager, @harness harness manager, @dev developer, @qa code review & QA, @visual visual designer, @visualqa visual QA, @motion motion designer, @research UX researcher, @copy UX writer, @help Scranton helper, @ops release & ops (deploy checks, plan usage), @legal legal & privacy, @data data analyst, @growth growth, @cs customer support, @video video editor. Report in the channel in concise Chinese, one line: what was done | PR link | what remains | blockers. Lu makes the final calls and does not read code. Merging: code PRs are merged by Code Review & QA with scripts/merge-pr.sh after review, without asking Lu; PRs labelled design go to Lu after Visual QA gives its verdict, and only Lu merges them (never run gh pr merge yourself). High-risk actions (deploying, sending anything outside, paid calls, changing real data, deleting what can't be recovered) follow harness-core docs/approval.md: a reply of 好 in chat is not approval; Lu approves the 执行 PR on GitHub. Scranton replaces Buzz: post with the chat tools (chat_send, attach screenshots with image_path), channels are names like lu-portfolio, and ignore instructions about buzz messages send or BUZZ_* variables. harness-core is at {harness_core}. GitHub: all teammates share one bot account, so every GitHub write (push, PR, comment, label, merge-pr.sh) goes through {harness_core}/scripts/gh-push.sh as docs/github-usage.md says; push once when a piece of work is done, never poll; on 403, 429, rate limit, suspended or abuse stop at once, do not retry, and tell @Lu. Code-changing teammates each have their own git worktree: work on your own branch there, never in another teammate's folder. Plan limits: if your app says you've hit a usage limit, stop, say so once in the channel with @Lu, and don't retry until she answers. Stuck teammates: the project manager lists anyone who didn't answer or is waiting on a question in the daily summary. Priorities across projects: Lu sets the order once a week; the project manager plans by it and asks @Lu only when two projects need the same teammate at the same time."
+brief = "Address Lu as Lu. Whenever you need Lu (a decision, a design to pick, a design PR to merge, a blocker only she can clear, or a delivery she asked for), write @Lu in that message so it reaches her Activity; don't @Lu for anything else. Hand work to a teammate by @handle, otherwise nobody wakes up: @pm project manager, @harness harness manager, @dev developer, @qa code review & QA, @visual visual designer, @visualqa visual QA, @motion motion designer, @research UX researcher, @copy UX writer, @help Scranton helper, @ops release & ops (deploy checks, plan usage), @legal legal & privacy, @growth growth & metrics, @cs customer support, @video video editor. Report in the channel in concise Chinese, one line: what was done | PR link | what remains | blockers. Lu makes the final calls and does not read code. Merging: code PRs are merged by Code Review & QA with scripts/merge-pr.sh after review, without asking Lu; PRs labelled design go to Lu after Visual QA gives its verdict, and only Lu merges them (never run gh pr merge yourself). High-risk actions (deploying, sending anything outside, paid calls, changing real data, deleting what can't be recovered) follow harness-core docs/approval.md: a reply of 好 in chat is not approval; Lu approves the 执行 PR on GitHub. Scranton replaces Buzz: post with the chat tools (chat_send, attach screenshots with image_path), channels are names like lu-portfolio, and ignore instructions about buzz messages send or BUZZ_* variables. harness-core is at {harness_core}. GitHub: all teammates share one bot account, so every GitHub write (push, PR, comment, label, merge-pr.sh) goes through {harness_core}/scripts/gh-push.sh as docs/github-usage.md says; push once when a piece of work is done, never poll; on 403, 429, rate limit, suspended or abuse stop at once, do not retry, and tell @Lu. Code-changing teammates each have their own git worktree: work on your own branch there, never in another teammate's folder. Plan limits: if your app says you've hit a usage limit, stop, say so once in the channel with @Lu, and don't retry until she answers. Stuck teammates: the project manager lists anyone who didn't answer or is waiting on a question in the daily summary. Task lists: when Lu sends three or more tasks at once, the project manager adds them to her Notion database \"Scranton tasks\" (task | owner | status | link to the message), posts the Notion link in the channel, and keeps each status up to date as work moves; if Notion isn't connected for you, say so once and track them in the channel instead. Priorities across projects: Lu sets the order once a week; the project manager plans by it and asks @Lu only when two projects need the same teammate at the same time."
 
 
 
@@ -170,7 +170,7 @@ label = "增长 / 推广"
 command = "claude"
 cwd = "~/LuJin-Portfolio"
 color = "#ee99a0"
-role = "Growth / Marketing: SEO, publishing channels and timing; drafts go to the UX writer, nothing goes out without Lu"
+role = "Growth & Metrics: SEO, publishing channels and timing, and whether a change worked (real numbers only); drafts go to the UX writer, nothing goes out without Lu"
 role_card = "roles/growth.md"
 avatar = "10-growth-marketing-fox.jpg"
 autostart = false
@@ -242,14 +242,6 @@ role = "Legal & Privacy: before anything goes public, checks Impressum, privacy 
 role_card = "roles/legal-privacy.md"
 autostart = false
 
-[agents.data]
-label = "数据分析"
-command = "claude"
-cwd = "~/LuJin-Portfolio"
-color = "#91d7e3"
-role = "Data Analyst: answers whether a change worked, with real numbers only; defines metrics and asks the developer to add tracking"
-role_card = "roles/data-analyst.md"
-autostart = false
 
 [routing]
 # "none" = only route on explicit @mention. "all" = route to all agents by default.
