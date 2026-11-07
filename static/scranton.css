@@ -1401,3 +1401,19 @@ body.sc-in-dm #mention-toggles-row > #sc-attach-btn { display: grid !important; 
 @keyframes sc-blink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .sc-dots i { animation: none; opacity: 0.8; } }
 .sc-side-row, .channel-sidebar-row { width: 100% !important; box-sizing: border-box; }
+
+/* Composer icon buttons: + and return key share one quiet style — no ring, no box.
+   Same hover as every other icon button (8px radius, faint fill). */
+#sc-attach-btn, #send {
+    width: 32px !important; height: 32px !important; padding: 0 !important;
+    border: 0 !important; border-radius: 8px !important; background: transparent !important;
+    color: var(--text-dim) !important; display: grid; place-items: center; box-shadow: none !important;
+}
+#sc-attach-btn:hover, #sc-attach-btn[aria-expanded="true"], #send:hover { background: rgba(255, 255, 255, 0.07) !important; color: var(--text) !important; }
+/* something to send: the return key turns lime (accent = action) */
+.send-group:not(.inactive) #send { background: transparent !important; color: var(--accent) !important; }
+.send-group:not(.inactive) #send:hover { background: rgba(195, 217, 86, 0.12) !important; }
+#send svg { width: 20px; height: 20px; }
+#input-row .send-group { right: 12px; bottom: 12px; }
+#input-row #send { height: 32px !important; min-height: 0 !important; }
+#input-row .send-group { right: 13px !important; bottom: 8px !important; height: 32px; }
