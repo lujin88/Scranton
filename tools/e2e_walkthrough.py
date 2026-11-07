@@ -141,10 +141,10 @@ async def main():
 
         # no settings bar; rename yourself from the profile chip
         check("settings bar and gear are gone", await pg.locator("#settings-toggle").is_hidden() and await pg.locator("#settings-bar").is_hidden())
-        await pg.click("#sc-me"); await pg.click("#sc-account-menu [data-a=rename]"); await pg.fill(".sc-me-input", "Lu J"); await pg.keyboard.press("Enter"); await pg.wait_for_timeout(800)
+        await pg.click("#sc-me"); await pg.click("#sc-account-menu [data-a=profile]"); await pg.fill("#sc-pf-name", "Lu J"); await pg.click("[data-a=save-profile]"); await pg.keyboard.press("Escape"); await pg.wait_for_timeout(1600)
         check("rename yourself from the profile chip", (await pg.locator("#sc-me-name").inner_text()).strip() == "Lu J"
               and (await pg.evaluate("username")) == "Lu J")
-        await pg.click("#sc-me"); await pg.click("#sc-account-menu [data-a=rename]"); await pg.fill(".sc-me-input", "Lu"); await pg.keyboard.press("Enter"); await pg.wait_for_timeout(800)
+        await pg.click("#sc-me"); await pg.click("#sc-account-menu [data-a=profile]"); await pg.fill("#sc-pf-name", "Lu"); await pg.click("[data-a=save-profile]"); await pg.keyboard.press("Escape"); await pg.wait_for_timeout(800)
         pass
 
         # phone
