@@ -19,7 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 RUN_DIR = ROOT / "data" / "run"
-CHECK_EVERY = 6 * 3600
+CHECK_EVERY = 3600  # git fetch once an hour; not the GitHub REST API, so it doesn't touch the bot's rate limit
 
 _state = {"behind": 0, "subject": "", "checked_at": 0.0, "error": "", "updating": False}
 _lock = threading.Lock()

@@ -11,6 +11,7 @@
         rename: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
         settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
         help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.7M12 17h.01"/>',
+        update: '<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/>',
         feedback: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
     };
     const svg = (k) => `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${icon[k]}</svg>`;
@@ -40,6 +41,7 @@
             <hr>
             <button type="button" role="menuitem" data-a="settings">${svg('settings')}<span>Settings</span></button>
             <button type="button" role="menuitem" data-a="help">${svg('help')}<span>Help</span></button>
+            <button type="button" role="menuitem" data-a="update">${svg('update')}<span>Check for updates</span></button>
             <hr>
             <button type="button" role="menuitem" data-a="feedback">${svg('feedback')}<span>Send feedback</span></button>`;
         document.body.appendChild(menu);
@@ -56,6 +58,7 @@
             if (a === 'rename') window.scRename && window.scRename();
             if (a === 'settings') openSettings();
             if (a === 'help') openHelp();
+            if (a === 'update') window.scCheckUpdate && window.scCheckUpdate();
             if (a === 'feedback') sendFeedback();
         });
         menu.addEventListener('keydown', (e) => {
@@ -131,7 +134,7 @@
                 <li><b>Threads</b> Hover a message → 💬 to reply in a thread on the right. Teammates answer inside the thread.</li>
                 <li><b>Activity</b> Everything that @mentions you, newest first. Start here when you come back.</li>
                 <li><b>Search</b> Press <kbd>${k}</kbd> to find any message in any channel.</li>
-                <li><b>Updates</b> A card bottom-left says when a new version is ready. Teammates keep working while it updates.</li>
+                <li><b>Updates</b> Scranton checks GitHub every hour; a card bottom-left says when a new version is ready. Check now: your avatar → Check for updates. Teammates keep working while it updates.</li>
                 <li><b>Someone stopped</b> A card bottom-left lists them. <i>Resume</i> starts them again.</li>
                 <li><b>On your phone</b> Open the same address through Tailscale.</li>
             </ul>`, 'sc-help-dlg');

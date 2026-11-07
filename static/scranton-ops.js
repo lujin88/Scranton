@@ -128,8 +128,19 @@
     }
 
     window.scCheckUpdate = async function () {
-        try { showUpdate(await api('/api/scranton/update/check', {})); } catch (_) { /* offline */ }
+        try {
+            const u = await api('/api/scranton/update/check', {});
+            LS.set('scranton-update-later', '');   // asked by hand: show it even if dismissed before
+            showUpdate(u);
+            if (u.error) note(`Couldn't check: ${u.error}`);
+            else if (!u.behind) note('Scranton is up to date.');
+        } catch (_) { note('Couldn\'t reach Scranton.'); }
     };
+    function note(text) {
+        const b = banner('sc-update-note', `<div class="sc-card-sub">${esc(text)}</div>`, 'info');
+        setTimeout(() => drop('sc-update-note'), 4000);
+        return b;
+    }
 
     function init() {
         poll();
