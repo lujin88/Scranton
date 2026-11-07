@@ -125,7 +125,7 @@ Start a non-autostart teammate by hand: `./scranton.sh start growth`.
 
 - **role_card**: the nine original harness role cards are in `roles/` (unchanged). Each wake-up tells the agent the card's path and to read it before acting. Growth, Support, Hardware, Web dev and Video have no saved cards yet (待确认), so they only get a one-line `role`.
 - **role** (one line) is added to every wake-up as `ROLE: …`. A role picked in the Team panel (⋯) is added in front; it doesn't replace the card.
-- **[team].brief** (称呼 Lu, 简洁中文, report format, **every merge/publish/delete needs Lu's OK**) is added on the first wake-up and every 10th after. The QA card allows scripted merges; the brief overrides that until you decide otherwise.
+- **[team].brief** (称呼 Lu, 简洁中文, report format, merge rule) is added on the first wake-up and every 10th after. Merge rule: **code PRs** are merged by QA with `scripts/merge-pr.sh` after review; **`design` PRs** are merged only by Lu; publishing and deleting still need Lu's OK.
 - **[team].channels** are created on start (`lu-portfolio`).
 - **avatar**: the 14 portraits from the handover package are in `static/avatars/` (resized to 256 px). Alternates weren't copied.
 - **cwd**: the lu-portfolio team works in `../LuJin-Portfolio`, i.e. clone that repo next to Scranton.
