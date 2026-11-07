@@ -529,12 +529,26 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                         except json.JSONDecodeError:
                             pass
 
+                    thread_root = None
+                    for line in lines:
+                        try:
+                            d = json.loads(line)
+                            if isinstance(d, dict) and d.get("thread") is not None:
+                                thread_root = int(d["thread"])
+                        except (json.JSONDecodeError, TypeError, ValueError):
+                            pass
                     if custom_prompt:
                         prompt = custom_prompt
                     elif job_id:
                         prompt = f"use mcp to read job_id={job_id} - you're mentioned in a job thread, take appropriate action and respond"
                     else:
-                        prompt = f"use mcp to read #{channel} - you're mentioned, take appropriate action and respond"
+                        if thread_root is not None:
+                            # Scranton: keep the conversation in its thread
+                            prompt = (f"use mcp to read #{channel} - you're mentioned in the thread under message "
+                                      f"#{thread_root}; take appropriate action and reply in that thread "
+                                      f"(chat_send with reply_to={thread_root})")
+                        else:
+                            prompt = f"use mcp to read #{channel} - you're mentioned, take appropriate action and respond"
 
                     # Use current identity (may have changed via rename)
                     current_name, _ = get_identity_fn()

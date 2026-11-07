@@ -932,6 +932,21 @@ async def _handle_new_message(msg: dict):
     sender_is_agent = sender in known_agents
     allowed_agent = session_engine.get_allowed_agent(channel) if session_engine and sender_is_agent else None
 
+    # Scranton: if this message is a thread reply, woken agents answer in that thread.
+    thread_root = None
+    try:
+        rt = msg.get("reply_to")
+        seen = set()
+        while rt is not None and rt not in seen:
+            seen.add(rt)
+            parent = store.get_by_id(int(rt))
+            if not parent:
+                break
+            thread_root = parent["id"]
+            rt = parent.get("reply_to")
+    except Exception:
+        thread_root = None
+
     import mcp_bridge
     for target in targets:
         # Skip pending instances — they haven't been named/claimed yet
@@ -945,7 +960,8 @@ async def _handle_new_message(msg: dict):
         if not mcp_bridge.is_online(target):
             store.add("system", f"{target} appears offline — message queued.", msg_type="system", channel=channel)
         if agents.is_available(target):
-            await agents.trigger(target, message=chat_msg, channel=channel, prompt=custom_prompt)
+            await agents.trigger(target, message=chat_msg, channel=channel, prompt=custom_prompt,
+                                 thread=thread_root)
 
 
 # --- broadcasting ---
@@ -1242,6 +1258,35 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 store.add(sender, text, attachments=attachments, reply_to=reply_to,
                           channel=channel)
+
+            elif event.get("type") == "react":
+                # Scranton: toggle an emoji reaction by the human on a message.
+                try:
+                    mid = int(event.get("id"))
+                except (TypeError, ValueError):
+                    continue
+                emoji = str(event.get("emoji") or "")[:16]
+                if not emoji or any(c.isspace() for c in emoji):
+                    continue
+                target = store.get_by_id(mid)
+                if not target:
+                    continue
+                who = room_settings.get("username", "user")
+                reactions = {k: list(v) for k, v in (target.get("reactions") or {}).items()}
+                users = reactions.get(emoji, [])
+                if who in users:
+                    users.remove(who)
+                else:
+                    users.append(who)
+                if users:
+                    reactions[emoji] = users
+                else:
+                    reactions.pop(emoji, None)
+                if len(reactions) > 20:
+                    continue
+                store.update_message(mid, {"reactions": reactions})
+                await _broadcast(json.dumps({"type": "reaction", "id": mid, "reactions": reactions}))
+                continue
 
             elif event.get("type") == "delete":
                 ids = event.get("ids", [])
@@ -1682,7 +1727,12 @@ async def api_send(request: Request):
         return JSONResponse({"error": "text is required"}, status_code=400)
     channel = body.get("channel", "general")
 
-    msg = store.add(sender, text, channel=channel)
+    reply_to = body.get("reply_to")
+    try:
+        reply_to = int(reply_to) if reply_to is not None else None
+    except (TypeError, ValueError):
+        reply_to = None
+    msg = store.add(sender, text, channel=channel, reply_to=reply_to)
     return JSONResponse(msg)
 
 

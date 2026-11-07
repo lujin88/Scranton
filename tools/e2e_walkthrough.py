@@ -65,13 +65,12 @@ async def main():
         check("title is Scranton", (await pg.title()) == "Scranton")
         chans = await pg.locator("#channel-sidebar-list .channel-sidebar-row").evaluate_all("els => els.map(e => e.dataset.channel)")
         check("channels: general, lu-portfolio, scranton-feedback", chans == ["general", "lu-portfolio", "scranton-feedback"], chans)
-        n_team = await pg.locator("#team-list .team-row").count()
-        check("team panel lists all 15 teammates", n_team == 15, n_team)
+        check("no permanent team column (threads use the right side)", await pg.locator("#team-panel").is_hidden())
         n_dm = await pg.locator("#sc-dm-list .sc-dm-row").count()
         check("DM list lists all 15 teammates", n_dm == 15, n_dm)
-        imgs = await pg.locator("#team-list .team-avatar img").count()
-        check("14 portraits shown in team panel", imgs == 14, imgs)
-        working = await pg.locator("#team-list .team-row.working").count()
+        imgs = await pg.locator("#sc-dm-list .sc-dm-avatar img").count()
+        check("14 portraits shown in the DM list", imgs == 14, imgs)
+        working = await pg.locator("#sc-dm-list .sc-dm-row.working").count()
         check("working status shows (visual)", working == 1, working)
         name = (await pg.locator("#sc-me-name").inner_text()).strip()
         check("you are 'Lu'", name == "Lu", name)
@@ -136,17 +135,6 @@ async def main():
         check("DM section folds", await pg.locator("#sc-dm-list").is_hidden())
         await pg.click(".sc-section-header[data-section=dms] .sc-section-toggle")
 
-        # team panel interactions
-        await pg.click("#channel-sidebar-list >> text=lu-portfolio"); await pg.wait_for_timeout(300)
-        await pg.fill("#input", "")
-        await pg.click("#team-list .team-row >> nth=0"); await pg.wait_for_timeout(200)
-        val = await pg.input_value("#input")
-        check("tapping a teammate inserts @handle", val.startswith("@"), val)
-        await pg.hover("#team-list .team-row >> nth=0"); await pg.click("#team-list .team-edit >> nth=0"); await pg.wait_for_timeout(300)
-        box = await pg.locator(".pill-popover").bounding_box()
-        check("edit popover opens beside the team panel", box and box["x"] > 700, box)
-        await pg.keyboard.press("Escape"); await pg.mouse.click(700, 400)
-
         # my avatar
         await pg.set_input_files("#sc-me-file", str(Path(__file__).resolve().parent.parent / "static" / "scranton-icon.png")); await pg.wait_for_timeout(800)
         check("your picture can be set", await pg.locator("#sc-me-avatar img").count() == 1)
@@ -168,10 +156,7 @@ async def main():
         check("phone: ☰ opens channels drawer", await m.locator("#channel-sidebar").evaluate("e => e.getBoundingClientRect().left >= 0"))
         await m.click("#channel-sidebar-list >> text=general"); await m.wait_for_timeout(400)
         check("phone: picking a channel closes drawer", not await m.evaluate("document.body.classList.contains('sc-drawer-channels')"))
-        await m.click("#sc-team-btn"); await m.wait_for_timeout(400)
-        check("phone: team drawer opens", await m.evaluate("document.body.classList.contains('sc-drawer-team')"))
-        await m.mouse.click(30, 600); await m.wait_for_timeout(300)
-        check("phone: tap outside closes team drawer", not await m.evaluate("document.body.classList.contains('sc-drawer-team')"))
+        check("phone: no team drawer button (team is in DMs)", await m.locator("#sc-team-btn").is_hidden())
         pass
 
         # review fixes

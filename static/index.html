@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/static/style.css?v=259">
     <link rel="stylesheet" href="/static/sessions.css?v=223">
     <link rel="stylesheet" href="/static/jobs.css?v=225">
-    <link rel="stylesheet" href="/static/scranton.css?v=5">
+    <link rel="stylesheet" href="/static/scranton.css?v=7">
     <meta name="theme-color" content="#2d2238">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/static/manifest.json">
@@ -349,6 +349,17 @@
                 </div>
             </footer>
             </div>
+            <aside id="sc-thread" aria-label="Threads">
+                <div class="sc-thread-head">
+                    <div class="sc-thread-tabs"></div>
+                    <button type="button" class="sc-thread-close" aria-label="Close threads" title="Close">✕</button>
+                </div>
+                <div class="sc-thread-body"></div>
+                <div class="sc-thread-compose">
+                    <textarea id="sc-thread-input" rows="1" placeholder="Reply in thread"></textarea>
+                    <button type="button" id="sc-thread-send" aria-label="Send reply"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+                </div>
+            </aside>
             <aside id="team-panel" aria-label="Team">
                 <div class="team-header">Team</div>
                 <div id="team-list"></div>
@@ -423,6 +434,7 @@
     <script src="/static/rules-panel.js?v=224"></script>
     <script src="/static/chat.js?v=275"></script>
     <script src="/static/scranton.js?v=2"></script>
-    <script src="/static/scranton-nav.js?v=5"></script>
+    <script src="/static/scranton-nav.js?v=6"></script>
+    <script src="/static/scranton-chat.js?v=3"></script>
 </body>
 </html>

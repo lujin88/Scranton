@@ -22,7 +22,15 @@
     let seenTs = parseFloat(LS.get('scranton-inbox-seen-ts', '0')) || 0;
     let readKeys;
     try { readKeys = new Set(JSON.parse(LS.get('scranton-inbox-read-keys', '[]') || '[]')); } catch (_) { readKeys = new Set(); }
-    const isUnread = (m) => tsOf(m) > seenTs && !readKeys.has(keyOf(m));
+    const forceUnread = new Set();
+    const isUnread = (m) => forceUnread.has(keyOf(m)) || (tsOf(m) > seenTs && !readKeys.has(keyOf(m)));
+    window.scMarkUnread = function (m) {
+        const item = inbox.get(Number(m.id));
+        if (!item) return;
+        readKeys.delete(keyOf(item));
+        forceUnread.add(keyOf(item));
+        renderInboxBadge();
+    };
     const pendingUnknown = [];   // messages from senders we couldn't classify yet
 
     function isAgentSender(sender) {
@@ -159,6 +167,7 @@
 
     function jumpTo(m) {
         readKeys.add(keyOf(m));
+        forceUnread.delete(keyOf(m));
         LS.set('scranton-inbox-read-keys', JSON.stringify([...readKeys].slice(-500)));
         renderInboxBadge();
         window.scCloseInbox();
@@ -187,7 +196,7 @@
         for (const m of inbox.values()) seenTs = Math.max(seenTs, tsOf(m));
         seenTs = Math.max(seenTs, Date.now() / 1000);
         LS.set('scranton-inbox-seen-ts', String(seenTs));
-        readKeys.clear(); LS.set('scranton-inbox-read-keys', '[]');
+        readKeys.clear(); forceUnread.clear(); LS.set('scranton-inbox-read-keys', '[]');
         renderInboxBadge();
         renderInbox();
     };
