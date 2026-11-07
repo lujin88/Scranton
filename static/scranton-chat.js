@@ -129,7 +129,7 @@
             el.classList.add('sc-msg');
             addToolbar(el, id);
             relabel(el, msg);
-            try { paintQuote(el, msg); } catch (_) { /* never break rendering */ }
+            try { paintQuote(el, msg); paintStuck(el, msg); } catch (_) { /* never break rendering */ }
         }
         if (msg.reactions && Object.keys(msg.reactions).length) paintReactions(msg, container);
         if (msg.reply_to != null) {
@@ -429,6 +429,18 @@
         body.parentElement.insertBefore(q, body);
     }
     window.scPaintQuote = paintQuote;
+
+    // "my terminal is waiting on a question" → a button straight to that agent's terminal
+    function paintStuck(el, msg) {
+        if (!/my terminal is waiting on a question/i.test(String(msg.text || ''))) return;
+        const col = el.querySelector('.chat-bubble');
+        if (!col || col.querySelector('.sc-stuck-btn')) return;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'sc-btn primary sc-stuck-btn';
+        b.textContent = 'Open terminal';
+        b.onclick = (e) => { e.stopPropagation(); window.scOpenAgent && window.scOpenAgent(String(msg.sender).replace(/-\d+$/, ''), 'terminal'); };
+        col.appendChild(b);
+    }
     // Touch screens have no hover: tap a message to show its toolbar.
     if (window.matchMedia('(hover: none)').matches) {
         document.addEventListener('click', (e) => {

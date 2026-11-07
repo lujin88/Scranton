@@ -8,7 +8,7 @@
     --ds-canvas: #0e0e0e;        /* sidebar (darkest) */
     --ds-surface: #121212;       /* conversation, details panel */
     --ds-raised: #1f1f1f;        /* cards, grouped lists, composer */
-    --ds-bubble: #222222;        /* agent bubbles */
+    --ds-bubble: #212121;        /* agent bubbles */
     --ds-selected: #202020;      /* selected sidebar row */
     --ds-field: #1f1f1f;         /* composer, inputs, selects */
     --ds-overlay: #2c2c2c;       /* menus, popovers, floating pills */
@@ -28,8 +28,8 @@
     --ds-accent: #4c8df6;
     --ds-accent-hover: #6aa1f8;
     --ds-on-accent: #ffffff;
-    --ds-accent-soft: #1d2a42;   /* your bubble */
-    --ds-accent-chip: #2c4166;   /* @chips inside your bubble */
+    --ds-accent-soft: #3c3c3c;   /* your bubble: lightest grey, as in Grok Bot */
+    --ds-accent-chip: #4a4a4a;   /* @chips inside your bubble */
 
     /* ---- Status ---- */
     --ds-online: #3fb950;
@@ -98,13 +98,13 @@ body.sc-info-open #sc-info { border-left: 1px solid var(--ds-line); }
 /* ================================================================ bubbles */
 .message:not(.self) .msg-text { background: var(--ds-bubble) !important; border: 0 !important; border-radius: var(--ds-r-bubble) !important; border-top-left-radius: 6px !important; }
 .message.self .msg-text, .message.self .chat-bubble { background: var(--ds-accent-soft) !important; border: 0 !important; color: var(--ds-text) !important; }
-.message.self .msg-text .mention { background: var(--ds-accent-chip) !important; color: #dbe7ff !important; }
+.message.self .msg-text .mention { background: var(--ds-accent-chip) !important; color: var(--ds-text) !important; }
 .msg-time, .msg-num { color: var(--ds-text-3) !important; }
 .date-divider > span { background: transparent !important; color: var(--ds-text-3); font-size: var(--ds-fs-xs); }
 
 /* ================================================================ composer */
 #input-row { background: var(--ds-field) !important; border: 1px solid transparent !important; border-radius: var(--ds-r-card) !important; }
-#input-row:focus-within { border-color: var(--ds-line-strong) !important; }
+#input-row:focus-within { border-color: transparent !important; }
 .mention-toggle { background: var(--ds-overlay) !important; border: 0 !important; border-radius: var(--ds-r-control) !important; color: var(--ds-text-2) !important; font-size: var(--ds-fs-xs) !important; }
 .mention-toggle:hover { color: var(--ds-text) !important; background: #2e2e2e !important; }
 
@@ -195,4 +195,17 @@ select, input[type="text"], input[type="search"], textarea { border-color: trans
 #messages > .message { padding-left: 0 !important; padding-right: 0 !important; }
 #messages { width: calc(100% - 2 * var(--ds-5)) !important; max-width: var(--ds-read-w) !important; }
 .message.self .msg-text { border-radius: var(--ds-r-bubble) !important; border-top-right-radius: 6px !important; }
-.sc-self-avatar .avatar { background: var(--ds-accent-soft) !important; color: #9cc0ff !important; }
+.sc-self-avatar .avatar { background: #2c2c2c !important; color: var(--ds-text) !important; }
+
+/* details panel: calm — no tabs, actions under ⋯ */
+.sc-info-more { position: absolute; top: 12px; right: 56px; }
+.sc-info-menu {
+    position: absolute; right: 56px; z-index: 5; width: 200px; padding: 6px;
+    background: var(--ds-overlay); border-radius: var(--ds-r-card); box-shadow: var(--ds-shadow);
+}
+.sc-info-menu button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 6px 10px; border: 0; border-radius: var(--ds-r-row); background: none; color: var(--ds-text); font: inherit; font-size: var(--ds-fs-md); cursor: pointer; }
+.sc-info-menu button:hover { background: var(--ds-hover); }
+.sc-info-menu svg { color: var(--ds-text-2); }
+.sc-info-sub { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; color: var(--ds-text); font-weight: 600; }
+.sc-info-hero { padding-bottom: var(--ds-5); }
+.sc-stuck-btn { display: inline-flex; margin-top: 8px; height: 32px; padding: 0 14px; align-items: center; }

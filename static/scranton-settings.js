@@ -44,10 +44,10 @@
     let newOpts = null;
     let pickingAvatar = false;
 
-    function open(sec, handle) {
+    function open(sec, handle, tab) {
         section = sec || 'profile';
         agentOpen = handle || null;
-        agentTab = 'overview';
+        agentTab = tab || 'overview';
         if (!root) {
             root = document.createElement('div');
             root.id = 'sc-settings';
@@ -499,5 +499,5 @@
 
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && root) close(); });
     window.scOpenSettings = (sec, handle) => open(sec, handle);
-    window.scOpenAgent = (h) => open('agents', h);
+    window.scOpenAgent = (h, tab) => open('agents', h, tab);
 })();

@@ -93,18 +93,14 @@
         if (isDm(ch) && team()[ch.slice(3)]) {
             const h = ch.slice(3);
             const st = state(h);
+            // Calm by default: who they are and what they did. Restart, Terminal and Settings live under ⋯.
             p.innerHTML = `${close}
+                <button type="button" class="sc-tool sc-info-more" data-i="more" aria-label="More" title="More">${ic('more', 20)}</button>
                 <div class="sc-info-hero">
                     <span class="sc-info-av">${window.scAvatarHtml ? window.scAvatarHtml(h) : ''}</span>
                     <h2>${esc(label(h))}</h2>
                     <p class="sc-info-st ${esc(st)}"><span></span>${STATE[st] || st}</p>
-                    <div class="sc-info-actions">
-                        ${st === 'offline' ? `<button type="button" class="sc-btn primary" data-i="start">Start</button>` : `<button type="button" class="sc-btn" data-i="restart">Restart</button>`}
-                        <button type="button" class="sc-btn" data-i="settings">Settings</button>
-                    </div>
-                </div>
-                <div class="sc-info-tabs" role="tablist">
-                    ${[['activity', 'Activity'], ['terminal', 'Terminal']].map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}
+                    ${st === 'offline' ? `<div class="sc-info-actions"><button type="button" class="sc-btn primary" data-i="start">Start</button></div>` : ''}
                 </div>
                 <div class="sc-info-body" id="sc-info-body"><p class="sc-info-empty">Loading…</p></div>`;
             fill(h);
@@ -149,18 +145,33 @@
             </button>`).join('')}</div>` : '<p class="sc-info-empty">No messages yet.</p>';
     }
 
+    const p_menu = () => document.querySelector('#sc-info .sc-info-menu');
     async function onPanelClick(e) {
         const t = e.target;
+        if (!t.closest('[data-i="more"]')) p_menu()?.remove();
         const tb = t.closest('[data-tab]');
         if (tb) { tab = tb.dataset.tab; render(); return; }
         const i = t.closest('[data-i]')?.dataset.i;
         const ch = window.activeChannel || 'general';
         if (i === 'close') return toggleInfo(false);
+        if (i === 'more') {
+            const b = t.closest('[data-i]');
+            let m = p_menu();
+            if (m) { m.remove(); return; }
+            const st = state(ch.slice(3));
+            m = document.createElement('div');
+            m.className = 'sc-info-menu';
+            m.innerHTML = `${st !== 'offline' ? `<button type="button" data-i="restart">${ic('refresh', 18)}<span>Restart</span></button>` : ''}
+                <button type="button" data-i="settings">${ic('settings', 18)}<span>Settings</span></button>`;
+            panel().appendChild(m);
+            m.style.top = `${b.offsetTop + b.offsetHeight + 4}px`;
+            return;
+        }
         if (i === 'settings') return window.scOpenAgent && window.scOpenAgent(ch.slice(3));
         if (i === 'add') return document.getElementById('sc-members-btn')?.click();
         if (i === 'start' || i === 'restart') {
             const b = t.closest('[data-i]');
-            b.disabled = true; b.textContent = i === 'start' ? 'Starting…' : 'Restarting…';
+            if (i === 'start') { b.disabled = true; b.textContent = 'Starting…'; }
             await fetch(`/api/scranton/teammate/${encodeURIComponent(ch.slice(3))}`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-Token': window.SESSION_TOKEN },
                 body: JSON.stringify({ action: i }),
