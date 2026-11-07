@@ -33,13 +33,16 @@
 
     const NAV = [
         ['Account', [['profile', 'Profile', 'user']]],
-        ['Workspace', [['agents', 'Agents', 'robot'], ['connections', 'Connections', 'plug'], ['updates', 'Updates', 'refresh']]],
+        ['Workspace', [['agents', 'Agents', 'robot'], ['connections', 'Connections', 'plug']]],
     ];
 
     let root = null;
     let section = 'profile';
     let agentOpen = null;     // handle when an agent page is open
     let agentTab = 'overview';
+    let editing = false;
+    let newOpts = null;
+    let pickingAvatar = false;
 
     function open(sec, handle) {
         section = sec || 'profile';
@@ -49,8 +52,7 @@
             root = document.createElement('div');
             root.id = 'sc-settings';
             root.innerHTML = `<div class="sc-st" role="dialog" aria-modal="true" aria-label="Settings">
-                <nav class="sc-st-nav"><div class="sc-st-title">Settings</div><div class="sc-st-navlist"></div>
-                    <button type="button" class="sc-st-feedback" data-a="feedback">${icon('chat', 16)}<span>Send feedback</span></button></nav>
+                <nav class="sc-st-nav"><div class="sc-st-title">Settings</div><div class="sc-st-navlist"></div></nav>
                 <section class="sc-st-main"><button type="button" class="sc-st-x" aria-label="Close">${icon('close')}</button><div class="sc-st-body"></div></section>
             </div>`;
             document.body.appendChild(root);
@@ -72,6 +74,12 @@
     async function render() {
         const body = root.querySelector('.sc-st-body');
         if (section === 'profile') body.innerHTML = profileView();
+        if (section === 'agents' && agentOpen === '__new') {
+            body.innerHTML = '<div class="sc-st-loading">Loading…</div>';
+            newOpts = await api('/api/scranton/agents/new');
+            if (root && agentOpen === '__new') body.innerHTML = addView(newOpts);
+            return;
+        }
         if (section === 'agents') body.innerHTML = agentOpen ? '<div class="sc-st-loading">Loading…</div>' : agentsView();
         if (section === 'connections') { body.innerHTML = '<div class="sc-st-loading">Checking sign-ins…</div>'; body.innerHTML = connectionsView(await api('/api/scranton/connections')); }
         if (section === 'updates') body.innerHTML = updatesView();
@@ -109,7 +117,8 @@
         const t = team();
         const names = Object.keys(t);
         const running = names.filter((h) => state(h) !== 'offline').length;
-        return `<header class="sc-st-head"><h2>Agents</h2><p>${names.length} agents · ${running} running. Click one to see its role, activity and settings.</p></header>
+        return `<header class="sc-st-head sc-st-head-row"><div><h2>Agents</h2><p>${names.length} agents · ${running} running</p></div>
+                <button type="button" class="sc-btn primary" data-a="add-agent">${icon('add', 16)}<span>Add agent</span></button></header>
             <div class="sc-tbl">
                 <div class="sc-tbl-h"><span>Agent</span><span>Runs on</span><span>Status</span><span></span></div>
                 ${names.map((h) => `<div class="sc-tbl-r" data-agent="${esc(h)}" role="button" tabindex="0">
@@ -119,21 +128,79 @@
                     <span class="sc-tbl-go">${state(h) === 'offline' ? `<button type="button" class="sc-btn sm" data-start="${esc(h)}">Start</button>` : ''}${icon('right', 18)}</span>
                 </div>`).join('')}
             </div>
-            <p class="sc-st-note">New agents are added in <code>config.toml</code> for now.</p>`;
+`;
+    }
+
+    function addView(o) {
+        const provs = [['claude', 'Claude'], ['codex', 'ChatGPT'], ['cursor', 'Cursor']];
+        return `<button type="button" class="sc-back" data-a="back">${icon('back', 18)}<span>All agents</span></button>
+            <header class="sc-st-head"><h2>Add agent</h2><p>It starts right away and joins the channels you pick.</p></header>
+            <div class="sc-form wide">
+                <div class="sc-row2">
+                    <label class="sc-field"><span>Name</span><input type="text" id="sc-new-label" maxlength="40" placeholder="e.g. 数据分析师"></label>
+                    <label class="sc-field"><span>@handle</span><input type="text" id="sc-new-handle" maxlength="20" placeholder="e.g. data"><small>How you @ it. Lowercase letters, numbers, dashes.</small></label>
+                </div>
+                <div class="sc-field"><span>Runs on</span><div class="sc-seg" role="radiogroup">${provs.map(([v, l], i) => `<label><input type="radio" name="sc-new-prov" value="${v}"${i === 0 ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
+                <label class="sc-field"><span>Model</span><span class="sc-select"><select id="sc-new-model">${modelOptions(o.models.claude, '')}</select></span></label>
+                <label class="sc-field"><span>Role</span><textarea id="sc-new-role" rows="3" maxlength="300" placeholder="What it does, in one or two sentences."></textarea></label>
+                <label class="sc-field"><span>Works in</span><span class="sc-select"><select id="sc-new-cwd">${o.folders.map((f) => `<option value="${esc(f)}">${esc(f)}</option>`).join('')}</select></span></label>
+                <div class="sc-field"><span>Picture</span><div class="sc-av-grid">${o.avatars.map((f, i) => `<button type="button" class="sc-av-pick${i === 0 ? ' on' : ''}" data-av="${esc(f)}" aria-label="${esc(f)}"><img src="/static/avatars/${esc(f)}" alt=""></button>`).join('')}</div></div>
+                <div class="sc-field"><span>Channels</span><div class="sc-ch-picks">${o.channels.map((c) => `<label class="sc-ch-pick"><input type="checkbox" value="${esc(c)}"${c === 'lu-portfolio' ? ' checked' : ''}><span>#${esc(c)}</span></label>`).join('')}</div></div>
+                <div class="sc-edit-actions"><span class="sc-st-saved err" id="sc-new-err"></span>
+                    <button type="button" class="sc-btn" data-a="back">Cancel</button><button type="button" class="sc-btn primary" data-a="add-save">Add agent</button></div>
+            </div>`;
     }
 
     function agentView(p) {
         const st = p.running ? state(p.handle) : 'offline';
-        const tabs = [['overview', 'Overview'], ['card', 'Role card'], ['activity', 'Activity'], ['settings', 'Settings']];
+        const tabs = [['overview', 'Identity'], ['terminal', 'Terminal'], ['card', 'Role card'], ['activity', 'Activity'], ['settings', 'Settings']];
         let content = '';
-        if (agentTab === 'overview') {
-            content = `<dl class="sc-dl">
-                <dt>Role</dt><dd>${esc(p.role || '—')}</dd>
-                <dt>Runs on</dt><dd>${esc(p.provider_name)} · ${esc(p.model || 'default model')}</dd>
-                <dt>Permissions</dt><dd>${p.permissions === 'full' ? 'Full: never stops to ask' : 'Asks before acting'}</dd>
-                <dt>Works in</dt><dd><code>${esc(p.folder)}</code>${p.worktree ? ' · own working copy' : ''}</dd>
-                <dt>Channels</dt><dd>${p.channels.length ? p.channels.map((c) => `<span class="sc-chip">#${esc(c)}</span>`).join(' ') : 'None yet'}</dd>
-                <dt>@handle</dt><dd><code>@${esc(p.handle)}</code></dd></dl>`;
+        if (agentTab === 'overview' && editing) {
+            const inCh = new Set(p.channels);
+            const chans = (window.channelList || []).filter((c) => !String(c).startsWith('dm-'));
+            content = `<div class="sc-form wide">
+                <label class="sc-field"><span>Name</span><input type="text" id="sc-ed-label" maxlength="40" value="${esc(p.label)}"></label>
+                <label class="sc-field"><span>Role</span><textarea id="sc-ed-role" rows="3" maxlength="300">${esc(p.role)}</textarea>
+                    <small>One or two sentences. Added to every task this agent gets.</small></label>
+                <div class="sc-field"><span>Picture</span><div class="sc-av-grid">${p.avatars.map((f) => `<button type="button" class="sc-av-pick${f === p.avatar ? ' on' : ''}" data-av="${esc(f)}" aria-label="${esc(f)}"><img src="/static/avatars/${esc(f)}" alt=""></button>`).join('')}</div></div>
+                <div class="sc-field"><span>Channels</span><div class="sc-ch-picks">${chans.map((c) => `<label class="sc-ch-pick"><input type="checkbox" value="${esc(c)}"${inCh.has(c) ? ' checked' : ''}><span>#${esc(c)}</span></label>`).join('')}</div></div>
+                <div class="sc-edit-actions"><span class="sc-st-saved" id="sc-ag-saved"></span>
+                    <button type="button" class="sc-btn" data-a="edit-cancel">Cancel</button><button type="button" class="sc-btn primary" data-a="edit-save">Save</button></div>
+            </div>`;
+        } else if (agentTab === 'overview') {
+            const provs = [['claude', 'Claude', 'claude'], ['codex', 'ChatGPT', 'openai'], ['cursor', 'Cursor', 'cursor-ai']];
+            const cur = provs.find((x) => x[0] === p.provider) || provs[0];
+            const known = p.models.map(([v]) => v);
+            const modelLabel = (p.models.find(([v]) => v === p.model) || [p.model, p.model || 'Default'])[1];
+            const inCh = new Set(p.channels);
+            const chans = (window.channelList || []).filter((c) => !String(c).startsWith('dm-'));
+            content = `
+            <div class="sc-id-card">
+                <div class="sc-id-row"><span>Runs on</span>
+                    <span class="sc-pick"><span class="sc-pick-logo ${cur[0]}">${icon(cur[2], 16)}</span><span>${esc(cur[1])}</span>${icon('chevron-down', 16)}
+                        <select data-set="provider" aria-label="Runs on">${provs.map(([v, l]) => `<option value="${v}"${v === cur[0] ? ' selected' : ''}>${l}</option>`).join('')}</select></span></div>
+                <div class="sc-id-row"><span>Model</span>
+                    <span class="sc-pick"><span class="sc-pick-logo ${cur[0]}">${icon(cur[2], 16)}</span><span>${esc(p.model ? modelLabel : 'Default')}</span>${icon('chevron-down', 16)}
+                        <select data-set="model" aria-label="Model">${modelOptions(p.models, p.model)}${p.model && !known.includes(p.model) ? `<option value="${esc(p.model)}" selected>${esc(p.model)}</option>` : ''}</select></span></div>
+                ${p.efforts.length ? `<div class="sc-id-row"><span>Thinking</span>
+                    <span class="sc-pick"><span>${esc(p.effort ? p.effort[0].toUpperCase() + p.effort.slice(1) : 'Automatic')}</span>${icon('chevron-down', 16)}
+                        <select data-set="effort" aria-label="Thinking"><option value="">Automatic</option>${p.efforts.map((x) => `<option value="${x}"${x === p.effort ? ' selected' : ''}>${x[0].toUpperCase() + x.slice(1)}</option>`).join('')}</select></span></div>` : ''}
+            </div>
+            <div class="sc-st-saved" id="sc-ag-saved"></div>
+            <label class="sc-field sc-id-instr"><span>Instructions</span>
+                <textarea data-set-text="role" rows="4" maxlength="300" placeholder="What this agent does, in one or two sentences.">${esc(p.role)}</textarea>
+                <small>Added to every task it gets. Its full rules are in the Role card tab.</small></label>
+            <div class="sc-id-card">
+                <div class="sc-id-row"><span>Name</span><input type="text" class="sc-id-input" data-set-text="label" maxlength="40" value="${esc(p.label)}"></div>
+                <div class="sc-id-row top"><span>Channels</span><div class="sc-ch-picks">${chans.map((c) => `<label class="sc-ch-pick"><input type="checkbox" data-channel="${esc(c)}"${inCh.has(c) ? ' checked' : ''}><span>#${esc(c)}</span></label>`).join('')}</div></div>
+                <div class="sc-id-row"><span>Works in</span><code>${esc(p.folder)}</code></div>
+                <div class="sc-id-row"><span>@handle</span><code>@${esc(p.handle)}</code></div>
+            </div>`;
+        } else if (agentTab === 'terminal') {
+            content = `<p class="sc-st-note sc-term-note">What ${esc(p.label)}'s terminal shows right now. If it's waiting on a question, answer with the keys below.</p>
+                <pre class="sc-term" id="sc-term">Loading…</pre>
+                <div class="sc-term-keys">${['Enter', 'Escape', 'Up', 'Down', '1', '2', '3', 'y', 'n'].map((k) => `<button type="button" class="sc-btn sm" data-key="${k}">${{ Escape: 'Esc', Up: '↑', Down: '↓' }[k] || k}</button>`).join('')}</div>`;
+            setTimeout(() => pollScreen(p.handle), 0);
         } else if (agentTab === 'card') {
             const md = p.role_card_text || '';
             content = md ? `<div class="sc-card-md">${window.marked ? sanitize(window.marked.parse(md)) : `<pre>${esc(md)}</pre>`}</div><p class="sc-st-note">From <code>${esc(p.role_card)}</code></p>`
@@ -148,21 +215,23 @@
             const custom = p.model && !known.includes(p.model);
             content = `<div class="sc-form">
                 <label class="sc-field"><span>Model</span>
-                    <span class="sc-select"><select data-set="model">${p.models.map(([v, l]) => `<option value="${esc(v)}"${v === p.model ? ' selected' : ''}>${esc(l)}</option>`).join('')}
+                    <span class="sc-select"><select data-set="model">${modelOptions(p.models, p.model)}
                         <option value="__other"${custom ? ' selected' : ''}>Other…</option></select></span>
                     <input type="text" class="sc-other" data-set-other="model" placeholder="Model name, e.g. gpt-5" value="${custom ? esc(p.model) : ''}"${custom ? '' : ' hidden'}>
-                    <small>Default uses whatever ${esc(p.provider_name)} picks for your plan.</small></label>
+                    <small>Default lets ${esc(p.provider_name)} pick. “Latest” follows new releases; a pinned version stays put. Models your plan doesn't include fail when the agent starts.</small></label>
                 <label class="sc-field"><span>Permissions</span>
                     <span class="sc-select"><select data-set="permissions"><option value="full"${p.permissions === 'full' ? ' selected' : ''}>Full: never stops to ask</option>
                         <option value="ask"${p.permissions === 'ask' ? ' selected' : ''}>Ask before acting</option></select></span></label>
                 <label class="sc-toggle"><input type="checkbox" data-set="autostart"${p.autostart ? ' checked' : ''}><span class="sc-switch"></span>
                     <span>Start with Scranton</span></label>
                 <div class="sc-st-saved" id="sc-ag-saved"></div>
-            </div>`;
+            </div>
+            ${p.handle === 'help' ? '' : `<div class="sc-danger"><div><b>Delete agent</b><small>Stops ${esc(p.label)} and removes it from Scranton. Its messages stay in the chat.</small></div>
+                <button type="button" class="sc-btn danger" data-a="delete-agent">Delete</button></div>`}`;
         }
         return `<button type="button" class="sc-back" data-a="back">${icon('back', 18)}<span>All agents</span></button>
             <header class="sc-agh">
-                <span class="sc-agh-av">${avatar(p.handle)}<span class="sc-dot ${esc(st)}"></span></span>
+                <button type="button" class="sc-agh-av" data-a="pick-avatar" aria-label="Change picture" title="Change picture">${avatar(p.handle)}<span class="sc-dot ${esc(st)}"></span><span class="sc-agh-edit">${icon('edit', 14)}</span></button>
                 <div class="sc-agh-txt"><h2>${esc(p.label)}</h2><p>${esc((p.role || '').split(':')[0])} · <span class="sc-pill ${esc(st)}">${stText(p.handle)}</span></p></div>
                 <div class="sc-agh-act">
                     <button type="button" class="sc-btn" data-a="message">Message</button>
@@ -170,9 +239,32 @@
                         : '<button type="button" class="sc-btn primary" data-agent-act="start">Start</button>'}
                 </div>
             </header>
+            ${pickingAvatar ? `<div class="sc-av-pop"><div class="sc-av-grid">${p.avatars.map((f) => `<button type="button" class="sc-av-pick${f === p.avatar ? ' on' : ''}" data-av-set="${esc(f)}" aria-label="${esc(f)}"><img src="/static/avatars/${esc(f)}" alt=""></button>`).join('')}</div></div>` : ''}
             <div class="sc-tabs" role="tablist">${tabs.map(([id, n]) => `<button type="button" role="tab" class="${id === agentTab ? 'on' : ''}" data-tab="${id}">${n}</button>`).join('')}</div>
             <div class="sc-tabbody">${content}</div>`;
     }
+    // Grouped model list: Default, then "Always the newest", "Pinned version", …
+    function modelOptions(models, current) {
+        const groups = [];
+        for (const [v, l, g] of models) {
+            let grp = groups.find((x) => x.name === (g || ''));
+            if (!grp) groups.push(grp = { name: g || '', items: [] });
+            grp.items.push(`<option value="${esc(v)}"${v === current ? ' selected' : ''}>${esc(l)}</option>`);
+        }
+        return groups.map((g) => g.name ? `<optgroup label="${esc(g.name)}">${g.items.join('')}</optgroup>` : g.items.join('')).join('');
+    }
+    let screenTimer = null;
+    async function pollScreen(h) {
+        clearTimeout(screenTimer);
+        const pre = root && root.querySelector('#sc-term');
+        if (!pre || agentOpen !== h || agentTab !== 'terminal') return;
+        const r = await api(`/api/scranton/teammate/${encodeURIComponent(h)}/screen`);
+        const atBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 40;
+        pre.textContent = r.running ? (r.text || '(empty)') : 'Not running.';
+        if (atBottom) pre.scrollTop = pre.scrollHeight;
+        screenTimer = setTimeout(() => pollScreen(h), 1500);
+    }
+
     function sanitize(html) {
         const t = document.createElement('template');
         t.innerHTML = html;
@@ -223,11 +315,36 @@
         if (a === 'upload') { window.scChangePicture && window.scChangePicture(); waitForPicture(); return; }
         if (a === 'remove-photo') { try { localStorage.removeItem('scranton-me-avatar'); } catch (_) {} window.scSaveAvatar && window.scSaveAvatar(''); window.scRenderMe && window.scRenderMe(); render(); return; }
         if (a === 'save-profile') { saveProfile(); return; }
-        if (a === 'back') { agentOpen = null; render(); return; }
+        if (a === 'back') { agentOpen = null; editing = false; pickingAvatar = false; render(); return; }
+        if (a === 'edit') { editing = true; render(); return; }
+        if (a === 'pick-avatar') { pickingAvatar = !pickingAvatar; render(); return; }
+        const avSet = t.closest('[data-av-set]');
+        if (avSet) {
+            const r = await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}`, { action: 'set', key: 'avatar', value: avSet.dataset.avSet });
+            pickingAvatar = false;
+            if (!r.error) { window.scReloadTeam && window.scReloadTeam(); }
+            setTimeout(render, 300); return;
+        }
+        if (a === 'add-agent') { agentOpen = '__new'; render(); return; }
+        if (a === 'add-save') { addAgent(); return; }
+        if (a === 'delete-agent') {
+            const b = t.closest('[data-a]');
+            if (!b.dataset.sure) { b.dataset.sure = '1'; b.textContent = 'Click again to delete'; setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = 'Delete'; } }, 4000); return; }
+            b.disabled = true; b.textContent = 'Deleting…';
+            const r = await api('/api/scranton/agents', { action: 'delete', name: agentOpen });
+            if (r.error) { b.textContent = 'Delete'; b.disabled = false; flash('sc-ag-saved', r.error); return; }
+            agentOpen = null; window.scReloadTeam && window.scReloadTeam(); setTimeout(render, 400); return;
+        }
+        if (a === 'edit-cancel') { editing = false; render(); return; }
+        if (a === 'edit-save') { saveAgent(); return; }
+        const av = t.closest('[data-av]');
+        if (av) { root.querySelectorAll('.sc-av-pick').forEach((b) => b.classList.toggle('on', b === av)); return; }
         if (a === 'message') { const h = agentOpen; close(); window.scOpenDm && window.scOpenDm(h); return; }
         if (a === 'check-update') { window.scCheckUpdate && window.scCheckUpdate(); return; }
+        const key = t.closest('[data-key]');
+        if (key) { await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}/keys`, { key: key.dataset.key }); setTimeout(() => pollScreen(agentOpen), 300); return; }
         const tab = t.closest('[data-tab]');
-        if (tab) { agentTab = tab.dataset.tab; render(); return; }
+        if (tab) { agentTab = tab.dataset.tab; editing = false; render(); return; }
         const start = t.closest('[data-start]');
         if (start) { e.stopPropagation(); start.textContent = 'Starting…'; start.disabled = true; const r = await api(`/api/scranton/teammate/${encodeURIComponent(start.dataset.start)}`, { action: 'start' }); if (r.error) start.textContent = 'Can\'t start'; return; }
         const act = t.closest('[data-agent-act]');
@@ -239,7 +356,7 @@
             return;
         }
         const row = t.closest('[data-agent]');
-        if (row) { agentOpen = row.dataset.agent; agentTab = 'overview'; render(); return; }
+        if (row) { agentOpen = row.dataset.agent; agentTab = 'overview'; editing = false; render(); return; }
         const conn = t.closest('[data-connect]');
         if (conn) {
             const r = await api(`/api/scranton/connections/${conn.dataset.connect}/login`, {});
@@ -257,7 +374,73 @@
         }
     }
 
+    async function addAgent() {
+        const val = (id) => (root.querySelector(id)?.value || '').trim();
+        const btn = root.querySelector('[data-a="add-save"]');
+        const err = root.querySelector('#sc-new-err');
+        const body = {
+            action: 'add', label: val('#sc-new-label'), handle: val('#sc-new-handle').toLowerCase(),
+            provider: root.querySelector('input[name="sc-new-prov"]:checked')?.value || 'claude',
+            model: root.querySelector('#sc-new-model')?.value || '', role: val('#sc-new-role'), cwd: val('#sc-new-cwd'),
+            avatar: root.querySelector('.sc-av-pick.on')?.dataset.av || '',
+            channels: Array.from(root.querySelectorAll('.sc-ch-pick input')).filter((i) => i.checked).map((i) => i.value),
+        };
+        if (!body.label || !body.handle) { err.textContent = 'Give it a name and an @handle.'; return; }
+        btn.disabled = true; btn.textContent = 'Adding…';
+        const r = await api('/api/scranton/agents', body);
+        if (r.error) { err.textContent = r.error; btn.disabled = false; btn.textContent = 'Add agent'; return; }
+        window.scReloadTeam && window.scReloadTeam();
+        agentOpen = r.agent.handle; agentTab = 'overview';
+        setTimeout(render, 600);
+    }
+
+    async function saveAgent() {
+        const h = agentOpen;
+        const btn = root.querySelector('[data-a="edit-save"]');
+        if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+        const post = (key, value) => api(`/api/scranton/teammate/${encodeURIComponent(h)}`, { action: 'set', key, value });
+        const errors = [];
+        for (const [key, value] of [['label', root.querySelector('#sc-ed-label').value], ['role', root.querySelector('#sc-ed-role').value],
+            ['avatar', root.querySelector('.sc-av-pick.on')?.dataset.av || '']]) {
+            const r = await post(key, value);
+            if (r.error) errors.push(r.error);
+        }
+        // channels
+        const want = Array.from(root.querySelectorAll('.sc-ch-pick input')).filter((i) => i.checked).map((i) => i.value);
+        const members = (window.scChannelMembers && window.scChannelMembers()) || {};
+        for (const c of Array.from(root.querySelectorAll('.sc-ch-pick input')).map((i) => i.value)) {
+            const isIn = (members[c] || []).includes(h);
+            const should = want.includes(c);
+            if (isIn !== should && window.ws && window.ws.readyState === WebSocket.OPEN) {
+                window.ws.send(JSON.stringify({ type: 'members_update', channel: c, add: should ? [h] : [], remove: should ? [] : [h] }));
+            }
+        }
+        if (errors.length) { if (btn) { btn.disabled = false; btn.textContent = 'Save'; } flash('sc-ag-saved', errors[0]); return; }
+        editing = false;
+        if (window.scReloadTeam) window.scReloadTeam();
+        setTimeout(render, 300);
+    }
+
     async function onChange(e) {
+        if (e.target.name === 'sc-new-prov' && newOpts) {
+            const sel = root.querySelector('#sc-new-model');
+            if (sel) sel.innerHTML = modelOptions(newOpts.models[e.target.value] || [['', 'Default', '']], '');
+            return;
+        }
+        if (e.target.id && e.target.id.startsWith('sc-new-')) return;
+        const chk = e.target.closest('input[data-channel]');
+        if (chk && agentOpen && window.ws && window.ws.readyState === WebSocket.OPEN) {
+            window.ws.send(JSON.stringify({ type: 'members_update', channel: chk.dataset.channel, add: chk.checked ? [agentOpen] : [], remove: chk.checked ? [] : [agentOpen] }));
+            flash('sc-ag-saved', 'Saved.');
+            return;
+        }
+        const txt = e.target.closest('[data-set-text]');
+        if (txt) {
+            const r = await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}`, { action: 'set', key: txt.dataset.setText, value: txt.value });
+            flash('sc-ag-saved', r.error ? r.error : 'Saved.');
+            if (!r.error && txt.dataset.setText === 'label') { window.scReloadTeam && window.scReloadTeam(); const h = root.querySelector('.sc-agh-txt h2'); if (h) h.textContent = txt.value.trim(); }
+            return;
+        }
         const sel = e.target.closest('[data-set]');
         const other = e.target.closest('[data-set-other]');
         if (!sel && !other) return;
@@ -270,7 +453,11 @@
             if (key === 'model') { const o = root.querySelector('.sc-other'); if (o) { o.hidden = true; o.value = ''; } }
         }
         const r = await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}`, { action: 'set', key, value });
-        flash('sc-ag-saved', r.error ? r.error : r.restart_needed ? 'Saved. Restart the agent to use it.' : 'Saved.');
+        if (!r.error && ['provider', 'model', 'effort'].includes(key) && agentTab === 'overview') {
+            if (key === 'provider') window.scReloadTeam && window.scReloadTeam();
+            await render();
+        }
+        flash('sc-ag-saved', r.error ? r.error : r.restart_needed ? 'Saved. Press Restart (top right) to use it.' : 'Saved. Used the next time it starts.');
     }
 
     function saveProfile() {

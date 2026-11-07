@@ -154,9 +154,17 @@ def load_config(root: Path | None = None) -> dict:
             ui = _json.loads(ui_path.read_text("utf-8"))
         except (OSError, ValueError):
             ui = {}
+        # agents added in Settings, and config.toml agents deleted there
+        for name, vals in ((ui or {}).get("_added") or {}).items():
+            if isinstance(vals, dict) and name not in config.get("agents", {}):
+                config.setdefault("agents", {})[name] = dict(vals)
+        for name in ((ui or {}).get("_removed") or []):
+            config.get("agents", {}).pop(name, None)
         for name, vals in (ui or {}).items():
+            if name.startswith("_"):
+                continue
             if name in config.get("agents", {}) and isinstance(vals, dict):
-                for key in ("model", "permissions", "autostart"):
+                for key in ("model", "permissions", "autostart", "label", "role", "avatar", "command", "effort"):
                     if key in vals:
                         config["agents"][name][key] = vals[key]
 

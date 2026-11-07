@@ -302,12 +302,21 @@
 
     // Shared with scranton-nav.js
     window.scGetTeam = () => scTeam;
+    window.scReloadTeam = () => loadTeam();
     window.scAvatarHtml = avatarHtml;
     window.scAgentState = agentState;
     window.scLabelOf = labelOf;
     window.scOnTeamChange = [];
     const _origRender = renderTeam;
     renderTeam = function () { _origRender(); for (const f of window.scOnTeamChange) { try { f(); } catch (_) {} } };
+
+    if (typeof handleServerEvent === 'function') {
+        const origEv = handleServerEvent;
+        handleServerEvent = function (event) {
+            if (event && event.type === 'scranton_team_changed') { loadTeam(); return; }
+            return origEv.apply(this, arguments);
+        };
+    }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
     else init();

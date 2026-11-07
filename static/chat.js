@@ -2383,7 +2383,9 @@ function selectMention(name) {
     // Replace from @ to cursor with @name + space
     const before = text.slice(0, mentionMenuStart);
     const after = text.slice(cursor);
-    const mention = `@${name} `;
+    // Scranton: show the name you know (项目经理); it becomes @pm when sent
+    const team = (window.scGetTeam && window.scGetTeam()) || {};
+    const mention = `@${(team[name] && team[name].label) || name} `;
     input.value = before + mention + after;
     restartVoiceAfterEdit();
     const newPos = mentionMenuStart + mention.length;

@@ -236,6 +236,26 @@
         if (t && h && !isDm(t.ch)) send(t.ch, [h]);
     }, true);
 
+    // "项目经理 is working…" above the composer while a teammate in this channel is busy
+    function renderWorking() {
+        const ch = current();
+        const footer = document.querySelector('#sc-center > footer');
+        if (!footer) return;
+        let bar = document.getElementById('sc-working');
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.id = 'sc-working';
+            bar.setAttribute('aria-live', 'polite');
+            footer.insertBefore(bar, footer.firstChild);
+        }
+        const who = isDm(ch) ? [ch.slice(3)] : (members[ch] || []);
+        const busy = who.filter((h) => team()[h] && state(h) === 'working');
+        const text = busy.length ? `${busy.map((h) => label(h)).join('、')} ${busy.length > 1 ? 'are' : 'is'} working` : '';
+        if (bar.dataset.t === text) return;
+        bar.dataset.t = text;
+        bar.innerHTML = text ? `<span class="sc-dots"><i></i><i></i><i></i></span><span>${esc(text)}…</span>` : '';
+    }
+
     // ---- wiring --------------------------------------------------------------
     if (typeof handleServerEvent === 'function') {
         const orig = handleServerEvent;
@@ -267,6 +287,7 @@
         const title = document.getElementById('sc-pane-title');
         if (title) new MutationObserver(() => { closePanel(true); renderHead(); if (typeof buildMentionToggles === 'function') buildMentionToggles(); }).observe(title, { childList: true, characterData: true, subtree: true });
         setInterval(renderHead, 5000);   // status dots
+        setInterval(renderWorking, 1500);
         renderHead(); makeDraggable();
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

@@ -126,6 +126,10 @@ start_agent() {
             *)     pflags="$pflags --model $model" ;;
         esac
     fi
+    effort=$(cfg "$name" effort "")
+    case "$cmd:$effort" in
+        codex:low|codex:medium|codex:high|codex:xhigh) pflags="$pflags -c model_reasoning_effort=$effort" ;;
+    esac
     case "$cmd" in
         agent|cursor-agent)
             # Cursor reads its MCP settings (with a local token) from the project.

@@ -18,7 +18,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent
 OVERRIDES = ROOT / "data" / "teammates.json"
-EDITABLE = ("model", "permissions", "autostart")
+EDITABLE = ("model", "permissions", "autostart", "label", "role", "avatar", "provider", "effort")
+EFFORTS = ("low", "medium", "high", "xhigh")
 MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:\-]{0,63}$")
 
 # Each provider: CLI names, how to sign in, where its login lives, model hints.
@@ -26,18 +27,34 @@ PROVIDERS = {
     "claude": {
         "name": "Claude", "plan": "Claude Pro / Max", "commands": ["claude"],
         "login": "claude", "login_hint": "In the window that opens, type /login and follow the browser.",
-        # Claude Code's own aliases, always valid
-        "models": [["", "Default"], ["opus", "Opus"], ["sonnet", "Sonnet"], ["haiku", "Haiku"]],
+        # Claude Code takes an alias (always the latest of that tier) or a full model name.
+        # Which ones your plan allows is decided by Anthropic; an unavailable one fails at start.
+        "models": [
+            ["", "Default", ""],
+            ["opus", "Opus · latest", "Always the newest"], ["sonnet", "Sonnet · latest", "Always the newest"],
+            ["haiku", "Haiku · latest", "Always the newest"], ["opusplan", "Opus to plan, Sonnet to build", "Always the newest"],
+            ["claude-fable-5-1", "Fable 5.1", "Pinned version"], ["claude-opus-5-5", "Opus 5.5", "Pinned version"],
+            ["claude-opus-5", "Opus 5", "Pinned version"], ["claude-opus-4-8", "Opus 4.8", "Pinned version"],
+            ["claude-opus-4-7", "Opus 4.7", "Pinned version"], ["claude-opus-4-6", "Opus 4.6", "Pinned version"],
+            ["claude-sonnet-5-5", "Sonnet 5.5", "Pinned version"], ["claude-sonnet-5", "Sonnet 5", "Pinned version"],
+            ["claude-haiku-5-5", "Haiku 5.5", "Pinned version"], ["claude-haiku-4-5", "Haiku 4.5", "Pinned version"],
+        ],
     },
     "codex": {
         "name": "ChatGPT (Codex)", "plan": "ChatGPT Plus / Pro", "commands": ["codex"],
         "login": "codex login", "login_hint": "Pick “Sign in with ChatGPT” in the browser.",
-        "models": [["", "Default"]],   # any model name Codex accepts can be typed in
+        # developers.openai.com/codex/models (ChatGPT sign-in)
+        "models": [
+            ["", "Default", ""],
+            ["gpt-5.5", "GPT-5.5", "Recommended"], ["gpt-5.4", "GPT-5.4", "Recommended"], ["gpt-5.4-mini", "GPT-5.4 mini", "Recommended"],
+            ["gpt-5.3-codex", "GPT-5.3 Codex", "Coding"], ["gpt-5.3-codex-spark", "GPT-5.3 Codex Spark (Pro plan)", "Coding"],
+            ["gpt-5.2", "GPT-5.2", "Older"],
+        ],
     },
     "cursor": {
         "name": "Cursor", "plan": "Cursor Pro", "commands": ["agent", "cursor-agent"],
         "login": "agent login", "login_hint": "Sign in to Cursor in the browser.",
-        "models": [["", "Default"]],
+        "models": [["", "Default", ""]],   # filled from `agent models` on this Mac (see cursor_models)
     },
 }
 
@@ -65,9 +82,38 @@ def set_override(name: str, key: str, value, config: dict) -> dict:
         raise ValueError("permissions is full or ask")
     if key == "autostart":
         value = bool(value)
+    if key == "label":
+        value = str(value or "").strip()[:40]
+        if not value:
+            raise ValueError("a name can't be empty")
+    if key == "role":
+        value = " ".join(str(value or "").split())[:300]
+    if key == "provider":
+        if value not in COMMANDS:
+            raise ValueError("pick Claude, ChatGPT or Cursor")
+        key, value = "command", COMMANDS[value]
+    if key == "effort":
+        value = str(value or "")
+        if value and value not in EFFORTS:
+            raise ValueError("thinking is low, medium, high or xhigh")
+    if key == "avatar":
+        value = str(value or "").strip()
+        if value and ("/" in value or "\\" in value or not (ROOT / "static" / "avatars" / value).is_file()):
+            raise ValueError("pick one of the pictures")
     with _lock:
         data = load_overrides()
         entry = data.setdefault(name, {})
+        if key == "command" and entry.get("command", config["agents"][name].get("command")) != value:
+            entry.pop("model", None)            # model names differ per app
+            entry.pop("effort", None)
+            config["agents"][name].pop("model", None)
+            config["agents"][name].pop("effort", None)
+        if name in data.get("_added", {}):      # agents added in Settings keep everything in one place
+            target = data["_added"][name]
+            if value in ("", None):
+                target.pop(key, None)
+            else:
+                target[key] = value
         if value in ("", None):
             entry.pop(key, None)
         else:
@@ -83,6 +129,85 @@ def set_override(name: str, key: str, value, config: dict) -> dict:
         if key not in entry:
             config["agents"][name].pop(key, None)
     return entry
+
+
+# ---------------------------------------------------------------- add / delete agents
+
+HANDLE_RE = re.compile(r"^[a-z][a-z0-9-]{1,19}$")
+COMMANDS = {"claude": "claude", "codex": "codex", "cursor": "agent"}
+
+
+def _write(data: dict) -> None:
+    OVERRIDES.parent.mkdir(parents=True, exist_ok=True)
+    tmp = OVERRIDES.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), "utf-8")
+    os.replace(tmp, OVERRIDES)
+
+
+def project_folders(config: dict) -> list[str]:
+    seen = []
+    for k in ((config or {}).get("team", {}).get("projects", {}) or {}):
+        seen.append(k)
+    for a in (config or {}).get("agents", {}).values():
+        c = str(a.get("cwd", "") or "")
+        home = os.path.expanduser("~")
+        if c.startswith(home):
+            c = "~" + c[len(home):]
+        if c and c not in seen and c != "helper":
+            seen.append(c)
+    return seen
+
+
+def add_agent(spec: dict, config: dict) -> dict:
+    handle = str(spec.get("handle", "")).strip().lower()
+    if not HANDLE_RE.match(handle) or handle.startswith("dm") or handle in ("all", "lu", "system", "user"):
+        raise ValueError("the @handle is 2–20 lowercase letters, numbers or dashes, starting with a letter")
+    if handle in (config or {}).get("agents", {}):
+        raise ValueError(f"@{handle} already exists")
+    provider = str(spec.get("provider", "claude"))
+    if provider not in COMMANDS:
+        raise ValueError("pick Claude, ChatGPT or Cursor")
+    label = str(spec.get("label", "")).strip()[:40] or handle
+    folder = str(spec.get("cwd", "")).strip()
+    if folder not in project_folders(config):
+        raise ValueError("pick one of the project folders")
+    cfg = {"label": label, "command": COMMANDS[provider], "cwd": folder,
+           "role": " ".join(str(spec.get("role", "")).split())[:300], "autostart": True, "added_in_ui": True}
+    avatar = str(spec.get("avatar", "") or "")
+    if avatar and avatar in avatars():
+        cfg["avatar"] = avatar
+    model = str(spec.get("model", "") or "").strip()
+    if model:
+        if not MODEL_RE.match(model):
+            raise ValueError("model names are letters, numbers, dots, dashes and colons")
+        cfg["model"] = model
+    with _lock:
+        data = load_overrides()
+        data.setdefault("_added", {})[handle] = cfg
+        removed = [n for n in data.get("_removed", []) if n != handle]
+        data["_removed"] = removed
+        _write(data)
+    live = dict(cfg)
+    live["cwd"] = os.path.expanduser(folder)
+    config.setdefault("agents", {})[handle] = live
+    return {"handle": handle, **cfg}
+
+
+def delete_agent(name: str, config: dict, run_dir: Path) -> None:
+    if name not in (config or {}).get("agents", {}):
+        raise ValueError("unknown agent")
+    if name == "help":
+        raise ValueError("the Scranton helper can't be deleted (it collects your feedback)")
+    stop(name, config, run_dir)
+    with _lock:
+        data = load_overrides()
+        if name in data.get("_added", {}):
+            data["_added"].pop(name)
+        else:
+            data["_removed"] = sorted(set(data.get("_removed", [])) | {name})
+        data.pop(name, None)
+        _write(data)
+    config["agents"].pop(name, None)
 
 
 # ---------------------------------------------------------------- connections
@@ -164,6 +289,41 @@ def open_login(pid: str) -> dict:
     return {"ok": True, "hint": p["login_hint"]}
 
 
+_cursor_cache = {"at": 0.0, "models": []}
+
+
+def cursor_models() -> list[list[str]]:
+    """The models this Cursor account can use, from `agent models` (cached 10 minutes)."""
+    if time.time() - _cursor_cache["at"] < 600:
+        return _cursor_cache["models"]
+    cli = next((c for c in PROVIDERS["cursor"]["commands"] if shutil.which(c)), "")
+    found = []
+    if cli:
+        for args in (["models"], ["--list-models"]):
+            try:
+                out = subprocess.run([cli, *args], capture_output=True, text=True, timeout=20,
+                                     env={k: v for k, v in os.environ.items() if k != "CURSOR_API_KEY"}).stdout
+            except (OSError, subprocess.SubprocessError):
+                continue
+            for line in out.splitlines():
+                line = re.sub(r"\x1b\[[0-9;]*m", "", line).strip(" -*•\t")
+                m = re.match(r"^([A-Za-z0-9][A-Za-z0-9._:\-]{1,63})(?:\s+[-–]\s+(.*?))?(?:\s+\((?:current|default)\))*\s*$", line)
+                if m and not line.lower().startswith(("available", "loading", "tip", "usage")):
+                    found.append([m.group(1), (m.group(2) or m.group(1)).strip(), "Your Cursor plan"])
+            if found:
+                break
+    _cursor_cache.update(at=time.time(), models=found)
+    return found
+
+
+def models_for(pid: str) -> list[list[str]]:
+    base = [list(m) + [""] * (3 - len(m)) for m in PROVIDERS.get(pid, {}).get("models", [["", "Default", ""]])]
+    if pid == "cursor":
+        seen = {m[0] for m in base}
+        base += [m for m in cursor_models() if m[0] not in seen]
+    return base
+
+
 # ---------------------------------------------------------------- start / stop
 
 def stop(name: str, config: dict, run_dir: Path) -> bool:
@@ -194,6 +354,11 @@ def stop(name: str, config: dict, run_dir: Path) -> bool:
 
 # ---------------------------------------------------------------- profile
 
+def avatars() -> list[str]:
+    d = ROOT / "static" / "avatars"
+    return sorted(p.name for p in d.iterdir() if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp")) if d.is_dir() else []
+
+
 def profile(name: str, config: dict, members: dict, recent: list[dict]) -> dict | None:
     a = (config or {}).get("agents", {}).get(name)
     if not isinstance(a, dict):
@@ -213,7 +378,7 @@ def profile(name: str, config: dict, members: dict, recent: list[dict]) -> dict 
         "provider": pid,
         "provider_name": PROVIDERS.get(pid, {}).get("name", a.get("command", "")),
         "model": str(a.get("model", "") or ""),
-        "models": PROVIDERS.get(pid, {}).get("models", [["", "Default"]]),
+        "models": models_for(pid),
         "permissions": str(a.get("permissions", team.get("permissions", "ask"))),
         "autostart": bool(a.get("autostart", True)),
         "folder": str(a.get("cwd", "")),
@@ -222,4 +387,8 @@ def profile(name: str, config: dict, members: dict, recent: list[dict]) -> dict 
         "role_card_text": card_text,
         "channels": sorted(ch for ch, ns in (members or {}).items() if name in ns),
         "recent": recent,
+        "avatar": str(a.get("avatar", "") or ""),
+        "avatars": avatars(),
+        "effort": str(a.get("effort", "") or ""),
+        "efforts": list(EFFORTS) if pid == "codex" else [],
     }

@@ -91,7 +91,6 @@
                 <label class="sc-am-status ${st}"><span class="sc-st-dot"></span><select aria-label="Your status">
                     ${STATUSES.map(([v, l]) => `<option value="${v}"${v === st ? ' selected' : ''}>${l}</option>`).join('')}
                 </select></label></div></div>
-            <button type="button" role="menuitem" data-a="profile">${svg('rename')}<span>Edit profile</span></button>
             <button type="button" role="menuitem" data-a="settings">${svg('settings')}<span>Settings</span></button>
             <button type="button" role="menuitem" data-a="update">${svg('update')}<span>Check for updates</span></button>
             <hr>
@@ -107,7 +106,7 @@
             if (!a) return;
             closeMenu();
             if (a === 'profile') window.scOpenSettings('profile');
-            if (a === 'settings') window.scOpenSettings('agents');
+            if (a === 'settings') window.scOpenSettings('profile');
             if (a === 'update') window.scCheckUpdate && window.scCheckUpdate();
             if (a === 'feedback') sendFeedback();
         });

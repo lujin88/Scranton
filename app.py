@@ -2465,6 +2465,41 @@ async def scranton_teammate(name: str):
     return JSONResponse(p)
 
 
+@app.get("/api/scranton/teammate/{name}/screen")
+async def scranton_teammate_screen(name: str):
+    """What the agent's terminal shows right now (read-only), so Lu can see a stuck prompt."""
+    if name not in (config or {}).get("agents", {}):
+        return JSONResponse({"error": "not found"}, status_code=404)
+    import subprocess as _sp
+    def grab():
+        r = _sp.run(["tmux", "capture-pane", "-p", "-J", "-t", f"=agentchattr-{name}:", "-S", "-60"],
+                    capture_output=True, text=True, timeout=5)
+        return r.returncode, r.stdout
+    try:
+        code, out = await asyncio.to_thread(grab)
+    except Exception:
+        code, out = 1, ""
+    if code != 0:
+        return JSONResponse({"running": False, "text": ""})
+    text = _re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", out).rstrip()
+    return JSONResponse({"running": True, "text": "\n".join(text.splitlines()[-60:])})
+
+
+@app.post("/api/scranton/teammate/{name}/keys")
+async def scranton_teammate_keys(name: str, request: Request):
+    """Answer a prompt on the agent's screen: Enter, Esc, arrows, 1-9, y/n. Nothing else can be typed."""
+    if name not in (config or {}).get("agents", {}):
+        return JSONResponse({"error": "not found"}, status_code=404)
+    key = str((await request.json()).get("key", ""))
+    allowed = {"Enter": "Enter", "Escape": "Escape", "Up": "Up", "Down": "Down", "Left": "Left", "Right": "Right", "Tab": "Tab",
+               **{str(i): str(i) for i in range(1, 10)}, "y": "y", "n": "n"}
+    if key not in allowed:
+        return JSONResponse({"error": "not allowed"}, status_code=400)
+    import subprocess as _sp
+    await asyncio.to_thread(_sp.run, ["tmux", "send-keys", "-t", f"=agentchattr-{name}:", allowed[key]], capture_output=True, timeout=5)
+    return JSONResponse({"ok": True})
+
+
 @app.post("/api/scranton/teammate/{name}")
 async def scranton_teammate_update(name: str, request: Request):
     """Change model / permissions / autostart, or start / stop / restart."""
@@ -2486,6 +2521,46 @@ async def scranton_teammate_update(name: str, request: Request):
         return JSONResponse({"ok": True})
     except ValueError as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+
+
+@app.get("/api/scranton/agents/new")
+async def scranton_agent_new_options():
+    return JSONResponse({"folders": _sc_team.project_folders(config), "avatars": _sc_team.avatars(),
+                         "models": {p: _sc_team.models_for(p) for p in ("claude", "codex", "cursor")},
+                         "channels": [c for c in room_settings.get("channels", []) if not c.startswith("dm-")]})
+
+
+@app.post("/api/scranton/agents")
+async def scranton_agents_change(request: Request):
+    body = await request.json()
+    action = str(body.get("action", ""))
+    try:
+        if action == "add":
+            a = _sc_team.add_agent(body, config)
+            registry.seed({a["handle"]: config["agents"][a["handle"]]})
+            _on_registry_change()
+            chans = [c for c in (body.get("channels") or []) if c in room_settings.get("channels", [])]
+            for c in chans:
+                _add_members(c, [a["handle"]])
+            _save_settings()
+            await broadcast_settings()
+            await broadcast_team_changed()
+            res = await asyncio.to_thread(_scranton_ops.ensure_running, [a["handle"]], config)
+            return JSONResponse({"ok": True, "agent": a, "start": res})
+        if action == "delete":
+            name = str(body.get("name", ""))
+            await asyncio.to_thread(_sc_team.delete_agent, name, config, _scranton_ops.RUN_DIR)
+            for ch, ns in (room_settings.get("channel_members") or {}).items():
+                if name in ns:
+                    ns.remove(name)
+            _save_settings()
+            _on_registry_change()
+            await broadcast_settings()
+            await broadcast_team_changed()
+            return JSONResponse({"ok": True})
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    return JSONResponse({"ok": False, "error": "unknown action"}, status_code=400)
 
 
 async def broadcast_team_changed():
