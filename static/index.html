@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/static/style.css?v=259">
     <link rel="stylesheet" href="/static/sessions.css?v=223">
     <link rel="stylesheet" href="/static/jobs.css?v=225">
-    <link rel="stylesheet" href="/static/scranton.css?v=7">
+    <link rel="stylesheet" href="/static/scranton.css?v=12">
     <meta name="theme-color" content="#2d2238">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/static/manifest.json">
@@ -18,11 +18,15 @@
     <div id="app">
         <header>
             <div class="header-left">
-                <button id="sc-menu-btn" class="sc-menu-btn" onclick="scToggleDrawer()" aria-label="Channels"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-                <img src="/static/scranton-logo.svg" alt="" class="header-logo">
+                <button id="sc-menu-btn" class="sc-menu-btn" onclick="scToggleDrawer()" aria-label="Show or hide the sidebar" title="Show or hide the sidebar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
                 <h1 id="room-title">Scranton</h1>
                 <span class="subtitle" id="room-subtitle"></span>
             </div>
+            <button id="sc-search-btn" class="sc-search-btn" type="button" aria-label="Search messages">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                <span class="sc-search-label">Search</span>
+                <kbd id="sc-search-kbd">⌘K</kbd>
+            </button>
             <div class="header-right">
                 <div id="agent-status"></div>
                 <button class="settings-btn" id="jobs-toggle" onclick="toggleJobsPanel()" title="Jobs">
@@ -43,18 +47,6 @@
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                         <path d="M6 2.5h4l.5 4.5H9.5L8 14L6.5 7H5.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
                         <line x1="4.5" y1="7" x2="11.5" y2="7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-                    </svg>
-                </button>
-                <button class="settings-btn" id="settings-toggle" onclick="toggleSettings()" title="Settings">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M6.5 1L7.1 3.1C7.4 3.2 7.7 3.4 8 3.6L10 2.8L11.5 5.4L9.8 6.7C9.8 7 9.8 7.3 9.8 7.6L11.5 8.9L10 11.5L8 10.7C7.7 10.9 7.4 11 7.1 11.2L6.5 13.3H3.5L2.9 11.2C2.6 11 2.3 10.9 2 10.7L0 11.5L-1.5 8.9L0.2 7.6C0.2 7.3 0.2 7 0.2 6.7L-1.5 5.4L0 2.8L2 3.6C2.3 3.4 2.6 3.2 2.9 3.1L3.5 1H6.5Z" transform="translate(3 1)" stroke="currentColor" stroke-width="1.2" fill="none"/>
-                        <circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.2" fill="none"/>
-                    </svg>
-                </button>
-                <button class="settings-btn" id="help-btn" onclick="toggleHelp()" title="Help">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2"/>
-                        <text x="8" y="11" text-anchor="middle" fill="currentColor" font-size="9" font-weight="700">?</text>
                     </svg>
                 </button>
             </div>
@@ -185,14 +177,16 @@
                     </div>
                     <div id="sc-dm-list" class="sc-section-body" data-section="dms"></div>
                 </div>
-                <button id="sc-me" class="sc-me" type="button" title="Click your picture to change it, your name to rename yourself">
-                    <span id="sc-me-avatar" class="sc-me-avatar"></span>
+                <button id="sc-me" class="sc-me" type="button" aria-haspopup="menu" aria-expanded="false" title="You: picture, name, settings, help">
+                    <span class="sc-me-avatar-wrap"><span id="sc-me-avatar" class="sc-me-avatar"></span><span class="sc-me-dot"></span></span>
                     <span id="sc-me-name" class="sc-me-name">Lu</span>
+                    <svg class="sc-me-more" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 15l6-6 6 6"/></svg>
                 </button>
                 <input id="sc-me-file" type="file" accept="image/png,image/jpeg,image/webp" hidden>
                 <div class="channel-sidebar-grip" id="channel-sidebar-grip"></div>
             </aside>
             <div id="sc-center">
+            <div id="sc-pane-head"><span id="sc-pane-icon" class="sc-pane-icon"></span><h2 id="sc-pane-title">general</h2></div>
             <section id="sc-inbox" class="hidden" aria-label="Activity">
                 <div class="sc-inbox-head">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -265,7 +259,7 @@
                         </svg>
                     </button>
                     <div class="send-group">
-                        <button id="send" onclick="sendMessage()">Send</button>
+                        <button id="send" onclick="sendMessage()" aria-label="Send" title="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
                         <button id="schedule-btn" class="send-clock" onclick="toggleSchedulePopover(event)" title="Schedule message">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                                 <circle cx="12" cy="12" r="10"/>
@@ -433,8 +427,10 @@
     <script src="/static/channels.js?v=226"></script>
     <script src="/static/rules-panel.js?v=224"></script>
     <script src="/static/chat.js?v=275"></script>
-    <script src="/static/scranton.js?v=2"></script>
-    <script src="/static/scranton-nav.js?v=6"></script>
-    <script src="/static/scranton-chat.js?v=3"></script>
+    <script src="/static/scranton.js?v=3"></script>
+    <script src="/static/scranton-nav.js?v=9"></script>
+    <script src="/static/scranton-chat.js?v=6"></script>
+    <script src="/static/scranton-menu.js?v=1"></script>
+    <script src="/static/scranton-ops.js?v=2"></script>
 </body>
 </html>

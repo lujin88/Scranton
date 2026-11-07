@@ -48,6 +48,12 @@
 
     function consider(msg) {
         if (!msg || msg.id == null) return;
+        // Work stopped because teammates handed off too many times in a row: Lu must see that.
+        if (String(msg.sender || '').toLowerCase() === 'system' && /^Loop guard:/.test(String(msg.text || ''))) {
+            inbox.set(Number(msg.id), { ...msg, _kinds: new Set(['mention']) });
+            scheduleRender();
+            return;
+        }
         const type = msg.type || 'chat';
         if (!['chat', 'message', 'decision'].includes(type)) return;
         if (String(msg.sender || '').toLowerCase() === me().toLowerCase()) { myMsgIds.add(Number(msg.id)); return; }
@@ -288,6 +294,10 @@
     function updateTitle() {
         const ch = window.activeChannel || 'general';
         document.body.classList.toggle('sc-in-dm', isDm(ch));
+        const pt = document.getElementById('sc-pane-title');
+        const pi = document.getElementById('sc-pane-icon');
+        if (pt) pt.textContent = isDm(ch) ? (window.scLabelOf ? window.scLabelOf(ch.slice(3)) : ch.slice(3)) : ch;
+        if (pi) pi.innerHTML = isDm(ch) && window.scAvatarHtml ? window.scAvatarHtml(ch.slice(3)) : '#';
         const composer = document.getElementById('input');
         if (composer) {
             composer.placeholder = isDm(ch)
@@ -299,6 +309,7 @@
     // ------------------------------------------------------------------
     // Collapsing: whole sidebar (desktop) and each section
     // ------------------------------------------------------------------
+    window.scOpenDm = (h) => openDm(h);
     function closeDrawer() { document.body.classList.remove('sc-drawer-channels'); }
 
     function applyCollapsed() {
@@ -397,11 +408,11 @@
         const btn = document.getElementById('sc-me');
         const file = document.getElementById('sc-me-file');
         if (!btn || !file) return;
-        btn.addEventListener('click', (e) => {
-            // Click the picture to change it; click the name to rename yourself.
-            if (e.target.closest('#sc-me-avatar')) file.click();
-            else if (!e.target.closest('input')) editName();
-        });
+        // The chip opens the account menu (scranton-menu.js); these are its actions.
+        window.scChangePicture = () => file.click();
+        window.scRename = editName;
+        window.scMyAvatarHtml = myAvatarHtml;
+        window.scMe = me;
         file.addEventListener('change', () => { pickAvatar(file.files && file.files[0]); file.value = ''; });
         renderMe();
         // username arrives from the server after connect; refresh when settings change

@@ -232,6 +232,11 @@
         // Channels always live in the sidebar.
         if (typeof setChannelSidebarMode === 'function') setChannelSidebarMode('sidebar', true);
         addTeamButton();
+        // The @ quick-chips set who this channel's messages go to, so they live
+        // inside the composer card (bottom row), not floating above it.
+        const chips = document.getElementById('mention-toggles-row');
+        const row = document.getElementById('input-row');
+        if (chips && row && chips.parentElement !== row) row.appendChild(chips);
         renderTeam();
         loadTeam();
 

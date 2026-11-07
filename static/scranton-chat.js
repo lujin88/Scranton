@@ -139,10 +139,32 @@
         if (!s) return;
         const name = labelOf(msg.sender);
         if (name && name !== s.textContent) { s.textContent = name; s.title = `@${String(msg.sender).toLowerCase()}`; }
+        polishText(el, '.msg-text .mention');
+        shortTime(el.querySelector('.bubble-header .msg-time'));
+    }
+    // @pm → @项目经理 inside the text, as Buzz shows names in mention chips;
+    // @lu → @Lu, marked so a mention of you stands out.
+    function polishText(el, sel) {
+        el.querySelectorAll(sel).forEach((m) => {
+            const h = (m.dataset.handle || m.textContent.replace(/^@/, '')).trim();
+            const isMe = h.toLowerCase() === me().toLowerCase();
+            const lab = isMe ? me() : labelOf(h);
+            if (lab && lab !== h) { m.dataset.handle = h; m.textContent = '@' + lab; m.title = '@' + h.toLowerCase(); }
+            m.classList.toggle('sc-mention-me', isMe);
+        });
+    }
+    // 22:19:50 → 22:19 (seconds stay in the tooltip)
+    function shortTime(t) {
+        if (!t || t.dataset.full) return;
+        const s = t.textContent.trim();
+        const m = s.match(/^(\d{1,2}:\d{2}):\d{2}$/);
+        if (m) { t.dataset.full = s; t.title = s; t.textContent = m[1]; }
     }
     window.scOnTeamChange = window.scOnTeamChange || [];
     window.scOnTeamChange.push(() => {
         for (const [id, m] of byId) { const el = document.getElementById(`message-${id}`); if (el) relabel(el, m); }
+        // portraits arrive with the team; summaries painted before that show initials
+        for (const root of replies.keys()) paintSummary(root);
     });
 
     // live reactions
@@ -392,6 +414,8 @@
         body.innerHTML = (root ? `<div class="sc-thread-where">${esc(where)}</div>${tmsgHtml(root)}` : '')
             + `<div class="sc-thread-divider"><span>${list.length} ${list.length === 1 ? 'reply' : 'replies'}</span></div>`
             + list.map(tmsgHtml).join('');
+        polishText(body, '.sc-tmsg-text .mention');
+        body.querySelectorAll('.sc-tmsg-head > span').forEach(shortTime);
         body.scrollTop = body.scrollHeight;
         const input = document.getElementById('sc-thread-input');
         if (input) input.placeholder = `Reply in thread${root ? ' · @' + labelOf(root.sender) : ''}`;

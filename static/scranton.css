@@ -1,46 +1,47 @@
 /* Scranton: Buzz-style layout and palette on top of agentchattr.
-   Palette: Catppuccin Macchiato with a mauve accent (the same open palette
-   Buzz uses for its dark theme). Layout: channels left, conversation
-   centre, team with live status right. Phones: one column + drawers. */
+   Palette: Buzz Dark (neutral greys + lime), from block/buzz (Apache-2.0)
+   and Lu's own Buzz screenshots. Phones: one column + drawers. */
 
 :root {
-    --bg: #24273a;            /* base */
-    --bg-header: #1e2030;     /* mantle */
-    --bg-input: #363a4f;      /* surface0 */
-    --bg-msg: #24273a;
-    --bg-msg-hover: #2b2e45;
-    --bg-elevated: #363a4f;
-    --bg-subtle: rgba(202, 211, 245, 0.04);
-    --bg-overlay: rgba(24, 25, 38, 0.6);
+    /* Sampled from Lu's Buzz Dark screenshot (Buzz theme, Chartreuse-style accent) */
+    --bg: #1a1a1a;            /* content canvas (Buzz --buzz-content-dark) */
+    --bg-header: #101010;     /* outer chrome */
+    --bg-input: #232323;      /* composer, agent bubbles */
+    --bg-msg: #1a1a1a;
+    --bg-msg-hover: #1f1f1f;
+    --bg-elevated: #262626;
+    --bg-subtle: rgba(255, 255, 255, 0.04);
+    --bg-overlay: rgba(0, 0, 0, 0.6);
 
-    --border: #363a4f;
-    --border-strong: #494d64;
-    --border-subtle: rgba(202, 211, 245, 0.06);
+    --border: #333333;
+    --border-strong: #404040;
+    --border-subtle: rgba(255, 255, 255, 0.06);
 
-    --text: #cad3f5;
-    --text-dim: #a5adcb;
-    --text-system: #8087a2;
-    --text-muted: #b8c0e0;
-    --text-on-accent: #24273a;
+    --text: #ffffff;
+    --text-dim: #a4a4a4;
+    --text-system: #8c8c8c;   /* was #7a7a7a: 4.0:1 on #1a1a1a, under AA; now 5.2:1 */
+    --text-muted: #c7c7c7;
+    --text-on-accent: #101010;
 
-    --accent: #c6a0f6;        /* mauve */
-    --accent-soft: rgba(198, 160, 246, 0.16);
-    --accent-hover: rgba(198, 160, 246, 0.24);
-    --user-color: #c6a0f6;
-    --system-color: #8087a2;
+    --accent: #c3d956;        /* Buzz lime */
+    --accent-soft: #2a2e19;   /* your own bubbles */
+    --accent-hover: #4c503e;  /* mention chips inside your bubbles */
+    --user-color: #c3d956;
+    --system-color: #7a7a7a;
 
-    --success: #a6da95;
-    --online: #a6da95;
-    --danger: #ed8796;
-    --error-color: #ed8796;
-    --warning: #eed49f;
-    --pending: #f5a97f;
-    --info: #8aadf4;
+    --success: #7ed67e;
+    --online: #3fb950;
+    --danger: #f47067;
+    --error-color: #f47067;
+    --warning: #e3b341;
+    --pending: #f0883e;
+    --info: #6cb6ff;
 
-    --sc-sidebar: #1e2030;
-    --sc-sidebar-active: rgba(198, 160, 246, 0.18);
+    --sc-sidebar: #1a1a1a;
+    --sc-sidebar-active: rgba(255, 255, 255, 0.09); /* neutral: lime is kept for actions and "you" */
+    --sc-self-bg: #353a1f;    /* your initial avatar: olive, matches your bubbles */
     --sc-team-w: 248px;
-    --sc-font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+    --sc-font: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
 }
 
 body { font-family: var(--sc-font); background: var(--bg); color: var(--text); }
@@ -91,17 +92,18 @@ header, #app > header {
 }
 .channel-sidebar-row:hover { background: var(--bg-subtle); color: var(--text); }
 .channel-sidebar-row.active { background: var(--sc-sidebar-active); color: var(--text); font-weight: 600; }
+.channel-sidebar-row.active * { color: inherit !important; }
 
 /* ---------- Centre: conversation ---------- */
 #timeline { background: var(--bg); }
 footer { background: var(--bg); border-top: 0; }
 #input-row {
     background: var(--bg-input); border: 1px solid var(--border-strong);
-    border-radius: 12px; margin: 0 16px 14px; padding: 6px 8px;
+    border-radius: 22px; margin: 0 16px 14px; padding: 10px 10px 8px 14px;
 }
-#input-row:focus-within { border-color: var(--accent); }
+#input-row:focus-within { border-color: #4a4a4a; }
 #input { background: transparent; color: var(--text); }
-#send { background: var(--accent); color: var(--text-on-accent); border-radius: 8px; font-weight: 600; }
+#send { background: var(--accent); color: var(--text-on-accent); border-radius: 999px; font-weight: 600; }
 .sender-label { color: var(--text-dim); }
 
 /* ---------- Right: team ---------- */
@@ -378,8 +380,8 @@ main#timeline { padding: 12px 0 8px; }
 /* Your messages: right-aligned bubbles (as in Buzz) */
 .message.self { flex-direction: row-reverse; }
 .message.self .chat-bubble {
-    background: var(--accent-soft); border-radius: 16px; border-top-right-radius: 6px;
-    padding: 8px 14px; max-width: min(640px, 78%); margin-left: auto;
+    background: var(--accent-soft); border-radius: 22px;
+    padding: 10px 16px; max-width: min(640px, 78%); margin-left: auto;
 }
 .message.self .bubble-header { justify-content: flex-end; }
 .message.self .msg-sender { display: none; }
@@ -426,7 +428,7 @@ main#timeline { padding: 12px 0 8px; }
 .sc-ts-av:first-child { margin-left: 0; }
 .sc-ts-av img { width: 100%; height: 100%; object-fit: cover; }
 .sc-ts-av svg { width: 10px; height: 10px; }
-.sc-ts-count { font-weight: 600; color: var(--accent); }
+.sc-ts-count { font-weight: 500; color: var(--text); }
 
 /* Thread panel */
 #sc-thread {
@@ -502,3 +504,311 @@ body.sc-thread-open #sc-thread { display: flex; }
 
 /* Less noise in the stream */
 .msg-num, .bubble-role:not(.has-role), #clear-chat-btn { display: none !important; }
+
+/* Floating cards (Buzz style): update ready, teammates stopped */
+#sc-banners { position: fixed; left: 16px; bottom: 16px; z-index: 90; display: flex; flex-direction: column; gap: 10px; width: 320px; max-width: calc(100vw - 32px); }
+#sc-banners:empty { display: none; }
+.sc-card {
+    position: relative; padding: 16px 18px; border-radius: 18px; background: var(--bg-elevated);
+    border: 1px solid var(--border-strong); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.sc-card-title { font-size: 15px; font-weight: 700; margin-right: 28px; }
+.sc-card-sub { font-size: 13.5px; color: var(--text-dim); margin-top: 4px; line-height: 1.4; overflow-wrap: anywhere; }
+.sc-card-btn {
+    margin-top: 12px; border: 0; border-radius: 12px; padding: 8px 16px; font: inherit; font-size: 14px; font-weight: 600;
+    background: var(--border-strong); color: var(--text); cursor: pointer;
+}
+.sc-card-btn:hover { background: var(--accent); color: var(--text-on-accent); }
+.sc-card-x { position: absolute; top: 12px; right: 12px; width: 26px; height: 26px; border: 0; border-radius: 8px; background: none; color: var(--text-dim); cursor: pointer; font-size: 14px; }
+.sc-card-x:hover { background: var(--border-strong); color: var(--text); }
+@media (max-width: 760px) { #sc-banners { left: 8px; right: 8px; bottom: calc(84px + env(safe-area-inset-bottom)); width: auto; } }
+
+/* ================================================================
+   Buzz shell: dark outer chrome, one rounded card holding sidebar + chat
+   ================================================================ */
+body { background: var(--bg-header); }
+header, #app > header {
+    background: var(--bg-header); border-bottom: 0;
+    display: grid; grid-template-columns: 1fr minmax(240px, 560px) 1fr; align-items: center; gap: 12px;
+    padding: 8px 14px;
+}
+header .header-left { min-width: 0; }
+header .header-right { justify-self: end; }
+.sc-menu-btn { color: var(--text-dim); }
+.sc-menu-btn:hover { color: var(--text); background: var(--bg-subtle); }
+#room-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-search-btn {
+    display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 8px 0 14px; width: 100%;
+    background: var(--bg-subtle); border: 0; border-radius: 999px; color: var(--text-dim); font: inherit; font-size: 14px;
+}
+.sc-search-btn:hover { background: rgba(255, 255, 255, 0.07); color: var(--text); }
+.sc-search-label { flex: 1; text-align: left; }
+.sc-search-btn kbd {
+    font: inherit; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); color: var(--text-dim);
+}
+#content-area {
+    margin: 0 8px 8px; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; background: var(--bg);
+}
+#channel-sidebar { background: var(--bg); border-right: 1px solid var(--border); }
+.channel-sidebar-row { border-radius: 999px; padding-left: 12px; }
+.channel-sidebar-header { font-size: 13px; font-weight: 500; }
+
+/* Messages */
+.msg-sender { color: var(--text) !important; font-weight: 600; }
+.message:not(.self) .msg-text {
+    display: inline-block; background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: 22px; padding: 10px 16px; max-width: 100%;
+}
+.message.self .mention, .message .msg-text .mention {
+    background: var(--accent-hover); color: #eff7d5 !important; padding: 1px 8px; border-radius: 999px; font-weight: 500;
+}
+.message:not(.self) .msg-text .mention { background: rgba(255, 255, 255, 0.08); color: var(--text) !important; }
+
+@media (max-width: 760px) {
+    header, #app > header { grid-template-columns: auto 1fr auto; }
+    .sc-search-label, .sc-search-btn kbd { display: none; }
+    .sc-search-btn { width: 34px; padding: 0; justify-content: center; }
+    #content-area { margin: 0; border: 0; border-radius: 0; }
+}
+
+/* ---------- Account chip + menu (bottom-left) ---------- */
+.sc-me { border-top: 0; margin: 6px 8px 10px; }
+.sc-me-avatar-wrap { position: relative; flex-shrink: 0; }
+.sc-me-avatar { border-radius: 50%; }
+.sc-me-dot {
+    position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--online); border: 2px solid var(--bg);
+}
+.sc-me-more { margin-left: auto; color: var(--text-dim); opacity: 0; transition: opacity 0.12s; }
+.sc-me:hover .sc-me-more, .sc-me[aria-expanded="true"] .sc-me-more { opacity: 1; }
+#sc-account-menu {
+    position: fixed; z-index: 90; width: 280px; padding: 8px;
+    background: #262626; border: 1px solid var(--border-strong); border-radius: 20px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+.sc-am-head { display: flex; align-items: center; gap: 12px; padding: 8px 8px 12px; }
+.sc-am-av { position: relative; width: 44px; height: 44px; border-radius: 50%; overflow: visible; flex-shrink: 0; }
+.sc-am-av > img, .sc-am-av > .sc-me-initial {
+    width: 44px; height: 44px; border-radius: 50%; object-fit: cover; display: grid; place-items: center;
+    background: var(--accent); color: var(--text-on-accent); font-weight: 700;
+}
+.sc-am-av .sc-me-dot { border-color: #262626; width: 12px; height: 12px; }
+.sc-am-name { font-weight: 600; font-size: 15px; }
+.sc-am-status {
+    display: inline-block; margin-top: 4px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    background: rgba(63, 185, 80, 0.14); color: #8ce99a;
+}
+#sc-account-menu hr { border: 0; border-top: 1px solid var(--border); margin: 6px 4px; }
+#sc-account-menu button {
+    display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 10px; border: 0; border-radius: 12px;
+    background: none; color: var(--text); font: inherit; font-size: 14px; text-align: left;
+}
+#sc-account-menu button svg { color: var(--text-dim); flex-shrink: 0; }
+#sc-account-menu button:hover, #sc-account-menu button:focus-visible { background: rgba(255, 255, 255, 0.06); outline: none; }
+
+/* ---------- Dialogs: Settings, Help, Search ---------- */
+#sc-dialog {
+    position: fixed; inset: 0; z-index: 95; background: var(--bg-overlay);
+    display: flex; align-items: flex-start; justify-content: center; padding: 10vh 16px 16px;
+}
+.sc-dlg {
+    width: min(560px, 100%); max-height: 80vh; display: flex; flex-direction: column;
+    background: #202020; border: 1px solid var(--border-strong); border-radius: 20px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+.sc-dlg-head { display: flex; align-items: center; padding: 16px 18px 8px; }
+.sc-dlg-head h2 { margin: 0; font-size: 16px; flex: 1; }
+.sc-dlg-x { border: 0; background: none; color: var(--text-dim); font-size: 14px; width: 30px; height: 30px; border-radius: 8px; }
+.sc-dlg-x:hover { background: var(--bg-subtle); color: var(--text); }
+.sc-dlg-body { overflow-y: auto; padding: 4px 18px 18px; }
+.sc-dlg-body section + section { margin-top: 18px; }
+.sc-dlg-body h3 { font-size: 12px; font-weight: 600; color: var(--text-dim); margin: 0 0 8px; text-transform: none; }
+.sc-dlg-body h3 small { color: var(--text-system); font-weight: 500; margin-left: 4px; }
+.sc-set-me { display: flex; align-items: center; gap: 14px; }
+.sc-set-actions { display: flex; gap: 8px; margin-top: 6px; }
+.sc-set-actions button, .sc-set-primary {
+    border: 1px solid var(--border-strong); background: var(--bg-input); color: var(--text); font: inherit; font-size: 13px;
+    padding: 6px 12px; border-radius: 999px;
+}
+.sc-set-primary { background: var(--accent); color: var(--text-on-accent); border-color: transparent; font-weight: 600; }
+.sc-set-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.sc-set-row { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-radius: 10px; }
+.sc-set-row:hover { background: var(--bg-subtle); }
+.sc-set-av { width: 30px; height: 30px; border-radius: 8px; overflow: hidden; flex-shrink: 0; background: var(--bg-input); display: grid; place-items: center; }
+.sc-set-av.big { width: 52px; height: 52px; border-radius: 50%; }
+.sc-set-av img, .sc-set-av svg { width: 100%; height: 100%; object-fit: cover; }
+.sc-set-av .sc-me-initial { color: var(--text-on-accent); background: var(--accent); width: 100%; height: 100%; display: grid; place-items: center; font-weight: 700; }
+.sc-set-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sc-set-who b { font-weight: 600; font-size: 14px; }
+.sc-set-who small { color: var(--text-dim); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-set-tool { color: var(--text-dim); font-size: 12px; }
+.sc-set-state { font-size: 12px; color: var(--text-system); min-width: 76px; text-align: right; }
+.sc-set-state.available { color: #8ce99a; }
+.sc-set-state.working { color: var(--warning); }
+.sc-set-note { color: var(--text-dim); font-size: 13px; margin: 8px 0; }
+.sc-help { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; font-size: 14px; color: var(--text-muted); }
+.sc-help b { display: block; color: var(--text); font-weight: 600; margin-bottom: 2px; }
+.sc-help kbd, .sc-dlg code { background: var(--bg-input); border-radius: 6px; padding: 1px 6px; font-size: 12px; }
+.sc-search-dlg .sc-dlg-head { display: none; }
+.sc-search-dlg .sc-dlg-body { padding: 10px; }
+#sc-search-input {
+    width: 100%; height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--border-strong);
+    background: var(--bg-input); color: var(--text); font: inherit; font-size: 15px; outline: none;
+}
+#sc-search-input:focus { border-color: #4a4a4a; }
+#sc-search-results { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; }
+.sc-sr {
+    display: flex; flex-direction: column; gap: 3px; width: 100%; text-align: left; padding: 9px 12px; border: 0; border-radius: 12px;
+    background: none; color: var(--text); font: inherit;
+}
+.sc-sr:hover, .sc-sr:focus-visible { background: rgba(255, 255, 255, 0.06); outline: none; }
+.sc-sr-meta { font-size: 12px; color: var(--text-dim); }
+.sc-sr-meta b { color: var(--text); font-weight: 600; }
+.sc-sr-text { font-size: 14px; color: var(--text-muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.sc-sr-text mark { background: var(--accent-hover); color: #eff7d5; border-radius: 4px; padding: 0 2px; }
+.sc-sr-empty { color: var(--text-dim); padding: 14px 12px; font-size: 14px; }
+
+/* Section titles: sentence case, as in Buzz */
+.channel-sidebar-header, .sc-section-toggle { text-transform: none !important; letter-spacing: 0 !important; font-size: 13px !important; font-weight: 500 !important; }
+/* Channel title lives in the content card, not the top bar */
+header #room-title, header #room-subtitle { display: none; }
+#sc-pane-head {
+    display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 20px; flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+}
+#sc-pane-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.sc-pane-icon { width: 26px; height: 26px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; color: var(--text-dim); font-size: 16px; }
+.sc-pane-icon img, .sc-pane-icon svg { width: 100%; height: 100%; object-fit: cover; }
+/* Round lime send button */
+#send { width: 40px; height: 40px; padding: 0; display: grid; place-items: center; border-radius: 50% !important; }
+#send:disabled, #send[disabled] { opacity: 0.35; }
+
+/* ================================================================
+   Design pass (2026-11-07)
+   - Lime is kept for: send and primary actions, unread counts, and things
+     about you (mentions of you, your reactions, your bubbles). Navigation
+     state is neutral.
+   - Radii: 6 inline marks · 8 rows and icon buttons · 12 popovers ·
+     16 cards, dialogs, composer · 999 chips and pill buttons.
+   ================================================================ */
+
+/* ---- Navigation: neutral active state, readable offline teammates ---- */
+.sc-side-row.active { background: var(--sc-sidebar-active); color: var(--text); }
+.sc-dm-row.offline { opacity: 1; color: var(--text-dim); }
+.sc-dm-row.offline .sc-dm-avatar img,
+.sc-dm-row.offline .sc-dm-avatar svg { opacity: 0.5; filter: grayscale(0.5); }
+
+/* Your initial (until you set a picture): olive, not a lime disc */
+.sc-me-avatar, .sc-self-avatar .avatar,
+.sc-am-av > .sc-me-initial, .sc-set-av .sc-me-initial { background: var(--sc-self-bg); color: var(--accent); }
+
+/* ---- Stream ---- */
+/* Join/leave lines: presence already shows as the dot next to each DM. */
+#messages .message.join-msg { display: none !important; }
+
+.msg-text { line-height: 1.55; }
+.message:not(.self) .msg-text { border-radius: 18px; border-top-left-radius: 6px; padding: 8px 14px; }
+.message.self .chat-bubble { position: relative; border-radius: 18px; border-top-right-radius: 6px; padding: 8px 14px; }
+/* Your bubble: time sits outside, left of the bubble, instead of a row of its own */
+.message.self .bubble-header { position: absolute; right: calc(100% + 8px); top: 10px; margin: 0; }
+.msg-time { color: var(--text-system); font-variant-numeric: tabular-nums; }
+
+/* Thread summary and reactions sit under the bubble, never beside it */
+.chat-bubble > .sc-thread-summary { display: flex; width: fit-content; margin-top: 4px; }
+.message.self .chat-bubble > .sc-thread-summary { margin-left: auto; }
+.sc-unread-dot { background: var(--accent); }
+
+/* Inline mentions are text marks, not buttons */
+.message .msg-text .mention, .message.self .mention, .sc-tmsg-text .mention {
+    border: 0; border-radius: 6px; padding: 0 4px; font-weight: 500;
+}
+.message:not(.self) .msg-text .mention, .sc-tmsg:not(.self) .sc-tmsg-text .mention { background: rgba(255, 255, 255, 0.08); color: var(--text) !important; }
+.sc-tmsg.self .sc-tmsg-text .mention { background: var(--accent-hover); color: #eff7d5 !important; }
+.msg-text .mention.sc-mention-me, .sc-tmsg-text .mention.sc-mention-me { background: rgba(195, 217, 86, 0.16) !important; color: var(--accent) !important; }
+
+/* ---- Composer: one card; @ chips are its bottom row ---- */
+.sender-label { display: none !important; }
+#input-row { flex-wrap: wrap; border-radius: 16px; padding: 8px 8px 8px 12px; row-gap: 4px; }
+#input-row > #mention-toggles-row { order: 10; flex-basis: 100%; margin: 0; min-width: 0; }
+#input-row .mention-toggle {
+    height: 24px; padding: 0 10px; border-radius: 999px; background: none;
+    border: 1px solid var(--border-strong); color: var(--text-dim); font-size: 12px; font-weight: 500;
+}
+#input-row .mention-toggle:hover { color: var(--text); border-color: #555; }
+#mic {
+    border: 0; background: none; width: 40px; min-height: 40px; padding: 0; border-radius: 50%; color: var(--text-dim);
+}
+#mic:hover { background: var(--bg-subtle); color: var(--text); border: 0; }
+.send-group.inactive #send, .send-group.inactive .send-clock,
+.send-group.inactive .send-clock:hover { background: var(--border); color: var(--text-system); }
+.sc-thread-compose { border-radius: 16px; }
+.sc-thread-compose:focus-within { border-color: #4a4a4a; }
+
+/* ---- Search: grey clear button instead of the default blue one ---- */
+#sc-search-input::-webkit-search-cancel-button {
+    -webkit-appearance: none; appearance: none; width: 16px; height: 16px; cursor: pointer;
+    background: center / 16px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a4a4a4' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E");
+}
+
+/* ---- Floating cards: one lime primary action each ---- */
+.sc-card { border-radius: 16px; }
+.sc-card-btn { background: var(--accent); color: var(--text-on-accent); border-radius: 999px; }
+.sc-card-btn:hover { background: #d0e46a; }
+
+/* ---- Radii ---- */
+#sc-account-menu, .sc-dlg { border-radius: 16px; }
+#sc-account-menu button { border-radius: 8px; }
+
+/* ---- Keyboard focus ---- */
+.sc-side-row:focus-visible, .channel-sidebar-row:focus-visible, .sc-section-toggle:focus-visible,
+.sc-tools button:focus-visible, .sc-thread-summary:focus-visible, .sc-reaction:focus-visible,
+#send:focus-visible, #mic:focus-visible, .sc-search-btn:focus-visible, .sc-menu-btn:focus-visible,
+.sc-me:focus-visible, .mention-toggle:focus-visible, .sc-tab:focus-visible, .sc-ttab:focus-visible,
+.sc-card-btn:focus-visible, .sc-inbox-btn:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+}
+
+/* ---- Touch: 44px targets ---- */
+@media (hover: none), (pointer: coarse) {
+    .sc-tools button { width: 40px; height: 40px; }
+    .sc-tools { top: -20px; }
+    #input-row .mention-toggle { height: 32px; padding: 0 12px; font-size: 13px; }
+    .sc-thread-summary { min-height: 36px; }
+    .sc-reaction { height: 32px; padding: 0 10px; }
+}
+@media (max-width: 760px) {
+    header, #app > header { padding: 4px 8px; padding-top: calc(4px + env(safe-area-inset-top)); }
+    .sc-menu-btn { width: 44px; height: 44px; align-items: center; justify-content: center; }
+    .sc-search-btn { width: 44px; height: 44px; }
+    #sc-pane-head { height: 48px; padding: 0 16px; }
+    .sc-side-row, .channel-sidebar-row { min-height: 44px; }
+    .sc-me { min-height: 52px; }
+    #send { width: 44px; height: 44px; }
+    #mic { display: none; }
+    .message.self .chat-bubble { max-width: 82%; }
+}
+
+/* Floating cards sit in the sidebar column, above your account chip,
+   so they never cover the composer. */
+@media (min-width: 761px) {
+    #sc-banners { left: 16px; bottom: 76px; width: 216px; }
+    body.sc-sidebar-collapsed #sc-banners { bottom: 16px; width: 280px; }
+}
+.sc-card { padding: 14px 16px; }
+.sc-card-title { font-size: 14px; }
+.sc-card-sub { font-size: 13px; }
+
+/* "Jump to latest" is navigation, not an action: neutral */
+#scroll-anchor { background: var(--bg-elevated); color: var(--text); border: 1px solid var(--border-strong); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4); }
+#scroll-anchor .unread-badge { background: var(--accent); color: var(--text-on-accent); }
+
+@media (hover: none), (pointer: coarse) {
+    .sc-thread-close { width: 44px; height: 44px; }
+    .sc-ttab { min-height: 40px; }
+}
+@media (max-width: 760px) {
+    /* The right-aligned olive bubble already says "you"; the avatar costs 40px of a 390px screen */
+    .message.self .sc-self-avatar { display: none; }
+    .message.self .chat-bubble { max-width: 76%; }
+    .sc-search-btn { background: none; }
+    .sc-search-btn:hover { background: var(--bg-subtle); }
+}
