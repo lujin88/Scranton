@@ -80,55 +80,46 @@ EOF
 chmod +x "$APP/Contents/MacOS/Scranton"
 mkdir -p data/logs
 
-cat > "$APP/Contents/Info.plist" <<'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleName</key><string>Scranton</string>
-    <key>CFBundleDisplayName</key><string>Scranton</string>
-    <key>CFBundleIdentifier</key><string>com.lujin.scranton</string>
-    <key>CFBundleVersion</key><string>1.0</string>
-    <key>CFBundleShortVersionString</key><string>1.0</string>
-    <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleExecutable</key><string>Scranton</string>
-    <key>CFBundleIconFile</key><string>Scranton</string>
-    <key>LSMinimumSystemVersion</key><string>12.0</string>
-    <key>LSUIElement</key><false/>
-</dict>
-</plist>
-EOF
+"$PWD/.venv/bin/python" - "$APP/Contents/Info.plist" <<'PYEOF'
+import plistlib, sys
+plistlib.dump({
+    "CFBundleName": "Scranton", "CFBundleDisplayName": "Scranton",
+    "CFBundleIdentifier": "com.lujin.scranton",
+    "CFBundleVersion": "1.0", "CFBundleShortVersionString": "1.0",
+    "CFBundlePackageType": "APPL", "CFBundleExecutable": "Scranton",
+    "CFBundleIconFile": "Scranton", "LSMinimumSystemVersion": "12.0",
+}, open(sys.argv[1], "wb"))
+PYEOF
 
 # Icon: build an .icns from the 512px logo with the tools every Mac has.
 ICONSET="$(mktemp -d)/Scranton.iconset"
 mkdir -p "$ICONSET"
-for s in 16 32 64 128 256 512; do
-    sips -z $s $s static/scranton-icon.png --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
+for s in 16 32 128 256 512; do
+    sips -z $s $s static/scranton-icon.png --out "$ICONSET/icon_${s}x${s}.png" >/dev/null || true
+    d=$((s * 2))
+    [ "$d" -le 512 ] && { sips -z $d $d static/scranton-icon.png --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null || true; }
 done
-for s in 16 32 128 256; do cp "$ICONSET/icon_$((s * 2))x$((s * 2)).png" "$ICONSET/icon_${s}x${s}@2x.png"; done
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/Scranton.icns" 2>/dev/null || echo "(icon skipped)"
 touch "$APP"
 
 # --- start at login (optional) --------------------------------------------
 if [ "${1:-}" = "--login" ]; then
     mkdir -p "$(dirname "$PLIST")"
-    cat > "$PLIST" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key><string>com.lujin.scranton</string>
-    <key>ProgramArguments</key>
-    <array><string>$REPO/scranton.sh</string><string>start</string></array>
-    <key>EnvironmentVariables</key>
-    <dict><key>PATH</key><string>$SAFE_PATH</string></dict>
-    <key>WorkingDirectory</key><string>$REPO</string>
-    <key>RunAtLoad</key><true/>
-    <key>StandardOutPath</key><string>$REPO/data/logs/login.log</string>
-    <key>StandardErrorPath</key><string>$REPO/data/logs/login.log</string>
-</dict>
-</plist>
-EOF
+    "$PWD/.venv/bin/python" - "$PLIST" "$REPO" "$SAFE_PATH" <<'PYEOF'
+import plistlib, sys
+plist, repo, path = sys.argv[1:4]
+plistlib.dump({
+    "Label": "com.lujin.scranton",
+    "ProgramArguments": [f"{repo}/scranton.sh", "start"],
+    "EnvironmentVariables": {"PATH": path},
+    "WorkingDirectory": repo,
+    "RunAtLoad": True,
+    # scranton.sh exits after starting things; don't let launchd clean them up.
+    "AbandonProcessGroup": True,
+    "StandardOutPath": f"{repo}/data/logs/login.log",
+    "StandardErrorPath": f"{repo}/data/logs/login.log",
+}, open(plist, "wb"))
+PYEOF
     launchctl unload "$PLIST" 2>/dev/null || true
     launchctl load "$PLIST"
     echo "Login item installed: the team starts when you log in."

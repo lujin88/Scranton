@@ -218,8 +218,24 @@ def _install_security_middleware(token: str, cfg: dict):
         if extra:
             allowed_origins.add(extra)
 
+    # Scranton: Host header allow-list for the pages that hand out or use the
+    # session token (DNS-rebinding guard). Built from the same origins.
+    from urllib.parse import urlsplit
+    allowed_hosts = set()
+    for o in allowed_origins:
+        parts = urlsplit(o)
+        if parts.netloc:
+            allowed_hosts.add(parts.netloc.lower())
+            allowed_hosts.add(parts.hostname.lower())
+    _self.allowed_hosts = allowed_hosts
+    _self.allowed_ws_origins = set(allowed_origins)
+
     class SecurityMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request: Request, call_next):
+            if request.url.path == "/":
+                host = request.headers.get("host", "").lower()
+                if host not in allowed_hosts:
+                    return JSONResponse({"error": f"forbidden: unknown host {host!r}. To open Scranton from this address, add https://{host} to server.allowed_origins in config.toml and restart."}, status_code=403)
             path = request.url.path
 
             # Static assets, index page, and uploaded images are public.
@@ -233,7 +249,11 @@ def _install_security_middleware(token: str, cfg: dict):
             # Agent registration/heartbeat: loopback only (no remote agent minting).
             if path.startswith(("/api/register", "/api/deregister/", "/api/heartbeat/")):
                 client_ip = request.client.host if request.client else ""
-                if client_ip not in ("127.0.0.1", "::1", "localhost"):
+                # Scranton: Tailscale Serve proxies phone traffic from 127.0.0.1,
+                # so a proxied request must not count as local.
+                proxied = any(h in request.headers for h in
+                              ("x-forwarded-for", "forwarded", "x-real-ip", "tailscale-user-login"))
+                if client_ip not in ("127.0.0.1", "::1", "localhost") or proxied:
                     return JSONResponse(
                         {"error": f"forbidden: agent registration is restricted to local loopback. Source {client_ip} is not allowed."},
                         status_code=403,
@@ -1085,6 +1105,10 @@ def _on_registry_change():
 async def websocket_endpoint(websocket: WebSocket):
     # --- Security: validate session token on WebSocket connect ---
     token = websocket.query_params.get("token", "")
+    # Scranton: browsers always send Origin on WebSockets; only our own pages may connect.
+    ws_origin = getattr(websocket, "headers", {}).get("origin")
+    if ws_origin and ws_origin.rstrip("/") not in getattr(sys.modules[__name__], "allowed_ws_origins", set()):
+        token = ""  # fall through to the same rejection as a bad token
     if token != session_token:
         # Must accept before closing so the browser receives the close frame.
         # Code 4003 triggers an auto-reload in the client to pick up the new token.
@@ -2131,7 +2155,7 @@ async def delete_job(job_id: int, request: Request):
     return result
 
 
-_AVATAR_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"}
+_AVATAR_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}  # no .svg: it can carry script
 
 
 def _scranton_team() -> dict:

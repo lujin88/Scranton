@@ -59,3 +59,42 @@ class AllowedOriginTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HostAndProxyTests(unittest.TestCase):
+    """DNS-rebinding guard on the token-serving page, and Tailscale-proxied
+    requests must not count as local for agent registration."""
+
+    def make_client(self, server_cfg=None):
+        stack = ExitStack()
+        self.addCleanup(stack.close)
+        api = FastAPI()
+        api.add_api_route("/", _ok, methods=["GET"])
+        api.add_api_route("/api/register", _ok, methods=["POST"])
+        cfg = {"server": {"port": 8300, **(server_cfg or {})}}
+        for name, value in {"app": api, "config": cfg, "registry": None,
+                            "session_token": TOKEN}.items():
+            stack.enter_context(patch.object(app, name, value))
+        app._install_security_middleware(TOKEN, cfg)
+        # TestClient's peer address is "testclient"; pretend to be loopback.
+        return stack.enter_context(TestClient(api, client=("127.0.0.1", 50000)))
+
+    def test_index_rejects_unknown_host(self):
+        c = self.make_client()
+        self.assertEqual(c.get("/", headers={"host": "localhost:8300"}).status_code, 200)
+        self.assertEqual(c.get("/", headers={"host": "evil.example:8300"}).status_code, 403)
+
+    def test_index_allows_configured_tailscale_host(self):
+        c = self.make_client({"allowed_origins": [TS]})
+        self.assertEqual(c.get("/", headers={"host": "mac-mini.tail1234.ts.net"}).status_code, 200)
+
+    def test_register_from_loopback_allowed(self):
+        c = self.make_client()
+        self.assertEqual(c.post("/api/register", headers={"host": "127.0.0.1:8300"}).status_code, 200)
+
+    def test_register_through_tailscale_proxy_rejected(self):
+        c = self.make_client({"allowed_origins": [TS]})
+        r = c.post("/api/register", headers={"host": "127.0.0.1:8300",
+                                             "x-forwarded-for": "100.64.0.7",
+                                             "tailscale-user-login": "someone@example.com"})
+        self.assertEqual(r.status_code, 403)

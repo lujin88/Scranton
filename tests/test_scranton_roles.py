@@ -49,10 +49,9 @@ class ScrantonRoleTests(unittest.TestCase):
         self.assertIn("lu-portfolio", prompts[0])
         self.assertIn("ROLE: 项目经理：项目统筹", prompts[0])
 
-    def test_ui_role_wins_over_config_role(self):
-        prompts = run_watcher(1, ui_role="Reviewer", default_role="项目经理")
-        self.assertIn("ROLE: Reviewer", prompts[0])
-        self.assertNotIn("项目经理", prompts[0])
+    def test_ui_role_is_added_to_config_role(self):
+        prompts = run_watcher(1, ui_role="Reviewer", default_role="项目经理 | 角色卡: /x/roles/pm.md")
+        self.assertIn("ROLE: Reviewer | 项目经理 | 角色卡: /x/roles/pm.md", prompts[0])
 
     def test_team_brief_on_first_wake_and_every_refresh(self):
         prompts = run_watcher(5, team_brief="称呼 Lu，用简洁中文。", refresh_interval=3)

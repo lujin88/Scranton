@@ -30,9 +30,14 @@
         return c.label || name;
     }
 
+    function escAttr(v) {
+        return String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
     function avatarHtml(name) {
         const t = scTeam[baseOf(name)];
-        if (t && t.avatar) return `<img src="${t.avatar}" alt="" loading="lazy">`;
+        // Server only returns /static/avatars/<plain file name>; escape anyway.
+        if (t && t.avatar && /^\/static\/avatars\/[^/]+$/.test(t.avatar)) return `<img src="${escAttr(t.avatar)}" alt="" loading="lazy">`;
         if (t && t.provider && typeof BRAND_AVATARS !== 'undefined' && BRAND_AVATARS[t.provider]) return BRAND_AVATARS[t.provider];
         return '';
     }
@@ -131,13 +136,31 @@
 
             row.append(avatar, text);
             // Reuse agentchattr's popover (rename, role, color) anchored to the hidden pill.
-            row.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const pill = document.getElementById(`status-${name}`);
-                if (pill) pill.click(); else insertMention(name);
-            });
-            // Long-press / double-click inserts an @mention into the composer.
-            row.addEventListener('dblclick', () => insertMention(name));
+            // Click: put "@name " in the composer (the most common action).
+            row.addEventListener('click', (e) => { e.stopPropagation(); insertMention(name); });
+            // Gear: rename / role / colour (agentchattr's popover), placed next to this row.
+            if (document.getElementById(`status-${name}`)) {
+                const gear = document.createElement('span');
+                gear.className = 'team-edit';
+                gear.title = 'Name, role, colour';
+                gear.setAttribute('role', 'button');
+                gear.textContent = '⋯';
+                gear.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    document.getElementById(`status-${name}`).click();
+                    const pop = document.querySelector('.pill-popover');
+                    if (pop) {
+                        const r = row.getBoundingClientRect();
+                        const w = 280;
+                        let left = r.left - w - 8;
+                        if (left < 12) left = Math.max(12, Math.min(r.left, window.innerWidth - w - 12));
+                        pop.style.left = `${left}px`;
+                        pop.style.top = `${Math.max(12, Math.min(r.top, window.innerHeight - 320))}px`;
+                        pop.style.transform = 'none';
+                    }
+                });
+                row.appendChild(gear);
+            }
             list.appendChild(row);
         }
         updateWorkingCount();

@@ -542,7 +542,10 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                     role = _fetch_role(server_port, current_name)
                     if not role and current_name != agent_name:
                         role = _fetch_role(server_port, agent_name)
-                    if not role:
+                    # UI role (popover) adds to the configured role/card, never hides it.
+                    if role and default_role:
+                        role = f"{role} | {default_role}"
+                    elif not role:
                         role = default_role
                     if role:
                         prompt += f"\n\nROLE: {role}"
@@ -732,7 +735,9 @@ def main():
     if queue_file.exists():
         queue_file.write_text("", "utf-8")
 
-    strip_vars = {"CLAUDECODE"} | set(agent_cfg.get("strip_env", []))
+    # Scranton: API keys are always stripped so the CLIs use your subscription,
+    # even when the tmux server was started from a shell that has them set.
+    strip_vars = {"CLAUDECODE", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "CURSOR_API_KEY"} | set(agent_cfg.get("strip_env", []))
     env = {k: v for k, v in os.environ.items() if k not in strip_vars}
 
     resolved = shutil.which(command)
@@ -814,6 +819,16 @@ def main():
     _refresh_interval = 10  # default; overridden per-trigger by server settings
     # Scranton: role and team brief from config.toml
     _default_role = str(agent_cfg.get("role", "") or "").strip()
+    # role_card: the agent's full rules (a file in this repo, e.g. roles/developer.md).
+    # Only the path is sent; the agent reads the file itself.
+    _card = str(agent_cfg.get("role_card", "") or "").strip()
+    if _card:
+        _card_path = (ROOT / _card).resolve()
+        if _card_path.is_file():
+            _default_role = (f"{_default_role} | " if _default_role else "") + \
+                f"完整角色卡（规则以它为准，开工前先读）: {_card_path}"
+        else:
+            print(f"  Warning: role_card {_card} not found")
     _team_brief = str(config.get("team", {}).get("brief", "") or "").strip()
 
     def start_watcher(inject_fn):

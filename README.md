@@ -70,7 +70,7 @@ From Terminal you can also use:
 | `./scranton.sh attach claude` | see / type into Claude's terminal. Leave with `Ctrl+B` then `D` |
 | `./scranton.sh stop` | stop everything |
 
-Logs: `data/logs/`. If an agent's CLI exits, Scranton restarts it after 10 s.
+Logs: `data/logs/`. If a teammate's CLI exits, Scranton restarts it, waiting longer each time; after 5 exits within a minute of starting it stops and says so in `data/logs/<name>.log` (usually a login or quota problem). API keys in your environment are removed before anyone starts.
 
 ## First-run test (do this once)
 
@@ -100,11 +100,11 @@ allowed_origins = ["https://mac-mini.tail1234.ts.net"]
 
 On the phone, open the address in Safari → Share → **Add to Home Screen**.
 
-Never use `tailscale funnel` for this: that makes the page public, and anyone who can load the page can command your agents.
+Never use `tailscale funnel` for this: that makes the page public, and anyone who can load the page can command your agents. Requests that come through Tailscale can chat but can't register new agents, and pages served from unknown host names are refused.
 
 ## The team
 
-Teammates are blocks in `config.toml` (copied from the Buzz setup of 2026-11-07). The block name is the @handle:
+Teammates are blocks in `config.toml`, taken from the Buzz setup notes and `BUZZ_HANDOVER.md` (2026-11-07). The block name is the @handle:
 
 | @handle | Who | CLI | Starts automatically |
 |---|---|---|---|
@@ -123,13 +123,16 @@ Teammates are blocks in `config.toml` (copied from the Buzz setup of 2026-11-07)
 
 Start a non-autostart teammate by hand: `./scranton.sh start growth`.
 
-- **role** (one line) is added to every wake-up message as `ROLE: …`. A role set by clicking the name in the Team panel wins over the file.
-- **[team].brief** (称呼 Lu, 简洁中文, PR rules) is added on the first wake-up and every 10th after.
+- **role_card**: the nine original harness role cards are in `roles/` (unchanged). Each wake-up tells the agent the card's path and to read it before acting. Growth, Support, Hardware, Web dev and Video have no saved cards yet (待确认), so they only get a one-line `role`.
+- **role** (one line) is added to every wake-up as `ROLE: …`. A role picked in the Team panel (⋯) is added in front; it doesn't replace the card.
+- **[team].brief** (称呼 Lu, 简洁中文, report format, **every merge/publish/delete needs Lu's OK**) is added on the first wake-up and every 10th after. The QA card allows scripted merges; the brief overrides that until you decide otherwise.
 - **[team].channels** are created on start (`lu-portfolio`).
-- **avatar**: copy the portraits from your `Buzz-Muse头像` folder into `static/avatars/` with the same file names (`pm-bear.jpg`, …). Until then each teammate shows its CLI's icon.
+- **avatar**: the 14 portraits from the handover package are in `static/avatars/` (resized to 256 px). Alternates weren't copied.
 - **cwd**: the lu-portfolio team works in `../LuJin-Portfolio`, i.e. clone that repo next to Scranton.
 
 ## Known gaps
+
+- **First start:** Claude and Codex may ask "trust this folder?" the first time they open `LuJin-Portfolio`. Run `./scranton.sh attach pm` (and the others) once and answer it, or the first message waits on that prompt.
 
 - **Cursor** is configured (MCP via `.cursor/mcp.json`, started with `--approve-mcps`) but not yet verified with a real Cursor login.
 - **Nine teammates share one folder** (`../LuJin-Portfolio`). Two agents editing the same files at once will clash. Ask them to work on separate branches, or give coding roles their own git worktree as `cwd`.
@@ -148,7 +151,7 @@ git remote add upstream https://github.com/bcurts/agentchattr.git
 git fetch upstream && git merge upstream/main   # resolve conflicts in static/index.html, config.toml
 ```
 
-Scranton's own changes live mainly in `static/scranton.css`, `static/scranton.js`, `scranton.sh`, `config.toml`, and a few marked lines in `app.py` and `wrapper_unix.py`.
+Scranton's own changes live mainly in `static/scranton.css`, `static/scranton.js`, `scranton.sh`, `install-mac.sh`, `tools/spawn.py`, `config.toml`, `roles/`, and lines marked "Scranton" in `app.py`, `wrapper.py` and `wrapper_unix.py`.
 
 ## Licence
 

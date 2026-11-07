@@ -407,8 +407,8 @@ class WrapperUnixLifecycleTests(unittest.TestCase):
 
         def fake_sleep(seconds):
             sleep_calls.append(seconds)
-            if seconds == 10:
-                raise KeyboardInterrupt  # stop the test after the restart delay
+            if seconds >= 10:
+                raise KeyboardInterrupt  # stop the test at the restart delay
 
         with (
             mock.patch.object(wrapper_unix, "_check_tmux"),
@@ -422,7 +422,32 @@ class WrapperUnixLifecycleTests(unittest.TestCase):
                 session_name="agentchattr-claude-1",
             )
 
-        self.assertIn(10, sleep_calls)
+        self.assertTrue(any(s >= 10 for s in sleep_calls))
+
+    def test_gives_up_after_repeated_fast_exits(self):
+        """A CLI that dies right away (logged out, out of quota) isn't restarted forever."""
+        sleeps = []
+
+        def fake_run(args, **kwargs):
+            if args[:2] == ["tmux", "has-session"]:
+                # alive once (headless "detached"), then gone: one fast exit per round
+                fake_run.flip = not getattr(fake_run, "flip", False)
+                return SimpleNamespace(returncode=0 if fake_run.flip else 1)
+            return SimpleNamespace(returncode=0, stdout=b"")
+
+        with (
+            mock.patch.object(wrapper_unix, "_check_tmux"),
+            mock.patch.object(wrapper_unix.subprocess, "run", side_effect=fake_run),
+            mock.patch.object(wrapper_unix.time, "sleep", side_effect=sleeps.append),
+        ):
+            wrapper_unix.run_agent(
+                command="claude", extra_args=[], cwd=".", env={},
+                queue_file=Path("queue.jsonl"), agent="claude", no_restart=False,
+                start_watcher=lambda inject_fn: None,
+                session_name="agentchattr-claude-1",
+            )
+        delays = [s for s in sleeps if s >= 10]
+        self.assertEqual(delays, [20, 40, 80, 160])  # then it stops
 
 
 @unittest.skipUnless(sys.platform == "win32", "Windows-only wrapper compatibility test")

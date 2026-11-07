@@ -217,3 +217,11 @@ footer {
 .team-avatar.has-pic { overflow: visible; }
 .team-avatar.has-pic img { border-radius: 8px; }
 .team-avatar svg { width: 16px; height: 16px; }
+.team-row { position: relative; }
+.team-edit {
+    margin-left: auto; padding: 2px 6px; border-radius: 6px; color: var(--text-dim);
+    opacity: 0; font-size: 16px; line-height: 1;
+}
+.team-row:hover .team-edit, .team-edit:focus { opacity: 1; }
+.team-edit:hover { background: var(--bg-elevated); color: var(--text); }
+@media (hover: none) { .team-edit { opacity: 1; } }

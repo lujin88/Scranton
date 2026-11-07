@@ -16,12 +16,13 @@ data_dir = "./data"
 #   autostart false = listed here but not started by ./scranton.sh start
 #             (start it by hand: ./scranton.sh start growth)
 #
-# Copied from "Buzz 设定整理 (2026-11-07)". Things marked 待确认 were open
-# in that note too; nothing was filled in by guessing.
+# From "Buzz 设定整理" and BUZZ_HANDOVER.md (2026-11-07). role_card files in
+# roles/ are the original harness role cards, unmodified. Things marked 待确认
+# were open in those notes too; nothing was filled in by guessing.
 
 [team]
 channels = ["lu-portfolio"]
-brief = "称呼 Lu，用简洁中文。Lu 负责最终拍板。编程工作 Lu 不看代码。PR 由 06_cursor review bot 审查，Lu 确认后才能合并；清理类事项先报批。"
+brief = "称呼 Lu，频道里用简洁中文汇报，格式：做了什么｜PR 链接｜还剩什么｜卡在哪。Lu 最终拍板，不看代码。PR 由 06_cursor review bot 审查；任何合并、发布、删除都要先拿到 Lu 的 OK（角色卡里 QA 可以用脚本合并这一条，在 Lu 确认前暂不执行）。清理类事项先报批。"
 
 # --- lu-portfolio 群里的成员 ---
 
@@ -31,7 +32,8 @@ command = "claude"
 cwd = "../LuJin-Portfolio"
 color = "#c6a0f6"
 role = "项目经理：项目统筹，lu-portfolio 的主联系人，对接 Lu"
-avatar = "pm-bear.jpg"
+avatar = "01-project-manager-bear.jpg"
+role_card = "roles/project-manager.md"
 
 [agents.harness]          # 是否在 lu-portfolio 群：待确认
 label = "Harness 管理员"
@@ -39,7 +41,8 @@ command = "claude"
 cwd = "../LuJin-Portfolio"
 color = "#f5a97f"
 role = "Harness 管理员：管理 harness"
-avatar = "harness-fox.jpg"
+avatar = "02-harness-manager-fox.jpg"
+role_card = "roles/harness-manager.md"
 
 [agents.dev]
 label = "开发工程师"
@@ -47,7 +50,8 @@ command = "claude"
 cwd = "../LuJin-Portfolio"
 color = "#8aadf4"
 role = "开发工程师：开发"
-avatar = "dev-raccoon.jpg"
+avatar = "03-developer-raccoon.jpg"
+role_card = "roles/developer.md"
 
 [agents.qa]
 label = "代码审查与 QA"
@@ -55,7 +59,8 @@ command = "claude"
 cwd = "../LuJin-Portfolio"
 color = "#a6da95"
 role = "代码审查与 QA：代码审查和测试"
-avatar = "qa-snake.jpg"
+avatar = "04-code-review-qa-snake.jpg"
+role_card = "roles/code-review-qa.md"
 
 [agents.visual]           # 原设定是 GPT
 label = "视觉设计师"
@@ -63,7 +68,8 @@ command = "codex"
 cwd = "../LuJin-Portfolio"
 color = "#f5bde6"
 role = "视觉设计师：视觉设计"
-avatar = "visual-cat.jpg"
+avatar = "05-visual-designer-cat.jpg"
+role_card = "roles/visual-designer.md"
 
 [agents.visualqa]
 label = "视觉校正"
@@ -71,7 +77,8 @@ command = "codex"
 cwd = "../LuJin-Portfolio"
 color = "#eed49f"
 role = "视觉校正：视觉还原校对"
-avatar = "visualqa-lynx.jpg"
+avatar = "06-visual-qa-lynx.jpg"
+role_card = "roles/visual-qa.md"
 
 [agents.motion]
 label = "动效设计师"
@@ -79,7 +86,8 @@ command = "codex"
 cwd = "../LuJin-Portfolio"
 color = "#8bd5ca"
 role = "动效设计师：动效"
-avatar = "motion-otter.jpg"
+avatar = "07-motion-designer-otter.jpg"
+role_card = "roles/motion-designer.md"
 
 [agents.research]
 label = "UX 调研员"
@@ -87,7 +95,8 @@ command = "claude"
 cwd = "../LuJin-Portfolio"
 color = "#91d7e3"
 role = "UX 调研员：用户研究"
-avatar = "research-rabbit.jpg"
+avatar = "08-ux-researcher-rabbit.jpg"
+role_card = "roles/ux-researcher.md"
 
 [agents.copy]
 label = "UX 文案"
@@ -95,7 +104,8 @@ command = "claude"
 cwd = "../LuJin-Portfolio"
 color = "#f0c6c6"
 role = "UX 文案：文案"
-avatar = "copy-ferret.jpg"
+avatar = "09-ux-copywriter-ferret.jpg"
+role_card = "roles/ux-copywriter.md"
 
 # --- 不在 lu-portfolio 群：先不自动启动。模型原设定未写，暂用 claude（待确认）---
 
@@ -104,8 +114,8 @@ label = "增长 / 推广"
 command = "claude"
 cwd = ".."
 color = "#ee99a0"
-role = "增长 / 推广：推广"
-avatar = "growth-fox.jpg"
+role = "增长 / 推广（含 SEO）。完整规则待确认"
+avatar = "10-growth-marketing-fox.jpg"
 autostart = false
 
 [agents.cs]
@@ -113,8 +123,8 @@ label = "客服 / 用户反馈"
 command = "claude"
 cwd = ".."
 color = "#b7bdf8"
-role = "客服 / 用户反馈：用户反馈"
-avatar = "cs-rabbit.jpg"
+role = "客服 / 用户反馈。完整规则待确认"
+avatar = "11-customer-support-feedback-rabbit.jpg"
 autostart = false
 
 [agents.hardware]
@@ -122,8 +132,8 @@ label = "硬件顾问 AI Pet"
 command = "claude"
 cwd = ".."
 color = "#a5adcb"
-role = "硬件顾问：AI Pet 硬件"
-avatar = "hw-tortoise.jpg"
+role = "硬件顾问：AI Pet 硬件。完整规则待确认"
+avatar = "12-hardware-advisor-tortoise.jpg"
 autostart = false
 
 # --- 原设定里只有头像，是否已建 agent 待确认 ---
@@ -133,7 +143,8 @@ label = "网页开发"
 command = "agent"
 cwd = "../LuJin-Portfolio"
 color = "#7dc4e4"
-role = "网页开发：网页开发"
+role = "网页开发（Cursor）。完整规则待确认"
+avatar = "13-cursor-web-developer-beaver.jpg"
 autostart = false
 mcp_inject = "settings_file"
 mcp_settings_path = ".cursor/mcp.json"
@@ -145,8 +156,8 @@ label = "视频制作"
 command = "claude"
 cwd = ".."
 color = "#939ab7"
-role = "视频制作：视频"
-avatar = "video-rabbit.jpg"
+role = "视频剪辑：剪素材、加字幕和封面，交付横版和竖版成片；没有 Lu 的 OK 不发布。完整规则待确认"
+avatar = "14-video-editor-rabbit.jpg"
 autostart = false
 
 [routing]
