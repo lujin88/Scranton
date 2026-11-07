@@ -161,12 +161,24 @@
             <div class="sc-sfoot"><span id="sc-search-count"></span><span class="sc-keys"><kbd>↑</kbd><kbd>↓</kbd> Navigate <kbd>↵</kbd> Open <kbd>esc</kbd> Close</span></div>
         </div>`;
         document.body.appendChild(d);
+        // Grow out of the top-bar search field (as Slack / Linear do) instead of a separate box
+        const place = () => {
+            const btn = document.getElementById('sc-search-btn');
+            const dlg = d.querySelector('.sc-search-dlg');
+            if (!btn || !dlg || window.matchMedia('(max-width: 760px)').matches) return;
+            const r = btn.getBoundingClientRect();
+            const w = Math.min(Math.max(r.width + 120, 640), window.innerWidth - 32);
+            const left = Math.min(Math.max(16, r.left + r.width / 2 - w / 2), window.innerWidth - w - 16);
+            dlg.style.left = `${left}px`; dlg.style.top = `${Math.max(4, r.top - 6)}px`; dlg.style.width = `${w}px`;
+        };
+        place();
+        window.addEventListener('resize', place);
         const input = d.querySelector('#sc-search-input');
         const out = d.querySelector('#sc-search-results');
         const count = d.querySelector('#sc-search-count');
         const clear = d.querySelector('.sc-sq-clear');
         let filter = 'all', hits = [], seq = 0, timer = null, active = 0;
-        const close = () => d.remove();
+        const close = () => { d.remove(); window.removeEventListener('resize', place); };
         d.addEventListener('click', (e) => { if (e.target === d) close(); });
 
         const team = () => (window.scGetTeam ? window.scGetTeam() : {}) || {};
@@ -233,7 +245,7 @@
             group('Channels', g.channels);
             group('Messages', g.messages);
             if (!flat.length) html = `<div class="sc-sr-empty">${q ? `Nothing matches “${esc(q)}”.` : 'No teammates or channels yet.'}</div>`;
-            if (q && filter !== 'people' && filter !== 'channels' && !g.messages.length && flat.length) html += '<div class="sc-sr-none">No messages match.</div>';
+            if (q && filter === 'messages' && !g.messages.length) html = '<div class="sc-sr-empty">No messages match.</div>';
             out.innerHTML = html;
             const msgCount = g.messages.length;
             count.textContent = q ? `${flat.length} result${flat.length === 1 ? '' : 's'}${msgCount >= 40 ? ' (newest 40 messages)' : ''}` : 'Type to search every channel';
