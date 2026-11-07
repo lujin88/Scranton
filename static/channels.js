@@ -195,7 +195,7 @@ function _showSidebarRenameDialog(oldName) {
 
     const confirm = document.createElement('button');
     confirm.className = 'confirm-btn';
-    confirm.innerHTML = '&#10003;';
+    confirm.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9.9997 15.1709L19.1921 5.97852L20.6063 7.39273L9.9997 17.9993L3.63574 11.6354L5.04996 10.2212L9.9997 15.1709Z"/></svg>'; confirm.setAttribute('aria-label', 'Save');  // Remix Icon check-line
     confirm.title = 'Rename';
     confirm.onclick = () => {
         const newName = input.value.trim().toLowerCase();
@@ -214,7 +214,7 @@ function _showSidebarRenameDialog(oldName) {
 
     const cancel = document.createElement('button');
     cancel.className = 'cancel-btn';
-    cancel.innerHTML = '&#10005;';
+    cancel.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z"/></svg>'; cancel.setAttribute('aria-label', 'Cancel');  // Remix Icon close-line
     cancel.title = 'Cancel';
     cancel.onclick = cleanup;
     wrapper.appendChild(cancel);
@@ -365,14 +365,14 @@ function showChannelCreateDialog() {
 
     const confirm = document.createElement('button');
     confirm.className = 'confirm-btn';
-    confirm.innerHTML = '&#10003;';
+    confirm.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9.9997 15.1709L19.1921 5.97852L20.6063 7.39273L9.9997 17.9993L3.63574 11.6354L5.04996 10.2212L9.9997 15.1709Z"/></svg>'; confirm.setAttribute('aria-label', 'Save');  // Remix Icon check-line
     confirm.title = 'Create';
     confirm.onclick = () => { _submitInlineCreate(input, wrapper); if (addBtn) addBtn.style.display = ''; };
     wrapper.appendChild(confirm);
 
     const cancel = document.createElement('button');
     cancel.className = 'cancel-btn';
-    cancel.innerHTML = '&#10005;';
+    cancel.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z"/></svg>'; cancel.setAttribute('aria-label', 'Cancel');  // Remix Icon close-line
     cancel.title = 'Cancel';
     cancel.onclick = cleanup;
     wrapper.appendChild(cancel);
@@ -430,7 +430,7 @@ function showChannelRenameDialog(oldName) {
 
     const confirm = document.createElement('button');
     confirm.className = 'confirm-btn';
-    confirm.innerHTML = '&#10003;';
+    confirm.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9.9997 15.1709L19.1921 5.97852L20.6063 7.39273L9.9997 17.9993L3.63574 11.6354L5.04996 10.2212L9.9997 15.1709Z"/></svg>'; confirm.setAttribute('aria-label', 'Save');  // Remix Icon check-line
     confirm.title = 'Rename';
     confirm.onclick = () => {
         const newName = input.value.trim().toLowerCase();
@@ -449,7 +449,7 @@ function showChannelRenameDialog(oldName) {
 
     const cancel = document.createElement('button');
     cancel.className = 'cancel-btn';
-    cancel.innerHTML = '&#10005;';
+    cancel.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z"/></svg>'; cancel.setAttribute('aria-label', 'Cancel');  // Remix Icon close-line
     cancel.title = 'Cancel';
     cancel.onclick = cleanup;
     wrapper.appendChild(cancel);

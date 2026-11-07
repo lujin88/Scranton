@@ -1098,3 +1098,15 @@ body.sc-sidebar-collapsed #sc-banners.in-sidebar { display: none; }
 .sc-prof-field input:focus { border-color: #5a5a5a; }
 .sc-prof-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 .sc-set-actions-btn { border: 1px solid var(--border-strong); background: none; color: var(--text); font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 999px; }
+
+/* Inline create/rename: Remix Icon check / close as proper 32px buttons */
+.channel-inline-create .confirm-btn, .channel-inline-create .cancel-btn,
+.channel-rename-row .confirm-btn, .channel-rename-row .cancel-btn {
+    width: 32px; height: 32px; flex-shrink: 0; display: grid; place-items: center; padding: 0;
+    border: 0; border-radius: 8px; background: none; font-size: 0; line-height: 0;
+}
+.channel-inline-create .confirm-btn, .channel-rename-row .confirm-btn { color: var(--accent); }
+.channel-inline-create .cancel-btn, .channel-rename-row .cancel-btn { color: var(--text-dim); }
+.channel-inline-create .confirm-btn:hover, .channel-rename-row .confirm-btn:hover { background: rgba(195, 217, 86, 0.12); }
+.channel-inline-create .cancel-btn:hover, .channel-rename-row .cancel-btn:hover { background: rgba(255, 255, 255, 0.07); color: var(--text); }
+.channel-inline-create { display: flex; align-items: center; gap: 4px; }
