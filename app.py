@@ -2450,6 +2450,20 @@ async def scranton_connection_login(provider: str):
     return JSONResponse(await asyncio.to_thread(_sc_team.open_login, provider))
 
 
+@app.get("/api/scranton/quiet")
+async def scranton_quiet_get():
+    return JSONResponse(_sc_team.quiet_hours())
+
+
+@app.post("/api/scranton/quiet")
+async def scranton_quiet_set(request: Request):
+    b = await request.json()
+    try:
+        return JSONResponse(_sc_team.set_quiet_hours(b.get("enabled", True), str(b.get("from", "")), str(b.get("to", ""))))
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+
+
 @app.get("/api/scranton/models/new")
 async def scranton_models_new():
     """New models an app offers since you last looked (for the 'new model' card)."""
@@ -2557,6 +2571,11 @@ async def scranton_teammate_update(name: str, request: Request):
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
 
+@app.get("/api/scranton/agents/library")
+async def scranton_agent_library():
+    return JSONResponse(_sc_team.library(config))
+
+
 @app.get("/api/scranton/agents/new")
 async def scranton_agent_new_options():
     return JSONResponse({"folders": _sc_team.project_folders(config), "avatars": _sc_team.avatars(),
@@ -2581,6 +2600,14 @@ async def scranton_agents_change(request: Request):
             await broadcast_team_changed()
             res = await asyncio.to_thread(_scranton_ops.ensure_running, [a["handle"]], config)
             return JSONResponse({"ok": True, "agent": a, "start": res})
+        if action == "restore":
+            name = str(body.get("name", ""))
+            await asyncio.to_thread(_sc_team.restore_agent, name, config)
+            registry.seed({name: config["agents"][name]})
+            _on_registry_change()
+            await broadcast_settings()
+            await broadcast_team_changed()
+            return JSONResponse({"ok": True})
         if action == "delete":
             name = str(body.get("name", ""))
             await asyncio.to_thread(_sc_team.delete_agent, name, config, _scranton_ops.RUN_DIR)

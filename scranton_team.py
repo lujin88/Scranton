@@ -162,7 +162,7 @@ def project_folders(config: dict) -> list[str]:
 def add_agent(spec: dict, config: dict) -> dict:
     handle = str(spec.get("handle", "")).strip().lower()
     if not HANDLE_RE.match(handle) or handle.startswith("dm") or handle in ("all", "lu", "system", "user"):
-        raise ValueError("the @handle is 2–20 lowercase letters, numbers or dashes, starting with a letter")
+        raise ValueError("the @handle is 2–17 lowercase letters, numbers or dashes, starting with a letter")
     if handle in (config or {}).get("agents", {}):
         raise ValueError(f"@{handle} already exists")
     provider = str(spec.get("provider", "claude"))
@@ -208,7 +208,36 @@ def delete_agent(name: str, config: dict, run_dir: Path) -> None:
             data["_removed"] = sorted(set(data.get("_removed", [])) | {name})
         data.pop(name, None)
         _write(data)
-    config["agents"].pop(name, None)
+    removed = config["agents"].pop(name, None)
+    if removed is not None and name not in load_overrides().get("_added", {}):
+        config.setdefault("_library", {})[name] = removed   # a built-in role: can come back from the Library
+
+
+def library(config: dict) -> list[dict]:
+    """Built-in roles that aren't on the team right now."""
+    out = []
+    for name, a in sorted(((config or {}).get("_library") or {}).items()):
+        out.append({"handle": name, "label": a.get("label", name), "role": a.get("role", ""),
+                    "app": PROVIDERS.get(provider_of(a.get("command", "")), {}).get("name", a.get("command", "")),
+                    "avatar": a.get("avatar", "")})
+    return out
+
+
+def restore_agent(name: str, config: dict) -> dict:
+    lib = (config or {}).get("_library") or {}
+    if name not in lib:
+        raise ValueError("that role isn't in the Library")
+    with _lock:
+        data = load_overrides()
+        data["_removed"] = [n for n in data.get("_removed", []) if n != name]
+        if not data["_removed"]:
+            data.pop("_removed")
+        _write(data)
+    a = lib.pop(name)
+    if isinstance(a.get("cwd"), str):
+        a["cwd"] = os.path.expanduser(a["cwd"])
+    config.setdefault("agents", {})[name] = a
+    return {"handle": name}
 
 
 # ---------------------------------------------------------------- connections
@@ -318,6 +347,26 @@ def _write_json(path: Path, data) -> None:
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), "utf-8")
     os.replace(tmp, path)
+
+
+QUIET = ROOT / "data" / "quiet-hours.json"
+_TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+def quiet_hours() -> dict:
+    try:
+        q = json.loads(QUIET.read_text("utf-8"))
+    except (OSError, ValueError):
+        q = {}
+    return {"enabled": bool(q.get("enabled", True)), "from": q.get("from", "22:00"), "to": q.get("to", "08:00")}
+
+
+def set_quiet_hours(enabled, start: str, end: str) -> dict:
+    if not (_TIME_RE.match(str(start)) and _TIME_RE.match(str(end))):
+        raise ValueError("times are HH:MM")
+    q = {"enabled": bool(enabled), "from": start, "to": end}
+    _write_json(QUIET, q)
+    return q
 
 
 def provider_defaults() -> dict:

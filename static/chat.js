@@ -82,7 +82,19 @@ const CROSS_CHANNEL_SOUND = 'pluck';
 let soundPrefs = JSON.parse(localStorage.getItem('agentchattr-sounds') || '{}');
 const soundCache = {};
 
+// Scranton: no sounds during quiet hours (Settings → Profile)
+window.scQuiet = { enabled: true, from: '22:00', to: '08:00' };
+window.scSetQuiet = (q) => { window.scQuiet = q; };
+window.scIsQuiet = function () {
+    const q = window.scQuiet || {};
+    if (!q.enabled) return false;
+    const d = new Date(), t = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    return q.from <= q.to ? (t >= q.from && t < q.to) : (t >= q.from || t < q.to);
+};
+fetch('/api/scranton/quiet', { headers: { 'X-Session-Token': SESSION_TOKEN } }).then((r) => r.json()).then((q) => { if (q && q.from) window.scQuiet = q; }).catch(() => {});
+
 function playNotificationSound(sender) {
+    if (window.scIsQuiet && window.scIsQuiet()) return;
     const key = sender.toLowerCase();
     const soundName = soundPrefs[key] || soundPrefs['default'] || DEFAULT_SOUND;
     if (soundName === 'none') return;
@@ -95,6 +107,7 @@ function playNotificationSound(sender) {
 }
 
 function playCrossChannelSound() {
+    if (window.scIsQuiet && window.scIsQuiet()) return;
     const soundName = soundPrefs['cross-channel'] || CROSS_CHANNEL_SOUND;
     if (soundName === 'none') return;
     if (!soundCache[soundName]) {

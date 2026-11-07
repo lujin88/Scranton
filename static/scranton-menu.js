@@ -76,6 +76,13 @@
         menu.remove(); menu = null;
         document.getElementById('sc-me')?.setAttribute('aria-expanded', 'false');
     }
+    // Lu's other tools, recommended in Support ›. A tool with no link yet shows "Soon".
+    const MORE_TOOLS = [
+        { id: 'monitor', icon: 'dashboard', name: 'Agent Monitor', what: 'Watch and approve your agents', url: 'https://github.com/lujin88/agent-monitor' },
+        { id: 'office', icon: 'gamepad', name: 'Pixel Agent Office', what: 'Your team as a pixel office', url: '' },
+    ];
+    window.scMoreTools = MORE_TOOLS;
+
     // Grok-style: flat list, rows with a value and › open a submenu to the right.
     function row(a, ic, text, extra) {
         return `<button type="button" role="menuitem" data-a="${a}"${extra ? ' aria-haspopup="menu"' : ''}>${ic}<span>${text}</span>${extra || ''}</button>`;
@@ -117,12 +124,16 @@
                 sub.innerHTML = STATUSES.map(([v, l]) => `<button type="button" role="menuitemradio" aria-checked="${v === cur}" data-s="${v}"><span class="sc-am-dot ${v}"></span><span>${l}</span>${v === cur ? (window.scIcon ? window.scIcon('check', 16) : '') : ''}</button>`).join('');
             } else {
                 sub.innerHTML = `<button type="button" role="menuitem" data-a="feedback">${svg('mail')}<span>Send feedback</span></button>
-                    <button type="button" role="menuitem" data-a="shortcuts">${svg('keyboard')}<span>Keyboard shortcuts</span></button>`;
+                    <button type="button" role="menuitem" data-a="shortcuts">${svg('keyboard')}<span>Keyboard shortcuts</span></button>
+                    <div class="sc-am-label">Also by Lu</div>
+                    ${MORE_TOOLS.map((t) => `<button type="button" role="menuitem" data-tool="${t.id}"${t.url ? '' : ' aria-disabled="true"'}>${svg(t.icon)}<span>${esc(t.name)}</span>${t.url ? `<i class="sc-am-chev">${window.scIcon ? window.scIcon('external', 14) : ''}</i>` : '<em>Soon</em>'}</button>`).join('')}`;
             }
             menu.appendChild(sub);
             const br = btn.getBoundingClientRect(), mr = menu.getBoundingClientRect();
             sub.style.left = `${mr.width - 4}px`;
             sub.style.top = `${br.top - mr.top - 8}px`;
+            const over = sub.getBoundingClientRect().bottom - (window.innerHeight - 8);
+            if (over > 0) sub.style.top = `${br.top - mr.top - 8 - over}px`;   // keep it on screen
             btn.setAttribute('aria-expanded', 'true');
         }
         menu.addEventListener('mouseover', (e) => {
@@ -134,6 +145,12 @@
             const s2 = e.target.closest('[data-s]');
             if (s2) {
                 setStatus(s2.dataset.s); closeMenu(); return;
+            }
+            const tool = e.target.closest('[data-tool]');
+            if (tool) {
+                const t = MORE_TOOLS.find((x) => x.id === tool.dataset.tool);
+                if (t && t.url) { closeMenu(); window.open(t.url, '_blank', 'noopener'); }
+                return;
             }
             const b = e.target.closest('[data-a]');
             if (!b) return;

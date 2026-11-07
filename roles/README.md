@@ -9,6 +9,8 @@ They don't replace the originals.
 
 `scranton-help.md` is new for Scranton (the helper that files feedback as issues).
 
-Growth, Customer Support, Hardware Advisor, Web Developer (Cursor) and Video Editor
-have no saved cards yet (to confirm). Add a card here and set `role_card` in
-`config.toml` when you have one.
+Drafts written by Scranton on 2026-11-08 (marked 草稿 at the top; they apply once Lu confirms):
+`growth.md`, `customer-support.md`, `hardware-advisor.md`, `web-developer-cursor.md`,
+`video-editor.md` (originals weren't recovered), and three roles added for a one-person
+company: `release-ops.md`, `legal-privacy.md`, `data-analyst.md`. These should move to
+harness-core `roles/` by PR once confirmed (only Lu merges that).

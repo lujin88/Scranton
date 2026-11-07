@@ -78,6 +78,9 @@
                     </button>`).join('')}
                 </div>
                 <p class="sc-wl-rule">Code changes are merged after review. Design changes, publishing and anything that costs money wait for you.</p>
+                <div class="sc-wl-also">${(window.scMoreTools || []).map((t) => t.url
+                    ? `<a href="${esc(t.url)}" target="_blank" rel="noopener">${ic(t.icon, 16)}<span><b>${esc(t.name)}</b> · ${esc(t.what)}</span></a>`
+                    : `<span class="soon">${ic(t.icon, 16)}<span><b>${esc(t.name)}</b> · ${esc(t.what)} · soon</span></span>`).join('')}</div>
                 <div class="sc-wl-foot"><span>${done} of ${list.length} done</span><button type="button" class="sc-wl-hide" data-a="hide">${done === list.length ? 'Done' : 'Hide for now'}</button></div>
             </div>`;
     }

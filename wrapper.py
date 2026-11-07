@@ -470,6 +470,24 @@ def _report_rule_sync(server_port: int, agent_name: str, epoch: int, token: str 
         pass
 
 
+def _quiet_note(now=None) -> str:
+    """During Lu's quiet hours (Settings → Profile), ask agents not to @Lu unless it's urgent."""
+    try:
+        q = json.loads((ROOT / "data" / "quiet-hours.json").read_text("utf-8"))
+    except (OSError, ValueError):
+        q = {}
+    if not q.get("enabled", True):
+        return ""
+    start, end = str(q.get("from", "22:00")), str(q.get("to", "08:00"))
+    import datetime as _dt
+    t = (now or _dt.datetime.now()).strftime("%H:%M")
+    inside = (start <= t < end) if start <= end else (t >= start or t < end)
+    if not inside:
+        return ""
+    return (f" QUIET HOURS ({start}-{end}, Lu's time): keep working, but don't @Lu now unless it is high-risk "
+            f"or something is broken for real users; collect questions for her and post them after {end}.")
+
+
 def _requeue(queue_file: Path, lines: list[str]) -> None:
     """Put undelivered mentions back. Appending (never rewriting) can't erase a
     mention the server adds at the same moment; order inside one batch doesn't matter."""
@@ -638,6 +656,7 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                     # Flatten to single line — multi-line text triggers paste
                     # detection in CLIs (Claude Code shows "[Pasted text +N]")
                     # which can break injection of long session prompts
+                    prompt += _quiet_note()
                     result = inject_fn(prompt.replace("\r", " ").replace("\n", " "))
                     blocked = result == "question"
                     if not blocked and result is not False:

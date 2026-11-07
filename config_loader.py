@@ -163,8 +163,12 @@ def load_config(root: Path | None = None) -> dict:
         for name, vals in ((ui or {}).get("_added") or {}).items():
             if isinstance(vals, dict) and name not in config.get("agents", {}):
                 config.setdefault("agents", {})[name] = dict(vals)
+        # Built-in roles you removed stay in the Library, so they can be added back.
+        library = config.setdefault("_library", {})
         for name in ((ui or {}).get("_removed") or []):
-            config.get("agents", {}).pop(name, None)
+            removed = config.get("agents", {}).pop(name, None)
+            if isinstance(removed, dict):
+                library[name] = removed
         for name, vals in (ui or {}).items():
             if name.startswith("_"):
                 continue

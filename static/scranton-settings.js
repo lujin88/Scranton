@@ -73,7 +73,12 @@
 
     async function render() {
         const body = root.querySelector('.sc-st-body');
-        if (section === 'profile') body.innerHTML = profileView();
+        if (section === 'profile') {
+            body.innerHTML = profileView();
+            const q = await api('/api/scranton/quiet');
+            const slot = root && root.querySelector('#sc-quiet');
+            if (slot && q && q.from) slot.innerHTML = quietView(q);
+        }
         if (section === 'agents' && agentOpen === '__new') {
             body.innerHTML = '<div class="sc-st-loading">Loading…</div>';
             newOpts = await api('/api/scranton/agents/new');
@@ -81,6 +86,11 @@
             return;
         }
         if (section === 'agents') body.innerHTML = agentOpen ? '<div class="sc-st-loading">Loading…</div>' : agentsView();
+        if (section === 'agents' && !agentOpen) {
+            const lib = await api('/api/scranton/agents/library');
+            const slot = root && root.querySelector('#sc-lib');
+            if (slot && Array.isArray(lib) && lib.length) slot.innerHTML = libraryView(lib);
+        }
         if (section === 'connections') { body.innerHTML = '<div class="sc-st-loading">Checking sign-ins…</div>'; body.innerHTML = connectionsView(await api('/api/scranton/connections')); }
         if (section === 'updates') body.innerHTML = updatesView();
         if (section === 'agents' && agentOpen) {
@@ -109,7 +119,15 @@
                     ${hasPic ? '<button type="button" class="sc-link" data-a="remove-photo">Remove photo</button>' : ''}
                 </div>
             </div>
-            <footer class="sc-st-foot"><span class="sc-st-saved" id="sc-pf-saved"></span><button type="button" class="sc-btn primary" data-a="save-profile">Save changes</button></footer>`;
+            <footer class="sc-st-foot"><span class="sc-st-saved" id="sc-pf-saved"></span><button type="button" class="sc-btn primary" data-a="save-profile">Save changes</button></footer>
+            <header class="sc-st-sub"><h3>Quiet hours</h3><p>Agents keep working but don't @ you, unless something is high-risk or broken. No sounds.</p></header>
+            <div class="sc-quiet" id="sc-quiet"></div>`;
+    }
+    function quietView(q) {
+        return `<label class="sc-switch-row"><input type="checkbox" id="sc-q-on"${q.enabled ? ' checked' : ''}><span class="sc-switch"></span><span>On</span></label>
+            <label class="sc-field sc-time"><span>From</span><input type="time" id="sc-q-from" value="${esc(q.from)}"></label>
+            <label class="sc-field sc-time"><span>To</span><input type="time" id="sc-q-to" value="${esc(q.to)}"></label>
+            <span class="sc-st-saved" id="sc-q-saved"></span>`;
     }
 
     // ---------------------------------------------------------------- Agents
@@ -128,7 +146,19 @@
                     <span class="sc-tbl-go">${state(h) === 'offline' ? `<button type="button" class="sc-btn sm" data-start="${esc(h)}">Start</button>` : ''}${icon('right', 18)}</span>
                 </div>`).join('')}
             </div>
+            <div id="sc-lib"></div>
 `;
+    }
+
+    // Built-in roles you removed: one click puts them back on the team.
+    function libraryView(lib) {
+        return `<header class="sc-st-sub"><h3>Library</h3><p>Built-in roles not on your team. Add one back any time.</p></header>
+            <div class="sc-tbl">${lib.map((a) => `<div class="sc-tbl-r sc-lib-r">
+                <span class="sc-ag"><span class="sc-ag-av">${a.avatar ? `<img src="/static/avatars/${esc(a.avatar)}" alt="">` : esc(String(a.label).charAt(0))}</span><span class="sc-ag-txt"><b>${esc(a.label)}</b><small>${esc(String(a.role || '').split(':')[0])}</small></span></span>
+                <span class="sc-tbl-dim">${esc(a.app)}</span>
+                <span></span>
+                <span class="sc-tbl-go"><button type="button" class="sc-btn sm" data-restore="${esc(a.handle)}">${icon('add', 14)}<span>Add</span></button></span>
+            </div>`).join('')}</div>`;
     }
 
     function addView(o) {
@@ -350,6 +380,14 @@
         if (key) { await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}/keys`, { key: key.dataset.key }); setTimeout(() => pollScreen(agentOpen), 300); return; }
         const tab = t.closest('[data-tab]');
         if (tab) { agentTab = tab.dataset.tab; editing = false; render(); return; }
+        const rest = t.closest('[data-restore]');
+        if (rest) {
+            e.stopPropagation(); rest.disabled = true;
+            const r = await api('/api/scranton/agents', { action: 'restore', name: rest.dataset.restore });
+            if (r && r.ok === false) { rest.textContent = r.error || 'Couldn\'t add'; return; }
+            setTimeout(() => render(), 600);
+            return;
+        }
         const start = t.closest('[data-start]');
         if (start) { e.stopPropagation(); start.textContent = 'Starting…'; start.disabled = true; const r = await api(`/api/scranton/teammate/${encodeURIComponent(start.dataset.start)}`, { action: 'start' }); if (r.error) start.textContent = 'Can\'t start'; return; }
         const act = t.closest('[data-agent-act]');
@@ -433,6 +471,13 @@
             return;
         }
         if (e.target.id && e.target.id.startsWith('sc-new-')) return;
+        if (e.target.id && e.target.id.startsWith('sc-q-')) {
+            const q = { enabled: root.querySelector('#sc-q-on').checked, from: root.querySelector('#sc-q-from').value, to: root.querySelector('#sc-q-to').value };
+            const r = await api('/api/scranton/quiet', q);
+            if (window.scSetQuiet && r && r.from) window.scSetQuiet(r);
+            flash('sc-q-saved', r && r.from ? 'Saved.' : (r && r.error) || 'Couldn\'t save.');
+            return;
+        }
         const def = e.target.closest('select[data-default]');
         if (def) {
             const r = await api(`/api/scranton/connections/${encodeURIComponent(def.dataset.default)}/default`, { model: def.value });
