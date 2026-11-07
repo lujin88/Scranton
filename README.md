@@ -29,11 +29,16 @@ Based on [agentchattr](https://github.com/bcurts/agentchattr) (MIT). UI inspired
 
 ## Layout
 
-| Desktop | Phone |
+| Where | What |
 |---|---|
-| Channels left · conversation centre · Team with live status right | One column. ☰ opens channels, the people icon opens Team (badge = how many are working) |
+| Top bar | Show/hide the sidebar · **Search** (⌘K) across every channel |
+| Left | **Activity** (Mentions first: everything that @Lu's you) · Channels · Direct messages with live status dots · **your avatar** bottom-left: change picture, change name, Settings (team + status), Help, Send feedback |
+| Centre | The conversation. Your messages on the right, teammates on the left. Hover a message for react, reply in thread, copy link, forward, more |
+| Right | Threads open here, several at once as tabs |
+| Bottom-left cards | "Ready to update" (Update now) and "Teammates stopped" (Resume) |
+| Phone | One column; the sidebar opens as a drawer |
 
-Unused agentchattr features (jobs, rules, sessions, schedules, help tour, update checks) are hidden, not deleted, so upstream fixes can still be merged.
+Unused agentchattr features (jobs, rules, sessions, help tour) are hidden, not deleted, so upstream fixes can still be merged.
 
 ## Install on a Mac
 
@@ -66,6 +71,7 @@ From Terminal you can also use:
 
 | Command | What it does |
 |---|---|
+| `./scranton.sh check` | are the CLIs installed and logged in? |
 | `./scranton.sh start [agent]` | start the server and all agents (or one) |
 | `./scranton.sh status` | what's running |
 | `./scranton.sh attach claude` | see / type into Claude's terminal. Leave with `Ctrl+B` then `D` |
@@ -75,31 +81,40 @@ Logs: `data/logs/`. If a teammate's CLI exits, Scranton restarts it, waiting lon
 
 ## First-run test (do this once)
 
-1. Open Scranton.app. The autostart teammates should appear under **Team** as *Available*.
-2. In #lu-portfolio: `@pm 你好，说一下你是谁、用的什么模型`. 项目经理 should turn *Working*, then reply.
-3. Try `@visual` (Codex) the same way.
-4. Hand-off test: `@pm 让 @dev 列出项目里的文件，然后总结给我`.
-5. The first time a Claude teammate starts in full-permission mode it shows a one-time warning about bypassing permissions. Run `./scranton.sh attach pm` (and each Claude teammate) once and accept it, or that teammate waits on the warning.
+1. `./scranton.sh check`: every CLI you use says it's installed and logged in.
+2. `./scranton.sh start pm`: only the server and 项目经理, to keep the first test small.
+3. `./scranton.sh attach pm`. Claude may ask "trust this folder?" and, in full-permission mode, show a one-time warning about bypassing permissions. Accept both, then leave with `Ctrl+B`, `D`. Do this once per Claude and Codex teammate.
+4. Open http://localhost:8300. In Direct messages, 项目经理's dot is green.
+5. In #lu-portfolio: `@pm 你好，说一下你是谁、用的什么模型`. The dot turns yellow (working), then the reply arrives and shows up in **Activity**.
+6. `./scranton.sh start` brings up everyone with `autostart`. Hand-off test: `@pm 让 @dev 列出项目里的文件，然后总结给我`.
+7. Try `@visual` (Codex) the same way.
 
 If someone doesn't reply: `./scranton.sh attach pm` (or their handle) and look at their terminal. Cursor support is new in Scranton and hasn't been tested on a real Mac yet (see Known gaps).
 
 ## Phone access with Tailscale
 
-The server only listens on `127.0.0.1`. Tailscale Serve puts HTTPS in front of it, reachable only from devices on your tailnet.
+The server only listens on `127.0.0.1`. Tailscale Serve puts HTTPS in front of it, reachable only from your own devices (your tailnet). Nothing is opened to the internet.
 
-```bash
-tailscale serve --bg 8300
-tailscale serve status        # shows https://<mac-name>.<tailnet>.ts.net
-```
+1. **Mac:** install Tailscale (tailscale.com/download or the Mac App Store) and sign in.
+2. **Phone:** install the Tailscale app and sign in with the **same account**. Both devices now show up in the Tailscale app.
+3. **Once, in the Tailscale admin page** (login.tailscale.com → DNS): MagicDNS on, **HTTPS Certificates** on.
+4. **Mac, in Terminal** (the App Store version's command is `/Applications/Tailscale.app/Contents/MacOS/Tailscale` instead of `tailscale`):
 
-Put that address in `config.local.toml` (your Mac's own settings; copy `config.local.toml.example`), then restart. Keep personal changes out of `config.toml`, so **Update now** keeps working:
+   ```bash
+   tailscale serve --bg 8300
+   tailscale serve status        # shows https://<mac-name>.<tailnet>.ts.net
+   ```
 
-```toml
-[server]
-allowed_origins = ["https://mac-mini.tail1234.ts.net"]
-```
+5. Put that address in `config.local.toml` (copy `config.local.toml.example`; keep personal changes out of `config.toml` so **Update now** keeps working), then `./scranton.sh restart-server`:
 
-On the phone, open the address in Safari → Share → **Add to Home Screen**.
+   ```toml
+   [server]
+   allowed_origins = ["https://mac-mini.tail1234.ts.net"]
+   ```
+
+6. **Phone:** Tailscale on (VPN toggle), open the address in Safari → Share → **Add to Home Screen**.
+
+If the page says "unknown host", step 5 is missing or has a typo. The Mac has to be awake: on the Mac mini, turn on System Settings → Energy → "Prevent automatic sleeping".
 
 Never use `tailscale funnel` for this: that makes the page public, and anyone who can load the page can command your agents. Requests that come through Tailscale can chat but can't register new agents, and pages served from unknown host names are refused.
 
@@ -132,23 +147,35 @@ Start a non-autostart teammate by hand: `./scranton.sh start growth`.
 The helper works in `helper/`, not in the Scranton code. `helper/.claude/settings.json` lets it list, open and comment on issues and read `data/logs/`, and blocks editing files, reading other teammates' connection tokens, merging, closing and pushing. The server never writes its session token to the logs.
 
 - **role_card**: the nine original harness role cards are in `roles/` (unchanged). Each wake-up tells the agent the card's path and to read it before acting. Growth, Support, Hardware, Web dev and Video have no saved cards yet (待确认), so they only get a one-line `role`.
-- **role** (one line) is added to every wake-up as `ROLE: …`. A role picked in the Team panel (⋯) is added in front; it doesn't replace the card.
+- **role** (one line) is added to every wake-up as `ROLE: …`.
 - **[team].brief** (称呼 Lu, 简洁中文, report format, merge rule) is added on the first wake-up and every 10th after. Merge rule: **code PRs** are merged by QA with `scripts/merge-pr.sh` after review; **`design` PRs** are merged only by Lu; publishing and deleting still need Lu's OK.
 - **[team].channels** are created on the first start (`lu-portfolio`, `scranton-feedback`). Delete or rename one and it stays that way.
 - **Direct messages** use channels named `dm-<handle>`. That prefix is reserved: you can't create or rename other channels to it.
 - **avatar**: the 14 portraits from the handover package are in `static/avatars/` (resized to 256 px). Alternates weren't copied.
 - **cwd**: the lu-portfolio team works in `../LuJin-Portfolio`, i.e. clone that repo next to Scranton.
+- **worktree = true** (dev, qa, visual, visualqa, motion, webdev): each of these gets its own git worktree, `../LuJin-Portfolio-worktrees/<handle>`, created on first start. Same repo, own folder and branch, so two teammates never edit the same checkout. Each one needs its own `pnpm install` the first time.
+- **Handles:** the brief lists every @handle, so teammates hand work on with `@dev`, `@qa`… (a role name like "开发工程师" wakes nobody).
+
+### Commits and GitHub
+
+- Pushing, PRs and merging use the GitHub login on this Mac (`gh auth login` as the **bot** account). Code PRs are merged by QA, design PRs only by you.
+- Every teammate commits with the bot account's **email**, under its own **name**, e.g. `开发工程师 (Scranton dev)`. Put the email in `config.local.toml`: `[team] git_email = "…"`. Nothing is written into the project's git settings.
+- The bot account was suspended once (2026-10-25). Every GitHub write goes through harness-core's `scripts/gh-push.sh` (one at a time, 1 s apart, everyone stops on 403/429). `[team] harness_core` says where harness-core is checked out (default `~/.buzz/REPOS/harness-core`).
+- The real lock for design PRs is on GitHub: branch protection on `main` plus a `CODEOWNERS` file that names you for design paths, and the bot account at **Write**, not Admin.
+
+### Scheduled posts
+
+`[[team.schedules]]` in `config.toml` are posted by Scranton itself, so no teammate has to stay awake and no subscription is used. The default posts `@pm 每日备份和每日总结` in #lu-portfolio at **21:00** (this Mac's time). Each schedule is created once; delete it in the UI and it stays deleted.
 
 ## Known gaps
 
 - **First start:** Claude and Codex may ask "trust this folder?" the first time they open `LuJin-Portfolio`. Run `./scranton.sh attach pm` (and the others) once and answer it, or the first message waits on that prompt.
 
 - **Cursor** is configured (MCP via `.cursor/mcp.json`, started with `--approve-mcps`) but not yet verified with a real Cursor login.
-- **Nine teammates share one folder** (`../LuJin-Portfolio`). Two agents editing the same files at once will clash. Ask them to work on separate branches, or give coding roles their own git worktree as `cwd`.
 - **Nine always-on CLIs** share your Claude and ChatGPT limits. Start fewer if you hit limits: set `autostart = false` on roles you don't need today.
 - The system prompts of the Buzz agents weren't in the notes, so each role is one line. Add more detail to `role`, or to `CLAUDE.md` / `AGENTS.md` in the project.
-- **Subscription limits:** a busy team uses your plan faster than working by hand. When a CLI hits its limit it says so in its terminal; Scranton doesn't show that in the Team panel yet.
-- **Your own settings** go in `config.local.toml`: `[server] allowed_origins`, `[team] owner/permissions`, and per teammate `autostart`, `cwd`, `permissions`. If `config.toml` itself has local edits, Update refuses to run.
+- **Subscription limits:** a busy team uses your plan faster than working by hand. When a CLI hits its limit it says so in its terminal; Scranton doesn't show that in the chat yet: the teammate just goes quiet. Check with `./scranton.sh attach <handle>`.
+- **Your own settings** go in `config.local.toml`: `[server] allowed_origins`, `[team] owner/permissions/git_email/harness_core`, and per teammate `autostart`, `cwd`, `permissions`, `worktree`. If `config.toml` itself has local edits, Update refuses to run.
 - **Updates:** Update now pulls, installs packages and restarts the server. If the new version won't start, Scranton goes back to the previous one and shows a card. Running teammates keep the old wrapper until they're restarted.
 - No push notifications on the phone yet.
 
