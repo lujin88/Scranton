@@ -184,6 +184,56 @@ def _load_settings():
         seeded.add(ch)
     room_settings["seeded_channels"] = sorted(seeded)
 
+    # Scranton: who is in each channel. [team.members] in config.toml fills a channel the
+    # first time; after that Lu's adds and removes in the UI are kept.
+    members = room_settings.get("channel_members")
+    if not isinstance(members, dict):
+        members = {}
+    known = set((config or {}).get("agents", {}))
+    seeded_m = set(room_settings.get("seeded_members", []) or [])
+    for ch, names in ((config or {}).get("team", {}).get("members", {}) or {}).items():
+        ch = str(ch).strip().lower()
+        if ch in seeded_m or not isinstance(names, list):
+            continue
+        cur = [n for n in members.get(ch, []) if n in known]
+        for n in names:
+            n = str(n).strip().lower()
+            if n in known and n not in cur:
+                cur.append(n)
+        members[ch] = cur
+        seeded_m.add(ch)
+    room_settings["channel_members"] = {ch: [n for n in ns if n in known] for ch, ns in members.items()
+                                        if isinstance(ns, list)}
+    room_settings["seeded_members"] = sorted(seeded_m)
+
+
+def _report_start(res: dict, channel: str, why: str):
+    """Tell the channel which teammates are starting and which can't."""
+    team = (config or {}).get("agents", {})
+    label = lambda n: str(team.get(n, {}).get("label", n))
+    if res.get("started"):
+        names = "、".join(label(n) for n in res["started"])
+        store.add("system", f"Starting {names} ({why}). They'll pick up their messages in a few seconds.",
+                  msg_type="system", channel=channel)
+    for n, reason in (res.get("failed") or {}).items():
+        store.add("system", f"{label(n)} can't start: {reason}.", msg_type="system", channel=channel)
+
+
+def _channel_members(ch: str) -> list[str]:
+    return list((room_settings.get("channel_members") or {}).get(ch, []))
+
+
+def _add_members(ch: str, names: list[str]) -> list[str]:
+    """Add configured teammates to a channel. Returns the ones that were new."""
+    if ch.startswith("dm-") or ch not in room_settings.get("channels", []):
+        return []
+    known = (config or {}).get("agents", {})
+    cur = _channel_members(ch)
+    added = [n for n in dict.fromkeys(names) if n in known and n not in cur]
+    if added:
+        room_settings.setdefault("channel_members", {})[ch] = cur + added
+    return added
+
 
 def _seed_team_schedules(cfg: dict):
     """Scranton: [[team.schedules]] in config.toml become recurring posts, e.g. the 21:00
@@ -992,15 +1042,25 @@ async def _handle_new_message(msg: dict):
         if allowed_agent and target != allowed_agent:
             continue
         available = agents.is_available(target)
-        if not available:
-            # Scranton: not running at all, so nothing was queued. Say so plainly.
-            store.add("system", f"{target} isn't running, so it didn't get this. Start it with ./scranton.sh start {target}, then @ it again.",
-                      msg_type="system", channel=channel)
+        if not available and target in (config or {}).get("agents", {}):
+            # Scranton: @-ing a teammate who isn't running starts them; the message waits in
+            # their queue (kept across the start), and they join this channel.
+            res = await asyncio.to_thread(_scranton_ops.ensure_running, [target], config)
+            if target in res.get("failed", {}):
+                _report_start(res, channel, "mentioned")
+                continue
+            if res.get("started"):
+                _report_start(res, channel, "mentioned")
+        elif not available:
+            store.add("system", f"{target} isn't on the team, so nobody got this.", msg_type="system", channel=channel)
+            continue
         elif not mcp_bridge.is_online(target):
             store.add("system", f"{target} appears offline — message queued. It picks this up when it's back.", msg_type="system", channel=channel)
-        if available:
-            await agents.trigger(target, message=chat_msg, channel=channel, prompt=custom_prompt,
-                                 thread=thread_root)
+        if not channel.startswith("dm-") and _add_members(channel, [target]):
+            _save_settings()
+            await broadcast_settings()
+        await agents.trigger(target, message=chat_msg, channel=channel, prompt=custom_prompt,
+                             thread=thread_root)
 
 
 # --- broadcasting ---
@@ -1569,6 +1629,24 @@ async def websocket_endpoint(websocket: WebSocket):
                 _save_settings()
                 await broadcast_settings()
 
+            elif event.get("type") == "members_update":
+                # Scranton: add / remove teammates in a channel. Added ones are started if needed.
+                ch = (event.get("channel") or "").strip().lower()
+                if ch not in room_settings["channels"] or ch.startswith("dm-"):
+                    continue
+                add = [str(n).strip().lower() for n in (event.get("add") or [])][:30]
+                remove = {str(n).strip().lower() for n in (event.get("remove") or [])}
+                added = _add_members(ch, add)
+                if remove:
+                    room_settings.setdefault("channel_members", {})[ch] = [
+                        n for n in _channel_members(ch) if n not in remove]
+                _save_settings()
+                await broadcast_settings()
+                to_start = [n for n in added if not agents.is_available(n)]   # already connected: leave it
+                if to_start:
+                    res = await asyncio.to_thread(_scranton_ops.ensure_running, to_start, config)
+                    _report_start(res, ch, "added to the channel")
+
             elif event.get("type") == "channel_rename":
                 old_name = (event.get("old_name") or "").strip().lower()
                 new_name = (event.get("new_name") or "").strip().lower()
@@ -1584,6 +1662,9 @@ async def websocket_endpoint(websocket: WebSocket):
                     continue
                 idx = room_settings["channels"].index(old_name)
                 room_settings["channels"][idx] = new_name
+                cm = room_settings.get("channel_members") or {}
+                if old_name in cm:
+                    cm[new_name] = cm.pop(old_name)
                 store.rename_channel(old_name, new_name)
                 import mcp_bridge
                 mcp_bridge.migrate_cursors_rename(old_name, new_name)
@@ -1608,6 +1689,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 if name not in room_settings["channels"]:
                     continue
                 room_settings["channels"].remove(name)
+                (room_settings.get("channel_members") or {}).pop(name, None)
                 store.delete_channel(name)
                 import mcp_bridge
                 mcp_bridge.migrate_cursors_delete(name)

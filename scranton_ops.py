@@ -180,6 +180,47 @@ def resume(names: list[str], config: dict) -> dict:
     return {"ok": True, "started": started}
 
 
+def ensure_running(names: list[str], config: dict) -> dict:
+    """Start teammates that aren't running (added to a channel, or @-mentioned).
+    Returns which ones were started, already running, or can't start and why."""
+    import shutil
+    agents = (config or {}).get("agents", {})
+    script = ROOT / "scranton.sh"
+    out = {"started": [], "running": [], "failed": {}}
+    with _resume_lock:
+        for n in dict.fromkeys(names):
+            a = agents.get(n)
+            if not isinstance(a, dict) or not n.replace("-", "").replace("_", "").isalnum():
+                continue
+            pid_file = RUN_DIR / f"{n}.pid"
+            try:
+                pid = int(pid_file.read_text().strip() or 0)
+            except (OSError, ValueError):
+                pid = 0
+            if pid and _alive(pid):
+                out["running"].append(n)
+                continue
+            cmd = str(a.get("command", n))
+            if not shutil.which(cmd):
+                out["failed"][n] = f"'{cmd}' isn't installed on this Mac"
+                continue
+            cwd = Path(os.path.expanduser(str(a.get("cwd", "."))))
+            if not (cwd if cwd.is_absolute() else ROOT / cwd).is_dir():
+                out["failed"][n] = f"its folder {a.get('cwd')} doesn't exist"
+                continue
+            try:
+                pid_file.unlink()
+            except FileNotFoundError:
+                pass
+            log = ROOT / "data" / "logs" / "resume.log"
+            log.parent.mkdir(parents=True, exist_ok=True)
+            with open(log, "ab") as fh:
+                subprocess.Popen([str(script), "start-agent", n], cwd=str(ROOT), start_new_session=True,
+                                 stdin=subprocess.DEVNULL, stdout=fh, stderr=subprocess.STDOUT)
+            out["started"].append(n)
+    return out
+
+
 def dismiss(names: list[str]) -> None:
     """'Not now': forget these stale pid files so the prompt doesn't come back."""
     for n in names:

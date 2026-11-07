@@ -146,6 +146,11 @@ def load_config(root: Path | None = None) -> dict:
             if key in local.get("team", {}):
                 config.setdefault("team", {})[key] = local["team"][key]
 
+    # Scranton: folders may start with ~ (e.g. ~/.buzz/REPOS/LuJin-Portfolio)
+    for agent_cfg in config.get("agents", {}).values():
+        if isinstance(agent_cfg, dict) and isinstance(agent_cfg.get("cwd"), str):
+            agent_cfg["cwd"] = os.path.expanduser(agent_cfg["cwd"])
+
     _apply_env_overrides(config)
 
     return config
