@@ -27,8 +27,26 @@ owner = "Lu"          # your name in the chat; agents @Lu you
 # .claude/settings.json still apply to Claude. "ask": the CLIs' normal prompts.
 # Override per teammate with  permissions = "ask"  in its block.
 permissions = "full"
+# Commits: every teammate commits with the bot account's email (GitHub shows the bot,
+# you merge), named after the teammate. Put the bot's email in config.local.toml:
+#   [team]
+#   git_email = "<the bot account's email>"
+git_email = ""
+# Where harness-core is checked out on this Mac (its scripts/gh-push.sh queues every GitHub write)
+harness_core = "~/.buzz/REPOS/harness-core"
 channels = ["lu-portfolio", "scranton-feedback"]
-brief = "Address Lu as Lu. Whenever you need Lu (a decision, a design to pick, a design PR to merge, a blocker only she can clear, or a delivery she asked for), write @Lu in that message so it reaches her Activity; don't @Lu for anything else. Hand work to a teammate by @handle, otherwise nobody wakes up: @pm project manager, @harness harness manager, @dev developer, @qa code review & QA, @visual visual designer, @visualqa visual QA, @motion motion designer, @research UX researcher, @copy UX writer, @help Scranton helper. Report in the channel in concise Chinese, one line: what was done | PR link | what remains | blockers. Lu makes the final calls and does not read code. Merging: code PRs are merged by Code Review & QA with scripts/merge-pr.sh after review, without asking Lu; PRs labelled design go to Lu after Visual QA gives its verdict, and only Lu merges them (never run gh pr merge yourself). High-risk actions (deploying, sending anything outside, paid calls, changing real data, deleting what can't be recovered) follow harness-core docs/approval.md: a reply of 好 in chat is not approval; Lu approves the 执行 PR on GitHub. Scranton replaces Buzz: post with the chat tools (chat_send, attach screenshots with image_path), channels are names like lu-portfolio, and ignore instructions about buzz messages send, BUZZ_* variables or ~/.buzz paths."
+
+brief = "Address Lu as Lu. Whenever you need Lu (a decision, a design to pick, a design PR to merge, a blocker only she can clear, or a delivery she asked for), write @Lu in that message so it reaches her Activity; don't @Lu for anything else. Hand work to a teammate by @handle, otherwise nobody wakes up: @pm project manager, @harness harness manager, @dev developer, @qa code review & QA, @visual visual designer, @visualqa visual QA, @motion motion designer, @research UX researcher, @copy UX writer, @help Scranton helper. Report in the channel in concise Chinese, one line: what was done | PR link | what remains | blockers. Lu makes the final calls and does not read code. Merging: code PRs are merged by Code Review & QA with scripts/merge-pr.sh after review, without asking Lu; PRs labelled design go to Lu after Visual QA gives its verdict, and only Lu merges them (never run gh pr merge yourself). High-risk actions (deploying, sending anything outside, paid calls, changing real data, deleting what can't be recovered) follow harness-core docs/approval.md: a reply of 好 in chat is not approval; Lu approves the 执行 PR on GitHub. Scranton replaces Buzz: post with the chat tools (chat_send, attach screenshots with image_path), channels are names like lu-portfolio, and ignore instructions about buzz messages send or BUZZ_* variables. harness-core is at {harness_core}. GitHub: all teammates share one bot account, so every GitHub write (push, PR, comment, label, merge-pr.sh) goes through {harness_core}/scripts/gh-push.sh as docs/github-usage.md says; push once when a piece of work is done, never poll; on 403, 429, rate limit, suspended or abuse stop at once, do not retry, and tell @Lu. Code-changing teammates each have their own git worktree: work on your own branch there, never in another teammate's folder."
+
+
+# Recurring posts made by Scranton itself (no teammate has to stay awake for them).
+# Created once; delete one in the UI and it stays deleted. Times are this Mac's local time.
+[[team.schedules]]
+id = "daily-backup"
+daily_at = "21:00"
+to = ["pm"]
+channel = "lu-portfolio"
+text = "每日备份和每日总结：按 harness-core AGENTS.md「每日备份」做（GitHub backup 分支 + Obsidian 日志，跑 daily-backup.sh check 把表贴出来），做完在这里 @Lu 一行总结。"
 
 # --- lu-portfolio 群里的成员 ---
 
@@ -54,6 +72,7 @@ role_card = "roles/harness-manager.md"
 label = "开发工程师"
 command = "claude"
 cwd = "../LuJin-Portfolio"
+worktree = true          # own git worktree next to the project, so parallel edits never collide
 color = "#8aadf4"
 role = "Developer: writes code and tests, one branch and one PR per task"
 avatar = "03-developer-raccoon.jpg"
@@ -63,6 +82,7 @@ role_card = "roles/developer.md"
 label = "代码审查与 QA"
 command = "claude"
 cwd = "../LuJin-Portfolio"
+worktree = true          # own git worktree next to the project, so parallel edits never collide
 color = "#a6da95"
 role = "Code Review & QA: reviews PRs and merges code PRs with scripts/merge-pr.sh"
 avatar = "04-code-review-qa-snake.jpg"
@@ -72,6 +92,7 @@ role_card = "roles/code-review-qa.md"
 label = "视觉设计师"
 command = "codex"
 cwd = "../LuJin-Portfolio"
+worktree = true          # own git worktree next to the project, so parallel edits never collide
 color = "#f5bde6"
 role = "Visual Designer: designs and image assets from the project design system"
 avatar = "05-visual-designer-cat.jpg"
@@ -81,6 +102,7 @@ role_card = "roles/visual-designer.md"
 label = "视觉校正"
 command = "codex"
 cwd = "../LuJin-Portfolio"
+worktree = true          # own git worktree next to the project, so parallel edits never collide
 color = "#eed49f"
 role = "Visual QA: checks designs and pages against the design system and bar.md"
 avatar = "06-visual-qa-lynx.jpg"
@@ -90,6 +112,7 @@ role_card = "roles/visual-qa.md"
 label = "动效设计师"
 command = "codex"
 cwd = "../LuJin-Portfolio"
+worktree = true          # own git worktree next to the project, so parallel edits never collide
 color = "#8bd5ca"
 role = "Motion Designer: plans motion, and decides where nothing should move"
 avatar = "07-motion-designer-otter.jpg"
@@ -159,6 +182,7 @@ autostart = false
 label = "网页开发"
 command = "agent"
 cwd = "../LuJin-Portfolio"
+worktree = true          # own git worktree next to the project, so parallel edits never collide
 color = "#7dc4e4"
 role = "Web Developer (Cursor). Full rules not recovered yet (to confirm)"
 avatar = "13-cursor-web-developer-beaver.jpg"

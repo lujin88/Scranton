@@ -78,6 +78,21 @@ start_agent() {
     if ! command -v "$cmd" >/dev/null 2>&1; then echo "  $name skipped: '$cmd' is not installed"; return; fi
     dir=$(cfg "$name" cwd ".")
     if [ ! -d "$dir" ]; then echo "  $name skipped: folder $dir doesn't exist (clone the project next to Scranton, or change cwd in config.toml)"; return; fi
+    # Teammates that change code get their own git worktree (same repo, own folder and
+    # branch), so two of them never edit the same checkout. Created once, kept afterwards.
+    SCRANTON_CWD=""
+    if [ "$(cfg "$name" worktree "")" = "True" ] && git -C "$dir" rev-parse --git-dir >/dev/null 2>&1; then
+        wdir="$(cd "$dir/.." && pwd)/$(basename "$dir")-worktrees/$name"
+        if [ ! -d "$wdir" ]; then
+            if git -C "$dir" worktree add --quiet --detach "$wdir" >/dev/null 2>&1; then
+                echo "  $name: own working copy at $wdir"
+            else
+                echo "  $name: couldn't create its own working copy, sharing $dir"; wdir=""
+            fi
+        fi
+        SCRANTON_CWD="$wdir"
+    fi
+    export SCRANTON_CWD
     # Permission level: [team].permissions, overridable per teammate ("full" or "ask").
     perm=$("$PY" -c "$LOADCFG;import sys;a=c.get('agents',{}).get(sys.argv[1],{});print(a.get('permissions', c.get('team',{}).get('permissions','ask')))" "$name")
     case "$perm:$cmd" in

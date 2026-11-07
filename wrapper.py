@@ -635,7 +635,8 @@ def main():
 
     agent = args.agent
     agent_cfg = config.get("agents", {}).get(agent, {})
-    cwd = agent_cfg.get("cwd", ".")
+    # scranton.sh passes the teammate's own git worktree here (see "worktree" in config.toml)
+    cwd = os.environ.get("SCRANTON_CWD") or agent_cfg.get("cwd", ".")
     command = agent_cfg.get("command", agent)
     data_dir = ROOT / config.get("server", {}).get("data_dir", "./data")
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -784,6 +785,19 @@ def main():
         project_dir=project_dir,
     )
 
+    # Scranton: who commits. Every teammate commits with the bot account's email (so GitHub
+    # shows the bot), under its own name (so you can see which teammate did it). Set through
+    # GIT_CONFIG_* so `git config user.email` shows it too; nothing is written to any repo.
+    git_email = str(config.get("team", {}).get("git_email", "")).strip()
+    if git_email:
+        git_name = f"{agent_cfg.get('label', agent)} (Scranton {agent})"
+        inject_env = dict(inject_env or {})
+        inject_env.update({
+            "GIT_CONFIG_COUNT": "2",
+            "GIT_CONFIG_KEY_0": "user.name", "GIT_CONFIG_VALUE_0": git_name,
+            "GIT_CONFIG_KEY_1": "user.email", "GIT_CONFIG_VALUE_1": git_email,
+        })
+
     print(f"  === {assigned_name.capitalize()} Chat Wrapper ===")
     if not needs_proxy:
         print(f"  MCP: direct connect ({inject_mode}) with bearer auth")
@@ -847,6 +861,8 @@ def main():
         else:
             print(f"  Warning: role_card {_card} not found")
     _team_brief = str(config.get("team", {}).get("brief", "") or "").strip()
+    _hc = str(config.get("team", {}).get("harness_core", "") or "").strip()
+    _team_brief = _team_brief.replace("{harness_core}", os.path.expanduser(_hc) if _hc else "harness-core")
 
     def start_watcher(inject_fn):
         nonlocal _watcher_inject_fn, _watcher_thread

@@ -185,6 +185,34 @@ def _load_settings():
     room_settings["seeded_channels"] = sorted(seeded)
 
 
+def _seed_team_schedules(cfg: dict):
+    """Scranton: [[team.schedules]] in config.toml become recurring posts, e.g. the 21:00
+    "@pm daily backup" that harness-core asks for. Each one is created once (keyed by its
+    'id'); deleting it in the UI keeps it deleted. Posted by "Scranton", so no teammate
+    has to stay awake for it."""
+    if not schedules:
+        return
+    seeded = set(room_settings.get("seeded_schedules", []) or [])
+    changed = False
+    for item in (cfg or {}).get("team", {}).get("schedules", []) or []:
+        sid = str(item.get("id", "")).strip()
+        at = str(item.get("daily_at", "")).strip()
+        to = [str(t).strip().lower() for t in (item.get("to") or []) if str(t).strip()]
+        text = str(item.get("text", "")).strip()
+        if not sid or sid in seeded or not _re.fullmatch(r"\d{1,2}:\d{2}", at) or not to or not text:
+            continue
+        try:
+            schedules.create(prompt=text, targets=to, channel=str(item.get("channel", "general")),
+                             interval_seconds=86400, daily_at=at, created_by="Scranton")
+        except ValueError:
+            continue
+        seeded.add(sid)
+        changed = True
+    if changed:
+        room_settings["seeded_schedules"] = sorted(seeded)
+        _save_settings()
+
+
 def _save_settings():
     p = _settings_path()
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -381,6 +409,7 @@ def configure(cfg: dict, session_token: str = ""):
     store.on_message(_on_store_message)
 
     _load_settings()
+    _seed_team_schedules(cfg)  # after settings load, so "already seeded" is remembered
     _load_hats()
 
     # Apply saved loop guard setting

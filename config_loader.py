@@ -132,7 +132,7 @@ def load_config(root: Path | None = None) -> dict:
             elif isinstance(agent_cfg, dict):
                 # Scranton: per-machine tweaks to a shared teammate (on/off, folder, permissions)
                 # live here, so config.toml stays untouched and "Update now" keeps working.
-                for key in ("autostart", "cwd", "permissions"):
+                for key in ("autostart", "cwd", "permissions", "worktree"):
                     if key in agent_cfg:
                         config_agents[name][key] = agent_cfg[key]
 
@@ -142,7 +142,7 @@ def load_config(root: Path | None = None) -> dict:
             merged = list(config.setdefault("server", {}).get("allowed_origins", []))
             merged += [o for o in local_server["allowed_origins"] if o not in merged]
             config["server"]["allowed_origins"] = merged
-        for key in ("owner", "permissions"):
+        for key in ("owner", "permissions", "git_email", "harness_core"):
             if key in local.get("team", {}):
                 config.setdefault("team", {})[key] = local["team"][key]
 
