@@ -61,52 +61,88 @@
         }
         btn.onclick = (e) => { e.stopPropagation(); togglePanel(); };
         const list = (members[ch] || []).filter((h) => team()[h]);
-        btn.title = list.length ? `${list.length} teammates in #${ch}. Add or remove` : `Add teammates to #${ch}`;
+        const total = list.length + 1;   // you're in every channel
+        const meAv = `<span class="sc-mb-av me">${window.scMyAvatarHtml ? window.scMyAvatarHtml() : ''}</span>`;
+        btn.title = `${total} people in #${ch} (you and ${list.length} teammate${list.length === 1 ? '' : 's'}). Add or remove`;
         btn.setAttribute('aria-label', btn.title);
-        btn.innerHTML = list.length
-            ? `<span class="sc-mb-stack">${list.slice(0, 4).map((h) => `<span class="sc-mb-av ${esc(state(h))}">${avatar(h)}</span>`).join('')}</span><span class="sc-mb-count">${list.length}</span>`
-            : `<span class="sc-mb-add">+ Add teammates</span>`;
+        btn.innerHTML = `<span class="sc-mb-stack">${meAv}${list.slice(0, 3).map((h) => `<span class="sc-mb-av ${esc(state(h))}">${avatar(h)}</span>`).join('')}</span><span class="sc-mb-count">${total}</span>`;
         if (panelOpen()) renderPanel();
     }
 
     // ---- panel ----------------------------------------------------------
     const panelOpen = () => !!document.getElementById('sc-members-panel');
-    function closePanel() { document.getElementById('sc-members-panel')?.remove(); }
-    function togglePanel() { panelOpen() ? closePanel() : renderPanel(); }
+    function closePanel(apply) {
+        const p = document.getElementById('sc-members-panel');
+        if (!p) return;
+        if (apply) applyDraft();
+        p.remove();
+        draft = null; order = null; draftCh = null;
+    }
+    function togglePanel() { panelOpen() ? closePanel(true) : renderPanel(); }
 
     function stateText(h) {
         const s = state(h);
         return s === 'working' ? 'Working' : s === 'available' ? 'Online' : 'Not running';
     }
 
+    // The panel edits a draft: tick people in or out, then Done applies it once.
+    // Order is fixed while it's open (members first, then everyone else), so nothing jumps.
+    let draft = null;          // Set of handles that should be in the channel
+    let order = null;          // handles in display order, frozen while open
+    let draftCh = null;
+
     function renderPanel() {
         const ch = current();
         const all = Object.keys(team());
         const inCh = (members[ch] || []).filter((h) => team()[h]);
-        const others = all.filter((h) => !inCh.includes(h));
+        if (!draft || draftCh !== ch) {
+            draft = new Set(inCh);
+            draftCh = ch;
+            order = [...inCh, ...all.filter((h) => !inCh.includes(h))];
+        }
         let p = document.getElementById('sc-members-panel');
         if (!p) {
             p = document.createElement('div');
             p.id = 'sc-members-panel';
             p.setAttribute('role', 'dialog');
+            p.setAttribute('aria-label', `Members of #${ch}`);
             p.addEventListener('click', onPanelClick);
+            p.addEventListener('change', onPanelChange);
             document.body.appendChild(p);
         }
-        const row = (h, inside) => `<li class="sc-mp-row">
-                <span class="sc-mp-av ${esc(state(h))}">${avatar(h)}<span class="team-dot"></span></span>
-                <span class="sc-mp-who"><b>${esc(label(h))}</b><small>${esc(stateText(h))}</small></span>
-                ${inside && state(h) === 'offline' ? `<button type="button" class="sc-mp-btn start" data-start="${esc(h)}" aria-label="Start ${esc(label(h))}">Start</button>` : ''}
-                ${inside
-                    ? `<button type="button" class="sc-mp-btn" data-remove="${esc(h)}" aria-label="Remove ${esc(label(h))} from #${esc(ch)}">Remove</button>`
-                    : `<button type="button" class="sc-mp-btn add" data-add="${esc(h)}" aria-label="Add ${esc(label(h))} to #${esc(ch)}">Add</button>`}
-            </li>`;
+        const scroll = p.querySelector('.sc-mp-list')?.scrollTop || 0;
+        const adds = [...draft].filter((h) => !inCh.includes(h));
+        const removes = inCh.filter((h) => !draft.has(h));
+        const changes = adds.length + removes.length;
+        const offline = inCh.filter((h) => state(h) === 'offline');
         p.innerHTML = `
-            <div class="sc-mp-head"><b>#${esc(ch)}</b><span>${inCh.length} teammate${inCh.length === 1 ? '' : 's'}</span>
-                ${inCh.some((h) => state(h) === 'offline') ? `<button type="button" class="sc-mp-all" data-startall="1">Start everyone</button>` : ''}
-                ${others.length ? `<button type="button" class="sc-mp-all" data-addall="1">Add everyone</button>` : ''}</div>
-            <ul class="sc-mp-list">${inCh.map((h) => row(h, true)).join('') || '<li class="sc-mp-empty">Nobody yet. Add teammates below, or drag them here from Direct messages.</li>'}</ul>
-            ${others.length ? `<div class="sc-mp-sub">Add to this channel</div><ul class="sc-mp-list">${others.map((h) => row(h, false)).join('')}</ul>` : ''}
-            <p class="sc-mp-note">Added teammates start automatically. @-mentioning someone here also adds them.</p>`;
+            <div class="sc-mp-head">
+                <div class="sc-mp-title"><b>#${esc(ch)}</b><span>${draft.size + 1} people · you and ${draft.size} of ${all.length} teammates</span></div>
+                <button type="button" class="sc-mp-link" data-selectall="1">${draft.size === all.length ? 'Clear all' : 'Select all'}</button>
+            </div>
+            <ul class="sc-mp-list">
+                <li><div class="sc-mp-row on me">
+                    <span class="sc-mp-check locked" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.9997 15.1709L19.1921 5.97852L20.6063 7.39273L9.9997 17.9993L3.63574 11.6354L5.04996 10.2212L9.9997 15.1709Z"/></svg></span>
+                    <span class="sc-mp-av me">${window.scMyAvatarHtml ? window.scMyAvatarHtml() : ''}<span class="team-dot"></span></span>
+                    <span class="sc-mp-who"><b>${esc(window.scMe ? window.scMe() : 'You')} <em>you</em></b><small>Always in every channel</small></span>
+                </div></li>${order.filter((h) => team()[h]).map((h) => `
+                <li><label class="sc-mp-row${draft.has(h) ? ' on' : ''}">
+                    <input type="checkbox" value="${esc(h)}"${draft.has(h) ? ' checked' : ''}>
+                    <span class="sc-mp-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.9997 15.1709L19.1921 5.97852L20.6063 7.39273L9.9997 17.9993L3.63574 11.6354L5.04996 10.2212L9.9997 15.1709Z"/></svg></span>
+                    <span class="sc-mp-av ${esc(state(h))}">${avatar(h)}<span class="team-dot"></span></span>
+                    <span class="sc-mp-who"><b>${esc(label(h))}</b><small>${esc(stateText(h))}</small></span>
+                    ${inCh.includes(h) && draft.has(h) && state(h) === 'offline' ? `<button type="button" class="sc-mp-btn start" data-start="${esc(h)}">Start</button>` : ''}
+                </label></li>`).join('')}</ul>
+            <div class="sc-mp-foot">
+                ${offline.length ? `<button type="button" class="sc-mp-link" data-startall="1">Start ${offline.length} not running</button>` : '<span></span>'}
+                <span class="sc-mp-actions">
+                    <button type="button" class="sc-mp-btn" data-cancel="1">Cancel</button>
+                    <button type="button" class="sc-mp-btn primary" data-done="1"${changes ? '' : ' disabled'}>${changes ? `Done · ${adds.length ? `+${adds.length}` : ''}${adds.length && removes.length ? ' ' : ''}${removes.length ? `−${removes.length}` : ''}` : 'Done'}</button>
+                </span>
+            </div>
+            <p class="sc-mp-note">Added teammates start automatically. You can also drag people here from Direct messages.</p>`;
+        const list = p.querySelector('.sc-mp-list');
+        if (list) list.scrollTop = scroll;
         const btn = document.getElementById('sc-members-btn');
         if (btn) {
             const r = btn.getBoundingClientRect();
@@ -115,16 +151,37 @@
         }
     }
 
+    function applyDraft() {
+        const ch = draftCh;
+        if (!draft || !ch) return;
+        const inCh = (members[ch] || []).filter((h) => team()[h]);
+        const add = [...draft].filter((h) => !inCh.includes(h));
+        const remove = inCh.filter((h) => !draft.has(h));
+        if (add.length || remove.length) send(ch, add, remove);
+    }
+
+    function onPanelChange(e) {
+        const cb = e.target.closest('input[type="checkbox"]');
+        if (!cb) return;
+        if (cb.checked) draft.add(cb.value); else draft.delete(cb.value);
+        renderPanel();
+    }
+
     function onPanelClick(e) {
         e.stopPropagation();
-        const ch = current();
         const b = e.target.closest('button');
         if (!b) return;
-        if (b.dataset.add) send(ch, [b.dataset.add]);
-        if (b.dataset.remove) send(ch, [], [b.dataset.remove]);
-        if (b.dataset.addall) send(ch, Object.keys(team()).filter((h) => !(members[ch] || []).includes(h)));
+        e.preventDefault();   // buttons inside <label> must not toggle the checkbox
+        const ch = current();
+        if (b.dataset.selectall) {
+            const all = Object.keys(team());
+            draft = draft.size === all.length ? new Set() : new Set(all);
+            renderPanel();
+        }
         if (b.dataset.start) { start([b.dataset.start], ch); b.textContent = 'Starting…'; b.disabled = true; }
         if (b.dataset.startall) { start((members[ch] || []).filter((h) => state(h) === 'offline'), ch); b.textContent = 'Starting…'; b.disabled = true; }
+        if (b.dataset.cancel) closePanel(false);
+        if (b.dataset.done) closePanel(true);
     }
 
     // ---- drag & drop: teammate → channel ---------------------------------
@@ -195,16 +252,20 @@
     window.scChannelMembers = () => members;
 
     function init() {
-        document.addEventListener('click', (e) => { if (panelOpen() && !e.target.closest('#sc-members-panel')) closePanel(); });
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(); });
-        window.addEventListener('resize', closePanel);
+        // Decide on mousedown (the clicked node still exists then); clicking outside keeps your picks.
+        document.addEventListener('mousedown', (e) => {
+            const p = document.getElementById('sc-members-panel');
+            if (p && !p.contains(e.target) && !e.target.closest('#sc-members-btn')) closePanel(true);
+        });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(false); });
+        window.addEventListener('resize', () => closePanel(true));
         (window.scOnTeamChange || []).push(renderHead, makeDraggable);
         // channel switches and DM list re-renders
         const obs = new MutationObserver(() => { makeDraggable(); });
         const dm = document.getElementById('sc-dm-list');
         if (dm) obs.observe(dm, { childList: true });
         const title = document.getElementById('sc-pane-title');
-        if (title) new MutationObserver(() => { closePanel(); renderHead(); if (typeof buildMentionToggles === 'function') buildMentionToggles(); }).observe(title, { childList: true, characterData: true, subtree: true });
+        if (title) new MutationObserver(() => { closePanel(true); renderHead(); if (typeof buildMentionToggles === 'function') buildMentionToggles(); }).observe(title, { childList: true, characterData: true, subtree: true });
         setInterval(renderHead, 5000);   // status dots
         renderHead(); makeDraggable();
     }

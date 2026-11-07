@@ -104,6 +104,13 @@ start_agent() {
         full:agent|full:cursor-agent) pflags="--force" ;;
         *)                        pflags="" ;;
     esac
+    model=$(cfg "$name" model "")
+    if [ -n "$model" ] && printf '%s' "$model" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$'; then
+        case "$cmd" in
+            codex) pflags="$pflags -m $model" ;;
+            *)     pflags="$pflags --model $model" ;;
+        esac
+    fi
     case "$cmd" in
         agent|cursor-agent)
             # Cursor reads its MCP settings (with a local token) from the project.
@@ -122,7 +129,7 @@ start_agent() {
                 "$PY" tools/spawn.py "$RUN_DIR/$name.pid" "$LOG_DIR/$name.log" -- "$PY" wrapper.py "$name" >/dev/null
             fi ;;
     esac
-    echo "  started $name  (permissions: $perm, terminal: ./scranton.sh attach $name)"
+    echo "  started $name  (permissions: $perm${model:+, model: $model}, terminal: ./scranton.sh attach $name)"
     sleep 2  # stagger: several CLIs writing their settings at once can clash
 }
 

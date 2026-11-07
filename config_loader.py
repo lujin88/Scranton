@@ -146,6 +146,20 @@ def load_config(root: Path | None = None) -> dict:
             if key in local.get("team", {}):
                 config.setdefault("team", {})[key] = local["team"][key]
 
+    # Scranton: choices made in the UI (model, permissions, autostart per teammate)
+    ui_path = root / "data" / "teammates.json"
+    if ui_path.exists():
+        try:
+            import json as _json
+            ui = _json.loads(ui_path.read_text("utf-8"))
+        except (OSError, ValueError):
+            ui = {}
+        for name, vals in (ui or {}).items():
+            if name in config.get("agents", {}) and isinstance(vals, dict):
+                for key in ("model", "permissions", "autostart"):
+                    if key in vals:
+                        config["agents"][name][key] = vals[key]
+
     # Scranton: folders may start with ~ (e.g. ~/.buzz/REPOS/LuJin-Portfolio)
     for agent_cfg in config.get("agents", {}).values():
         if isinstance(agent_cfg, dict) and isinstance(agent_cfg.get("cwd"), str):

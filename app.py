@@ -1658,6 +1658,15 @@ async def websocket_endpoint(websocket: WebSocket):
                     res = await asyncio.to_thread(_scranton_ops.ensure_running, to_start, config)
                     _report_start(res, ch, "started from the page")
 
+            elif event.get("type") == "channel_reorder":
+                # Scranton: drag channels (or Alt+↑/↓) to reorder. Same set of names, new order.
+                order = [str(n).strip().lower() for n in (event.get("order") or [])]
+                cur = room_settings["channels"]
+                if sorted(order) == sorted(cur) and len(set(order)) == len(order):
+                    room_settings["channels"] = order
+                    _save_settings()
+                    await broadcast_settings()
+
             elif event.get("type") == "channel_rename":
                 old_name = (event.get("old_name") or "").strip().lower()
                 new_name = (event.get("new_name") or "").strip().lower()
@@ -2396,12 +2405,70 @@ def _scranton_team() -> dict:
 
 
 import scranton_ops as _scranton_ops  # noqa: E402  (update check + resume stopped teammates)
+import scranton_team as _sc_team  # noqa: E402  (connections, model, profile)
 _scranton_ops.install(app, lambda: config)
 
 
 @app.get("/api/scranton/team")
 async def scranton_team():
     return JSONResponse(_scranton_team())
+
+
+@app.get("/api/scranton/connections")
+async def scranton_connections():
+    return JSONResponse(await asyncio.to_thread(_sc_team.connections, config))
+
+
+@app.post("/api/scranton/connections/{provider}/login")
+async def scranton_connection_login(provider: str):
+    return JSONResponse(await asyncio.to_thread(_sc_team.open_login, provider))
+
+
+@app.get("/api/scranton/teammate/{name}")
+async def scranton_teammate(name: str):
+    recent = []
+    for m in reversed(store.get_since(0)):
+        if str(m.get("sender", "")).lower() == name or str(m.get("sender", "")).lower().startswith(name + "-"):
+            recent.append({k: m.get(k) for k in ("id", "text", "channel", "time", "timestamp")})
+            if len(recent) >= 20:
+                break
+    p = _sc_team.profile(name, config, room_settings.get("channel_members") or {}, recent)
+    if not p:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    p["running"] = agents.is_available(name)
+    return JSONResponse(p)
+
+
+@app.post("/api/scranton/teammate/{name}")
+async def scranton_teammate_update(name: str, request: Request):
+    """Change model / permissions / autostart, or start / stop / restart."""
+    body = await request.json()
+    action = str(body.get("action", ""))
+    try:
+        if action == "set":
+            entry = _sc_team.set_override(name, str(body.get("key", "")), body.get("value"), config)
+            await broadcast_team_changed()
+            return JSONResponse({"ok": True, "saved": entry, "restart_needed": agents.is_available(name)})
+        if action in ("stop", "restart"):
+            await asyncio.to_thread(_sc_team.stop, name, config, _scranton_ops.RUN_DIR)
+        if action in ("start", "restart"):
+            res = await asyncio.to_thread(_scranton_ops.ensure_running, [name], config)
+            if name in res.get("failed", {}):
+                return JSONResponse({"ok": False, "error": res["failed"][name]})
+        if action not in ("start", "stop", "restart"):
+            return JSONResponse({"ok": False, "error": "unknown action"}, status_code=400)
+        return JSONResponse({"ok": True})
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+
+
+async def broadcast_team_changed():
+    data = json.dumps({"type": "scranton_team_changed"})
+    for c in list(ws_clients):
+        try:
+            await c.send_text(data)
+        except Exception:
+            pass
 
 
 @app.get("/api/scranton/search")
