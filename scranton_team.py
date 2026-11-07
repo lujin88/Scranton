@@ -5,6 +5,7 @@ Sign-in always goes through the official CLI's own login (subscription), never a
 API key. Per-teammate choices made in the UI are kept in data/teammates.json and
 merged by config_loader (only the keys in EDITABLE), so config.toml stays untouched.
 """
+from config_loader import PAID_API_ENV
 import json
 import os
 import re
@@ -104,10 +105,10 @@ def set_override(name: str, key: str, value, config: dict) -> dict:
         data = load_overrides()
         entry = data.setdefault(name, {})
         if key == "command" and entry.get("command", config["agents"][name].get("command")) != value:
-            entry.pop("model", None)            # model names differ per app
-            entry.pop("effort", None)
-            config["agents"][name].pop("model", None)
-            config["agents"][name].pop("effort", None)
+            # model names differ per app: forget the old one everywhere it is kept
+            for d in (entry, config["agents"][name], data.get("_added", {}).get(name, {})):
+                d.pop("model", None)
+                d.pop("effort", None)
         if name in data.get("_added", {}):      # agents added in Settings keep everything in one place
             target = data["_added"][name]
             if value in ("", None):
@@ -133,7 +134,7 @@ def set_override(name: str, key: str, value, config: dict) -> dict:
 
 # ---------------------------------------------------------------- add / delete agents
 
-HANDLE_RE = re.compile(r"^[a-z][a-z0-9-]{1,19}$")
+HANDLE_RE = re.compile(r"^[a-z][a-z0-9-]{1,16}$")   # "dm-" + handle must fit a 20-char channel name
 COMMANDS = {"claude": "claude", "codex": "codex", "cursor": "agent"}
 
 
@@ -305,7 +306,7 @@ def open_login(pid: str) -> dict:
     if sys.platform != "darwin":
         return {"ok": False, "error": f"Run `{cmd}` in a terminal on the Mac."}
     # Strip API keys so the CLI signs in with your plan.
-    script = f"unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN OPENAI_API_KEY CURSOR_API_KEY; clear; echo 'Scranton: sign in to {p['name']}'; {cmd}"
+    script = f"unset {' '.join(PAID_API_ENV)}; clear; echo 'Scranton: sign in to {p['name']}'; {cmd}"
     osa = script.replace("\\", "\\\\").replace('"', '\\"')
     subprocess.Popen(["osascript", "-e", f'tell application "Terminal" to do script "{osa}"',
                       "-e", 'tell application "Terminal" to activate'],

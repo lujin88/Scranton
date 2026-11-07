@@ -70,6 +70,7 @@ class UpdateTests(unittest.TestCase):
 
 class ResumeTests(unittest.TestCase):
     def setUp(self):
+        ops._starting.clear()
         self.run = Path(tempfile.mkdtemp())
         self.p = mock.patch.object(ops, "RUN_DIR", self.run)
         self.p.start()
@@ -99,8 +100,25 @@ class ResumeTests(unittest.TestCase):
 
     def test_dismiss_forgets(self):
         (self.run / "pm.pid").write_text("999999")
-        ops.dismiss(["pm", "../etc"])
+        ops.dismiss(["pm", "../etc"], self.cfg)
         self.assertEqual(ops.stopped_agents(self.cfg), [])
+
+    def test_dismiss_never_deletes_a_live_pid(self):
+        (self.run / "pm.pid").write_text(str(os.getpid()))
+        with mock.patch.object(ops, "_alive", lambda pid: True):
+            ops.dismiss(["pm"], self.cfg)
+        self.assertTrue((self.run / "pm.pid").exists())
+
+    def test_ensure_running_does_not_start_twice(self):
+        with mock.patch.object(ops.subprocess, "Popen") as popen, \
+             mock.patch("shutil.which", return_value="/usr/bin/claude"), \
+             mock.patch.object(ops.Path, "is_dir", return_value=True):
+            ops._starting.clear()
+            a = ops.ensure_running(["pm"], self.cfg)
+            b = ops.ensure_running(["pm"], self.cfg)
+        self.assertEqual(a["started"], ["pm"])
+        self.assertEqual(b["started"], [])
+        self.assertEqual(popen.call_count, 1)
 
     def test_resume_starts_only_known_names(self):
         (self.run / "pm.pid").write_text("999999")

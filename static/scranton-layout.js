@@ -60,8 +60,6 @@
     }
 
     // ---------------------------------------------------------------- details panel
-    let tab = 'activity';
-    let screenTimer = null;
     function panel() {
         let p = document.getElementById('sc-info');
         if (!p) {
@@ -86,7 +84,6 @@
         const on = isOpen() && !document.body.classList.contains('sc-inbox-open');
         document.body.classList.toggle('sc-info-open', on);
         document.getElementById('sc-pane-pill')?.setAttribute('aria-expanded', String(on));
-        clearTimeout(screenTimer);
         if (!on) { p.innerHTML = ''; return; }
         const ch = window.activeChannel || 'general';
         const close = `<button type="button" class="sc-tool sc-info-x" data-i="close" aria-label="Close">${ic('close', 20)}</button>`;
@@ -122,20 +119,6 @@
     async function fill(h) {
         const body = document.getElementById('sc-info-body');
         if (!body) return;
-        if (tab === 'terminal') {
-            body.innerHTML = '<pre class="sc-info-term" id="sc-info-term"></pre><p class="sc-info-note">What this agent\'s terminal shows now. Answer a question from Settings → Terminal.</p>';
-            const poll = async () => {
-                const pre = document.getElementById('sc-info-term');
-                if (!pre || tab !== 'terminal') return;
-                const r = await api(`/api/scranton/teammate/${encodeURIComponent(h)}/screen`);
-                const atEnd = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 40;
-                pre.textContent = r.running ? (r.text || '(empty)') : 'Not running.';
-                if (atEnd) pre.scrollTop = pre.scrollHeight;
-                screenTimer = setTimeout(poll, 2000);
-            };
-            poll();
-            return;
-        }
         const r = await api(`/api/scranton/teammate/${encodeURIComponent(h)}`);
         const recent = (r.recent || []);
         body.innerHTML = recent.length ? `<div class="sc-info-feed">${recent.map((m) => `
@@ -149,8 +132,6 @@
     async function onPanelClick(e) {
         const t = e.target;
         if (!t.closest('[data-i="more"]')) p_menu()?.remove();
-        const tb = t.closest('[data-tab]');
-        if (tb) { tab = tb.dataset.tab; render(); return; }
         const i = t.closest('[data-i]')?.dataset.i;
         const ch = window.activeChannel || 'general';
         if (i === 'close') return toggleInfo(false);
@@ -216,8 +197,8 @@
         tools(); head();
         setInterval(renderEmpty, 800);
         const title = document.getElementById('sc-pane-title');
-        if (title) new MutationObserver(() => { tab = 'activity'; render(); }).observe(title, { childList: true, characterData: true, subtree: true });
-        (window.scOnTeamChange || (window.scOnTeamChange = [])).push(() => { if (isOpen() && tab !== 'terminal') render(); });
+        if (title) new MutationObserver(() => render()).observe(title, { childList: true, characterData: true, subtree: true });
+        (window.scOnTeamChange || (window.scOnTeamChange = [])).push(() => { if (isOpen()) render(); });
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && isOpen() && !document.getElementById('sc-settings') && !document.getElementById('sc-dialog')) toggleInfo(false);
         });

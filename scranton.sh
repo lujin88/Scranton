@@ -20,7 +20,7 @@ RUN_DIR="data/run"
 mkdir -p "$LOG_DIR" "$RUN_DIR"
 
 # Subscriptions only: never let an API key reach the CLIs.
-unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN OPENAI_API_KEY CURSOR_API_KEY
+unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN ANTHROPIC_BASE_URL CLAUDE_CODE_USE_BEDROCK CLAUDE_CODE_USE_VERTEX OPENAI_API_KEY OPENAI_BASE_URL CODEX_API_KEY CURSOR_API_KEY   # = config_loader.PAID_API_ENV
 
 PY=".venv/bin/python"
 port() { "$PY" -c "$LOADCFG;print(c.get('server',{}).get('port',8300))" 2>/dev/null || echo 8300; }

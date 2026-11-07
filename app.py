@@ -2524,6 +2524,13 @@ async def scranton_teammate_update(name: str, request: Request):
             return JSONResponse({"ok": True, "saved": entry, "restart_needed": agents.is_available(name)})
         if action in ("stop", "restart"):
             await asyncio.to_thread(_sc_team.stop, name, config, _scranton_ops.RUN_DIR)
+            # Free the name now, so the restarted agent comes back as itself (not "pm-2").
+            _scranton_ops._starting.pop(name, None)
+            import mcp_bridge
+            for inst in [n for n, i in list(registry._instances.items()) if n == name or i.base == name]:
+                if registry.deregister(inst):
+                    mcp_bridge.purge_identity(inst)
+                    registry.clean_renames_for(inst)
         if action in ("start", "restart"):
             res = await asyncio.to_thread(_scranton_ops.ensure_running, [name], config)
             if name in res.get("failed", {}):

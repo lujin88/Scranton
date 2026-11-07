@@ -138,7 +138,7 @@
             <div class="sc-form wide">
                 <div class="sc-row2">
                     <label class="sc-field"><span>Name</span><input type="text" id="sc-new-label" maxlength="40" placeholder="e.g. 数据分析师"></label>
-                    <label class="sc-field"><span>@handle</span><input type="text" id="sc-new-handle" maxlength="20" placeholder="e.g. data"><small>How you @ it. Lowercase letters, numbers, dashes.</small></label>
+                    <label class="sc-field"><span>@handle</span><input type="text" id="sc-new-handle" maxlength="17" placeholder="e.g. data"><small>How you @ it. Lowercase letters, numbers, dashes.</small></label>
                 </div>
                 <div class="sc-field"><span>Runs on</span><div class="sc-seg" role="radiogroup">${provs.map(([v, l], i) => `<label><input type="radio" name="sc-new-prov" value="${v}"${i === 0 ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
                 <label class="sc-field"><span>Model</span><span class="sc-select"><select id="sc-new-model">${modelOptions(o.models.claude, '')}</select></span></label>
@@ -254,11 +254,14 @@
         return groups.map((g) => g.name ? `<optgroup label="${esc(g.name)}">${g.items.join('')}</optgroup>` : g.items.join('')).join('');
     }
     let screenTimer = null;
+    let screenGen = 0;   // only the newest poll chain keeps going
     async function pollScreen(h) {
         clearTimeout(screenTimer);
+        const gen = ++screenGen;
         const pre = root && root.querySelector('#sc-term');
         if (!pre || agentOpen !== h || agentTab !== 'terminal') return;
         const r = await api(`/api/scranton/teammate/${encodeURIComponent(h)}/screen`);
+        if (gen !== screenGen) return;
         const atBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 40;
         pre.textContent = r.running ? (r.text || '(empty)') : 'Not running.';
         if (atBottom) pre.scrollTop = pre.scrollHeight;

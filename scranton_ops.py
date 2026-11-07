@@ -132,7 +132,7 @@ def _alive(pid: int) -> bool:
         cmd = subprocess.run(["ps", "-p", str(pid), "-o", "command="], capture_output=True, text=True, timeout=5).stdout
     except (OSError, subprocess.SubprocessError):
         return True  # can't tell; err on "still running" so we never start a duplicate
-    return "wrapper.py" in cmd or "run.py" in cmd
+    return "wrapper.py" in cmd or cmd.rstrip().endswith("run.py") or " run.py" in cmd
 
 
 def stopped_agents(config: dict) -> list[str]:
@@ -157,25 +157,39 @@ def stopped_agents(config: dict) -> list[str]:
 _resume_lock = threading.Lock()
 
 
+_starting: dict[str, float] = {}   # name -> when we launched it (pid file appears seconds later)
+START_GRACE = 60.0
+
+
+def _starting_now(name: str) -> bool:
+    t = _starting.get(name)
+    return bool(t) and time.time() - t < START_GRACE
+
+
+def _launch(name: str) -> None:
+    """Start one teammate via scranton.sh. Caller holds _resume_lock."""
+    try:
+        (RUN_DIR / f"{name}.pid").unlink()   # stale; scranton.sh would think it's still running
+    except FileNotFoundError:
+        pass
+    log = ROOT / "data" / "logs" / "resume.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with open(log, "ab") as fh:
+        subprocess.Popen([str(ROOT / "scranton.sh"), "start-agent", name], cwd=str(ROOT), start_new_session=True,
+                         stdin=subprocess.DEVNULL, stdout=fh, stderr=subprocess.STDOUT)
+    _starting[name] = time.time()
+
+
 def resume(names: list[str], config: dict) -> dict:
     """Start teammates that stopped. Only ones that are really stopped right now: a second
     tap (or a second device) must never delete a live pid file and start a duplicate."""
-    script = ROOT / "scranton.sh"
     started = []
     with _resume_lock:
         stopped = set(stopped_agents(config))
         for n in names:
-            if n not in stopped or not n.replace("-", "").replace("_", "").isalnum():
+            if n not in stopped or _starting_now(n) or not n.replace("-", "").replace("_", "").isalnum():
                 continue
-            try:
-                (RUN_DIR / f"{n}.pid").unlink()  # stale; scranton.sh would think it's still running
-            except FileNotFoundError:
-                pass
-            log = ROOT / "data" / "logs" / "resume.log"
-            log.parent.mkdir(parents=True, exist_ok=True)
-            with open(log, "ab") as out:
-                subprocess.Popen([str(script), "start-agent", n], cwd=str(ROOT), start_new_session=True,
-                                 stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT)
+            _launch(n)
             started.append(n)
     return {"ok": True, "started": started}
 
@@ -185,7 +199,6 @@ def ensure_running(names: list[str], config: dict) -> dict:
     Returns which ones were started, already running, or can't start and why."""
     import shutil
     agents = (config or {}).get("agents", {})
-    script = ROOT / "scranton.sh"
     out = {"started": [], "running": [], "failed": {}}
     with _resume_lock:
         for n in dict.fromkeys(names):
@@ -197,8 +210,8 @@ def ensure_running(names: list[str], config: dict) -> dict:
                 pid = int(pid_file.read_text().strip() or 0)
             except (OSError, ValueError):
                 pid = 0
-            if pid and _alive(pid):
-                out["running"].append(n)
+            if (pid and _alive(pid)) or _starting_now(n):
+                out["running"].append(n)   # running, or launched moments ago: never start twice
                 continue
             cmd = str(a.get("command", n))
             if not shutil.which(cmd):
@@ -209,23 +222,17 @@ def ensure_running(names: list[str], config: dict) -> dict:
             if not (cwd if cwd.is_absolute() else ROOT / cwd).is_dir() and str(cwd) not in known:
                 out["failed"][n] = f"its folder {a.get('cwd')} doesn't exist"
                 continue   # (a known project folder is cloned by scranton.sh start-agent)
-            try:
-                pid_file.unlink()
-            except FileNotFoundError:
-                pass
-            log = ROOT / "data" / "logs" / "resume.log"
-            log.parent.mkdir(parents=True, exist_ok=True)
-            with open(log, "ab") as fh:
-                subprocess.Popen([str(script), "start-agent", n], cwd=str(ROOT), start_new_session=True,
-                                 stdin=subprocess.DEVNULL, stdout=fh, stderr=subprocess.STDOUT)
+            _launch(n)
             out["started"].append(n)
     return out
 
 
-def dismiss(names: list[str]) -> None:
-    """'Not now': forget these stale pid files so the prompt doesn't come back."""
+def dismiss(names: list[str], config: dict | None = None) -> None:
+    """'Not now': forget these stale pid files so the prompt doesn't come back.
+    Only for teammates that really are stopped: a live pid file is never deleted."""
+    stopped = set(stopped_agents(config or {}))
     for n in names:
-        if n.replace("-", "").replace("_", "").isalnum():
+        if n in stopped and n.replace("-", "").replace("_", "").isalnum():
             try:
                 (RUN_DIR / f"{n}.pid").unlink()
             except FileNotFoundError:
@@ -269,7 +276,7 @@ def install(app, get_config):
     @app.post("/api/scranton/resume/dismiss")
     async def scranton_resume_dismiss(request: Request):
         body = await request.json()
-        dismiss([str(n) for n in (body.get("names") or [])][:30])
+        dismiss([str(n) for n in (body.get("names") or [])][:30], get_config())
         return JSONResponse({"ok": True})
 
     if os.environ.get("SCRANTON_NO_UPDATE_CHECK") != "1" and "pytest" not in sys.modules:

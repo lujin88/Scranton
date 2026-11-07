@@ -30,4 +30,4 @@ def test_blocked_mention_is_requeued_then_delivered(tmp_path, monkeypatch):
     # the brief wasn't delivered the first time, so the retry still carries it
     assert "TEAM: BRIEF" in calls[1]
     real_sleep(0.05)
-    assert q.read_text("utf-8") == ""
+    assert not q.exists() or q.read_text("utf-8") == ""

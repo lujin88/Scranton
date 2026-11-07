@@ -95,8 +95,28 @@ def pane_text(tmux_session: str, lines: int = 40) -> str:
         return ""
 
 
+def _bottom(text: str, n: int) -> str:
+    lines = [l for l in text.splitlines() if l.strip()]
+    return "\n".join(lines[-n:])
+
+
 def waiting_on_question(tmux_session: str) -> bool:
-    return bool(_QUESTION_RE.search(pane_text(tmux_session, 15)))
+    # Only the bottom of the screen: a question in old transcript output must not stall the agent.
+    return bool(_QUESTION_RE.search(_bottom(pane_text(tmux_session, 30), 6)))
+
+
+_INPUT_LINE = re.compile(r"^\s*[│|]?\s*[>❯›]\s?(.*)$")
+
+
+def _still_in_input(tmux_session: str, head: str) -> bool:
+    """True only when the CLI's input line still holds our text (Enter was swallowed),
+    not when the submitted prompt is merely echoed in the transcript."""
+    for line in reversed(_bottom(pane_text(tmux_session, 30), 8).splitlines()):
+        m = _INPUT_LINE.match(line)
+        if m:
+            rest = m.group(1).strip()
+            return bool(rest) and (rest.startswith(head[:20]) or rest.startswith("[Pasted text"))
+    return False
 
 
 def inject(text: str, *, tmux_session: str, delay: float = 0.3):
@@ -110,9 +130,7 @@ def inject(text: str, *, tmux_session: str, delay: float = 0.3):
         # The prompt still sitting in the input box means Enter was swallowed
         # (e.g. the CLI was still drawing). Press it once more.
         time.sleep(1.5)
-        head = text[:30]
-        tail = pane_text(tmux_session, 8)
-        if (head and head in tail) or "[Pasted text" in tail:
+        if not waiting_on_question(tmux_session) and _still_in_input(tmux_session, text[:30]):
             subprocess.run(["tmux", "send-keys", "-t", _exact_pane(tmux_session), "Enter"],
                            capture_output=True, timeout=TMUX_COMMAND_TIMEOUT)
             print("  INJECT: pressed Enter again (prompt was still in the input box)", flush=True)

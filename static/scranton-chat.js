@@ -369,7 +369,8 @@
         const m = byId.get(id);
         if (!m) return;
         const who = window.scLabelOf ? window.scLabelOf(String(m.sender)) : String(m.sender);
-        const snippet = String(m.text || '').replace(/^> .*\n/, '').replace(/\s+/g, ' ').trim().slice(0, 140);
+        // "@" in the quoted text is defused (zero-width space), so quoting "@dev fix it" doesn't wake dev again
+        const snippet = String(m.text || '').replace(/^> .*\n/, '').replace(/\s+/g, ' ').trim().slice(0, 140).replace(/@/g, '@\u200b');
         quoting = { id, who, snippet, handle: String(m.sender) };
         let bar = document.getElementById('sc-quote');
         if (!bar) {
@@ -518,7 +519,7 @@
         const input = document.getElementById('sc-thread-input');
         const root = byId.get(activeThread);
         if (!input || !root) return;
-        let text = input.value.trim();
+        let text = window.scNormalizeMentions ? window.scNormalizeMentions(input.value.trim()) : input.value.trim();
         if (!text) return;
         // A reply without an @ goes to the teammate you're talking with in this thread:
         // the last teammate who replied, else the starter, else whoever the root @'d.
@@ -591,6 +592,16 @@
 })();
 
 // Scranton: "@项目经理" typed by hand becomes "@pm" when sent, so it reaches them.
+// Shared by the main composer and thread replies.
+window.scNormalizeMentions = function (text) {
+    const team = (window.scGetTeam && window.scGetTeam()) || {};
+    if (!String(text).includes('@')) return text;
+    const pairs = Object.entries(team).map(([h, t]) => [String(t.label || ''), h]).filter(([l]) => l)
+        .sort((a, b) => b[0].length - a[0].length);
+    let v = String(text);
+    for (const [l, h] of pairs) v = v.split('@' + l).join('@' + h);
+    return v;
+};
 (function () {
     if (typeof sendMessage !== 'function') return;
     const orig = sendMessage;
@@ -605,10 +616,7 @@
             input.value = `> ${q.who}: ${q.snippet}\n${tag}${input.value}`;
         }
         if (input && input.value.includes('@')) {
-            const pairs = Object.entries(team).map(([h, t]) => [String(t.label || ''), h]).filter(([l]) => l)
-                .sort((a, b) => b[0].length - a[0].length);
-            let v = input.value;
-            for (const [l, h] of pairs) v = v.split('@' + l).join('@' + h);
+            const v = window.scNormalizeMentions(input.value);
             input.value = v;
             // remember who you @, so the quick @ buttons and the @ list put them first
             try {

@@ -471,10 +471,11 @@ def _report_rule_sync(server_port: int, agent_name: str, epoch: int, token: str 
 
 
 def _requeue(queue_file: Path, lines: list[str]) -> None:
-    """Put undelivered mentions back in front of anything that arrived meanwhile."""
+    """Put undelivered mentions back. Appending (never rewriting) can't erase a
+    mention the server adds at the same moment; order inside one batch doesn't matter."""
     try:
-        newer = queue_file.read_text("utf-8") if queue_file.exists() else ""
-        queue_file.write_text("".join(l if l.endswith("\n") else l + "\n" for l in lines if l.strip()) + newer, "utf-8")
+        with open(queue_file, "a", encoding="utf-8") as f:
+            f.write("".join(l if l.endswith("\n") else l + "\n" for l in lines if l.strip()))
     except OSError:
         pass
 
@@ -513,9 +514,13 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
         try:
             _, queue_file = get_identity_fn()
             if queue_file.exists() and queue_file.stat().st_size > 0:
-                with open(queue_file, "r", encoding="utf-8") as f:
+                # Take the file in one step (rename), so a mention the server appends
+                # meanwhile lands in a fresh file instead of being truncated away.
+                taking = queue_file.with_name(queue_file.name + ".taking")
+                os.replace(queue_file, taking)
+                with open(taking, "r", encoding="utf-8") as f:
                     lines = f.readlines()
-                queue_file.write_text("", "utf-8")
+                taking.unlink(missing_ok=True)
 
                 has_trigger = False
                 channel = "general"
@@ -555,26 +560,39 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                         except json.JSONDecodeError:
                             pass
 
-                    thread_root = None
+                    # Scranton: one batch can hold mentions from several places; name each one.
+                    places = []   # (channel, thread) in arrival order
                     for line in lines:
                         try:
                             d = json.loads(line)
-                            if isinstance(d, dict) and d.get("thread") is not None:
-                                thread_root = int(d["thread"])
                         except (json.JSONDecodeError, TypeError, ValueError):
-                            pass
+                            continue
+                        if not isinstance(d, dict):
+                            continue
+                        try:
+                            th = int(d["thread"]) if d.get("thread") is not None else None
+                        except (TypeError, ValueError):
+                            th = None
+                        key = (str(d.get("channel") or channel), th)
+                        if key not in places:
+                            places.append(key)
+                    thread_root = places[-1][1] if places else None
                     if custom_prompt:
                         prompt = custom_prompt
                     elif job_id:
                         prompt = f"use mcp to read job_id={job_id} - you're mentioned in a job thread, take appropriate action and respond"
+                    elif len(places) > 1:
+                        where = "; ".join(f"#{c} in the thread under message #{t} (reply with reply_to={t})" if t is not None
+                                          else f"#{c}" for c, t in places)
+                        prompt = (f"use mcp to read each of these - you're mentioned in: {where}. "
+                                  f"Take appropriate action and reply in each place, where the mention was")
+                    elif thread_root is not None:
+                        # Scranton: keep the conversation in its thread
+                        prompt = (f"use mcp to read #{places[0][0]} - you're mentioned in the thread under message "
+                                  f"#{thread_root}; take appropriate action and reply in that thread "
+                                  f"(chat_send with reply_to={thread_root})")
                     else:
-                        if thread_root is not None:
-                            # Scranton: keep the conversation in its thread
-                            prompt = (f"use mcp to read #{channel} - you're mentioned in the thread under message "
-                                      f"#{thread_root}; take appropriate action and reply in that thread "
-                                      f"(chat_send with reply_to={thread_root})")
-                        else:
-                            prompt = f"use mcp to read #{channel} - you're mentioned, take appropriate action and respond"
+                        prompt = f"use mcp to read #{places[0][0] if places else channel} - you're mentioned, take appropriate action and respond"
 
                     # Use current identity (may have changed via rename)
                     current_name, _ = get_identity_fn()
@@ -654,6 +672,9 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
 # ---------------------------------------------------------------------------
 
 def main():
+    # Scranton: Stop/Restart send SIGTERM; exit through `finally` so we deregister cleanly.
+    import signal as _signal
+    _signal.signal(_signal.SIGTERM, lambda *_: sys.exit(0))
     import argparse
     import urllib.error
     import urllib.request
@@ -804,7 +825,8 @@ def main():
 
     # Scranton: API keys are always stripped so the CLIs use your subscription,
     # even when the tmux server was started from a shell that has them set.
-    strip_vars = {"CLAUDECODE", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY", "CURSOR_API_KEY"} | set(agent_cfg.get("strip_env", []))
+    from config_loader import PAID_API_ENV
+    strip_vars = {"CLAUDECODE", *PAID_API_ENV} | set(agent_cfg.get("strip_env", []))
     env = {k: v for k, v in os.environ.items() if k not in strip_vars}
 
     resolved = shutil.which(command)

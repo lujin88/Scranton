@@ -45,6 +45,11 @@ CLI_OVERRIDE_FLAGS = [
 ]
 
 
+# Scranton runs on subscriptions only. These would switch a CLI to paid API billing
+# (or another endpoint), so they are removed before anything starts. One list, used everywhere.
+PAID_API_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "OPENAI_API_KEY", "OPENAI_BASE_URL", "CODEX_API_KEY", "CURSOR_API_KEY")
+
+
 def apply_cli_overrides(argv: list[str] | None = None) -> None:
     """Scan argv for --data-dir/--port/etc and set matching env vars in-place.
 
