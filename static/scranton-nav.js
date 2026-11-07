@@ -357,14 +357,41 @@
         img.src = url;
     }
 
+    function editName() {
+        const n = document.getElementById('sc-me-name');
+        if (!n || n.querySelector('input')) return;
+        const input = document.createElement('input');
+        input.className = 'sc-me-input';
+        input.value = me();
+        input.maxLength = 20;
+        input.setAttribute('aria-label', 'Your name');
+        n.textContent = '';
+        n.appendChild(input);
+        input.focus(); input.select();
+        let done = false;
+        const finish = (save) => {
+            if (done) return; done = true;
+            const v = input.value.trim();
+            if (save && v && v !== me() && window.ws && window.ws.readyState === WebSocket.OPEN) {
+                window.ws.send(JSON.stringify({ type: 'update_settings', data: { username: v } }));
+            }
+            n.textContent = save && v ? v : me();
+        };
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+            if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+        });
+        input.addEventListener('blur', () => finish(true));
+    }
+
     function initMe() {
         const btn = document.getElementById('sc-me');
         const file = document.getElementById('sc-me-file');
         if (!btn || !file) return;
         btn.addEventListener('click', (e) => {
-            // Click the picture to change it; click the name to open Settings (name lives there).
+            // Click the picture to change it; click the name to rename yourself.
             if (e.target.closest('#sc-me-avatar')) file.click();
-            else document.getElementById('settings-toggle')?.click();
+            else if (!e.target.closest('input')) editName();
         });
         file.addEventListener('change', () => { pickAvatar(file.files && file.files[0]); file.value = ''; });
         renderMe();

@@ -151,9 +151,12 @@ async def main():
         await pg.set_input_files("#sc-me-file", str(Path(__file__).resolve().parent.parent / "static" / "scranton-icon.png")); await pg.wait_for_timeout(800)
         check("your picture can be set", await pg.locator("#sc-me-avatar img").count() == 1)
 
-        # settings open
-        await pg.click("#settings-toggle"); await pg.wait_for_timeout(300)
-        check("settings open", await pg.locator("#settings-bar").is_visible())
+        # no settings bar; rename yourself from the profile chip
+        check("settings bar and gear are gone", await pg.locator("#settings-toggle").is_hidden() and await pg.locator("#settings-bar").is_hidden())
+        await pg.click("#sc-me-name"); await pg.fill(".sc-me-input", "Lu J"); await pg.keyboard.press("Enter"); await pg.wait_for_timeout(800)
+        check("rename yourself from the profile chip", (await pg.locator("#sc-me-name").inner_text()).strip() == "Lu J"
+              and (await pg.evaluate("username")) == "Lu J")
+        await pg.click("#sc-me-name"); await pg.fill(".sc-me-input", "Lu"); await pg.keyboard.press("Enter"); await pg.wait_for_timeout(800)
         pass
 
         # phone

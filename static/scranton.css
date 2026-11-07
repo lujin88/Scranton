@@ -356,3 +356,11 @@ body.sc-in-dm #mention-toggles-row > :not(#clear-chat-btn) { display: none; }
     .sc-from { margin-left: 0; }
     .sc-inbox-head { padding: 14px 12px 10px; }
 }
+
+/* No settings bar in Scranton: name lives in the profile chip, the rest keeps its defaults. */
+#settings-toggle, #settings-bar { display: none !important; }
+.sc-me-input {
+    width: 100%; background: var(--bg-input); color: var(--text); border: 1px solid var(--accent);
+    border-radius: 6px; padding: 3px 6px; font: inherit; font-size: 14px; outline: none;
+}
+.sc-me-name { flex: 1; min-width: 0; }
