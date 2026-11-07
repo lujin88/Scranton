@@ -23,7 +23,7 @@ data_dir = "./data"
 [team]
 owner = "Lu"          # your name in the chat; agents @Lu you
 channels = ["lu-portfolio", "scranton-feedback"]
-brief = "Address Lu as Lu. Report in the channel in concise Chinese, one line: what was done | PR link | what remains | blockers. Lu makes the final calls and does not read code. Merging: code PRs are merged by Code Review & QA with scripts/merge-pr.sh after review, without asking Lu; PRs labelled design go to Lu after Visual QA gives its verdict, and only Lu merges them. Publishing, deleting and clean-up need Lu's OK first."
+brief = "Address Lu as Lu. Whenever you need Lu (a decision, a design to pick, a design PR to merge, a blocker only she can clear, or a delivery she asked for), write @Lu in that message so it reaches her Activity; don't @Lu for anything else. Report in the channel in concise Chinese, one line: what was done | PR link | what remains | blockers. Lu makes the final calls and does not read code. Merging: code PRs are merged by Code Review & QA with scripts/merge-pr.sh after review, without asking Lu; PRs labelled design go to Lu after Visual QA gives its verdict, and only Lu merges them. Publishing, deleting and clean-up need Lu's OK first."
 
 # --- lu-portfolio 群里的成员 ---
 

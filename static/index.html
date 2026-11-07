@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/static/style.css?v=259">
     <link rel="stylesheet" href="/static/sessions.css?v=223">
     <link rel="stylesheet" href="/static/jobs.css?v=225">
-    <link rel="stylesheet" href="/static/scranton.css?v=3">
+    <link rel="stylesheet" href="/static/scranton.css?v=4">
     <meta name="theme-color" content="#2d2238">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/static/manifest.json">
@@ -171,8 +171,8 @@
                 <div id="channel-sidebar-top"></div>
                 <div class="sc-side-scroll">
                     <button id="sc-inbox-row" class="sc-side-row" type="button" onclick="scOpenInbox()">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
-                        <span class="sc-side-label">Inbox</span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                        <span class="sc-side-label">Activity</span>
                         <span id="sc-inbox-badge" class="sc-badge hidden"></span>
                     </button>
                     <div class="channel-sidebar-header sc-section-header" data-section="channels">
@@ -193,12 +193,23 @@
                 <div class="channel-sidebar-grip" id="channel-sidebar-grip"></div>
             </aside>
             <div id="sc-center">
-            <section id="sc-inbox" class="hidden" aria-label="Inbox">
+            <section id="sc-inbox" class="hidden" aria-label="Activity">
                 <div class="sc-inbox-head">
-                    <h2>Inbox</h2>
-                    <span class="sc-inbox-sub">@mentions of you, replies to you, and direct messages</span>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                    <h2>Activity</h2>
+                    <span class="sc-inbox-spacer"></span>
                     <button type="button" class="sc-inbox-btn" onclick="scInboxMarkRead()">Mark all read</button>
                     <button type="button" class="sc-inbox-btn" onclick="scCloseInbox()" aria-label="Close">✕</button>
+                </div>
+                <div class="sc-inbox-filters">
+                    <div class="sc-tabs" role="tablist">
+                        <button type="button" class="sc-tab active" data-kind="mention">Mentions</button>
+                        <button type="button" class="sc-tab" data-kind="all">All</button>
+                        <button type="button" class="sc-tab" data-kind="reply">Replies</button>
+                        <button type="button" class="sc-tab" data-kind="dm">DMs</button>
+                    </div>
+                    <label class="sc-from">From <select id="sc-inbox-from"><option value="">Everyone</option></select></label>
+                    <label class="sc-unread-toggle"><span>Unread</span><input type="checkbox" id="sc-inbox-unread"><span class="sc-switch"></span></label>
                 </div>
                 <div id="sc-inbox-list"></div>
             </section>
@@ -412,6 +423,6 @@
     <script src="/static/rules-panel.js?v=224"></script>
     <script src="/static/chat.js?v=275"></script>
     <script src="/static/scranton.js?v=2"></script>
-    <script src="/static/scranton-nav.js?v=2"></script>
+    <script src="/static/scranton-nav.js?v=3"></script>
 </body>
 </html>

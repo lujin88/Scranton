@@ -320,3 +320,39 @@ footer {
 #sc-center > footer { padding: 8px 16px 0; }
 #sc-center > footer #input-row { margin-left: 0; margin-right: 0; }
 body.sc-in-dm #mention-toggles-row > :not(#clear-chat-btn) { display: none; }
+
+/* Activity (Buzz-style) */
+.sc-inbox-head { align-items: center; }
+.sc-inbox-spacer { flex: 1; }
+.sc-inbox-filters { display: flex; align-items: center; gap: 18px; padding: 0 24px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.sc-tabs { display: flex; gap: 20px; }
+.sc-tab {
+    background: none; border: 0; color: var(--text-dim); font: inherit; font-size: 14px; cursor: pointer;
+    padding: 12px 0 10px; border-bottom: 2px solid transparent;
+}
+.sc-tab:hover { color: var(--text); }
+.sc-tab.active { color: var(--text); border-bottom-color: var(--text); font-weight: 600; }
+.sc-from { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--text); font-size: 13.5px; }
+.sc-from select { background: var(--bg-elevated); color: var(--text); border: 0; border-radius: 8px; padding: 4px 8px; font: inherit; font-size: 13px; }
+.sc-unread-toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; cursor: pointer; }
+.sc-unread-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.sc-switch { width: 34px; height: 20px; border-radius: 10px; background: var(--bg-elevated); position: relative; transition: background 0.15s; }
+.sc-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--text-dim); transition: transform 0.15s, background 0.15s; }
+.sc-unread-toggle input:checked + .sc-switch { background: var(--accent); }
+.sc-unread-toggle input:checked + .sc-switch::after { transform: translateX(14px); background: var(--text-on-accent); }
+.sc-unread-toggle input:focus-visible + .sc-switch { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sc-inbox-item { align-items: flex-start; }
+.sc-inbox-item.unread { background: none; }
+.sc-inbox-item.unread .sc-inbox-text { color: var(--text); }
+.sc-inbox-item:not(.unread) .sc-inbox-text { color: var(--text-muted); }
+.sc-inbox-body { flex: 1; }
+.sc-inbox-meta b { font-size: 14px; }
+.sc-inbox-side { display: flex; align-items: center; gap: 10px; flex-shrink: 0; padding-top: 2px; }
+.sc-inbox-time { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+.sc-unread-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text); }
+@media (max-width: 760px) {
+    .sc-inbox-filters { gap: 10px; padding: 0 12px; }
+    .sc-tabs { gap: 14px; overflow-x: auto; }
+    .sc-from { margin-left: 0; }
+    .sc-inbox-head { padding: 14px 12px 10px; }
+}

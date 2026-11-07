@@ -35,14 +35,15 @@
     function consider(msg) {
         if (!msg || msg.id == null) return;
         const type = msg.type || 'chat';
-        if (type !== 'chat' && type !== 'message' && type !== undefined && type !== 'decision') return;
+        if (!['chat', 'message', 'decision'].includes(type)) return;
         if (String(msg.sender || '').toLowerCase() === me().toLowerCase()) { myMsgIds.add(Number(msg.id)); return; }
         if (!isAgentSender(msg.sender)) return;
-        const toMe = mentionsMe(msg.text)
-            || isDm(msg.channel)
-            || (msg.reply_to != null && myMsgIds.has(Number(msg.reply_to)));
-        if (toMe) {
-            inbox.set(Number(msg.id), msg);
+        const kinds = new Set();
+        if (mentionsMe(msg.text)) kinds.add('mention');
+        if (isDm(msg.channel)) kinds.add('dm');
+        if (msg.reply_to != null && myMsgIds.has(Number(msg.reply_to))) kinds.add('reply');
+        if (kinds.size) {
+            inbox.set(Number(msg.id), { ...msg, _kinds: kinds });
             scheduleRender();
         }
     }
@@ -72,29 +73,73 @@
 
     const inboxOpen = () => !document.getElementById('sc-inbox')?.classList.contains('hidden');
 
+    let filterKind = 'mention';  // default: things that tag Lu
+    function relTime(m) {
+        const ts = Number(m.timestamp) * (Number(m.timestamp) < 1e12 ? 1000 : 1);
+        if (!ts) return m.time || '';
+        const s = Math.max(0, (Date.now() - ts) / 1000);
+        if (s < 60) return 'just now';
+        if (s < 3600) { const n = Math.floor(s / 60); return `${n} minute${n > 1 ? 's' : ''} ago`; }
+        if (s < 86400) { const n = Math.floor(s / 3600); return `${n} hour${n > 1 ? 's' : ''} ago`; }
+        const n = Math.floor(s / 86400); return `${n} day${n > 1 ? 's' : ''} ago`;
+    }
+
+    function renderFromOptions() {
+        const sel = document.getElementById('sc-inbox-from');
+        if (!sel) return;
+        const cur = sel.value;
+        const senders = [...new Set([...inbox.values()].map((m) => String(m.sender).toLowerCase()))].sort();
+        sel.innerHTML = '<option value="">Everyone</option>' + senders
+            .map((n) => `<option value="${esc(n)}">${esc(window.scLabelOf ? window.scLabelOf(n) : n)}</option>`).join('');
+        sel.value = senders.includes(cur) ? cur : '';
+    }
+
     function renderInbox() {
         const list = document.getElementById('sc-inbox-list');
         if (!list) return;
-        const items = [...inbox.values()].sort((a, b) => b.id - a.id).slice(0, 200);
+        renderFromOptions();
+        const from = document.getElementById('sc-inbox-from')?.value || '';
+        const unreadOnly = !!document.getElementById('sc-inbox-unread')?.checked;
+        const items = [...inbox.values()]
+            .filter((m) => filterKind === 'all' || m._kinds.has(filterKind))
+            .filter((m) => !from || String(m.sender).toLowerCase() === from)
+            .filter((m) => !unreadOnly || isUnread(Number(m.id)))
+            .sort((a, b) => b.id - a.id).slice(0, 300);
         if (!items.length) {
-            list.innerHTML = '<div class="sc-inbox-empty">Nothing yet. When a teammate @mentions you, replies to you, or writes in a direct message, it shows up here.</div>';
+            list.innerHTML = `<div class="sc-inbox-empty">${inbox.size
+                ? 'Nothing matches these filters.'
+                : 'Nothing yet. When a teammate @mentions you, replies to you, or writes in a direct message, it shows up here.'}</div>`;
             return;
         }
         list.innerHTML = '';
         for (const m of items) {
             const row = document.createElement('button');
             row.type = 'button';
-            row.className = 'sc-inbox-item' + (isUnread(Number(m.id)) ? ' unread' : '');
-            const where = isDm(m.channel) ? 'Direct message' : `#${m.channel || 'general'}`;
-            const label = window.scLabelOf ? window.scLabelOf(String(m.sender).toLowerCase()) : m.sender;
-            const pic = window.scAvatarHtml ? window.scAvatarHtml(String(m.sender).toLowerCase()) : '';
+            const unread = isUnread(Number(m.id));
+            row.className = 'sc-inbox-item' + (unread ? ' unread' : '');
+            const where = isDm(m.channel) ? 'Direct message' : (m.channel || 'general');
+            const sender = String(m.sender).toLowerCase();
+            const label = window.scLabelOf ? window.scLabelOf(sender) : m.sender;
+            const pic = window.scAvatarHtml ? window.scAvatarHtml(sender) : '';
             const text = String(m.text || '').replace(/\s+/g, ' ').trim();
             row.innerHTML = `<span class="sc-inbox-avatar">${pic}</span>`
-                + `<span class="sc-inbox-body"><span class="sc-inbox-meta"><b>${esc(label)}</b> <span>${esc(where)}</span> <span>${esc(m.time || '')}</span></span>`
-                + `<span class="sc-inbox-text">${esc(text.length > 280 ? text.slice(0, 280) + '…' : text)}</span></span>`;
+                + `<span class="sc-inbox-body"><span class="sc-inbox-meta"><b>${esc(label)}</b> <span>${esc(where)}</span></span>`
+                + `<span class="sc-inbox-text">${esc(text.length > 240 ? text.slice(0, 240) + '…' : text)}</span></span>`
+                + `<span class="sc-inbox-side"><span class="sc-inbox-time">${esc(relTime(m))}</span>${unread ? '<span class="sc-unread-dot"></span>' : ''}</span>`;
             row.addEventListener('click', () => jumpTo(m));
             list.appendChild(row);
         }
+    }
+
+    function initInboxFilters() {
+        document.querySelectorAll('#sc-inbox .sc-tab').forEach((t) => t.addEventListener('click', () => {
+            filterKind = t.dataset.kind;
+            document.querySelectorAll('#sc-inbox .sc-tab').forEach((x) => x.classList.toggle('active', x === t));
+            renderInbox();
+        }));
+        document.getElementById('sc-inbox-from')?.addEventListener('change', renderInbox);
+        document.getElementById('sc-inbox-unread')?.addEventListener('change', renderInbox);
+        setInterval(() => { if (inboxOpen()) renderInbox(); }, 60000);  // keep "x minutes ago" fresh
     }
 
     function jumpTo(m) {
@@ -309,6 +354,7 @@
 
     function init() {
         applyCollapsed();
+        initInboxFilters();
         initMe();
         renderDms();
         renderInboxBadge();
