@@ -15,9 +15,15 @@
     // ------------------------------------------------------------------
     const inbox = new Map();          // id -> msg
     const myMsgIds = new Set();
-    let lastSeen = parseInt(LS.get('scranton-inbox-seen', '0'), 10) || 0;
-    const readIds = new Set(JSON.parse(LS.get('scranton-inbox-read', '[]') || '[]'));
-    const isUnread = (id) => id > lastSeen && !readIds.has(id);
+    // Read state uses message timestamps, not ids: ids restart at 0 when the
+    // log is wiped, which would hide every new item behind an old high-water mark.
+    const tsOf = (m) => Number(m && m.timestamp) || 0;
+    const keyOf = (m) => `${m.id}@${tsOf(m)}`;
+    let seenTs = parseFloat(LS.get('scranton-inbox-seen-ts', '0')) || 0;
+    let readKeys;
+    try { readKeys = new Set(JSON.parse(LS.get('scranton-inbox-read-keys', '[]') || '[]')); } catch (_) { readKeys = new Set(); }
+    const isUnread = (m) => tsOf(m) > seenTs && !readKeys.has(keyOf(m));
+    const pendingUnknown = [];   // messages from senders we couldn't classify yet
 
     function isAgentSender(sender) {
         const s = String(sender || '').toLowerCase();
@@ -37,7 +43,10 @@
         const type = msg.type || 'chat';
         if (!['chat', 'message', 'decision'].includes(type)) return;
         if (String(msg.sender || '').toLowerCase() === me().toLowerCase()) { myMsgIds.add(Number(msg.id)); return; }
-        if (!isAgentSender(msg.sender)) return;
+        if (!isAgentSender(msg.sender)) {
+            if (pendingUnknown.length < 1000) pendingUnknown.push(msg);
+            return;
+        }
         const kinds = new Set();
         if (mentionsMe(msg.text)) kinds.add('mention');
         if (isDm(msg.channel)) kinds.add('dm');
@@ -46,6 +55,12 @@
             inbox.set(Number(msg.id), { ...msg, _kinds: kinds });
             scheduleRender();
         }
+    }
+
+    // Called when the team list arrives: classify messages that came in before it.
+    function recheckPending() {
+        const again = pendingUnknown.splice(0);
+        for (const m of again) consider(m);
     }
 
     let renderPending = false;
@@ -57,7 +72,7 @@
 
     function unreadCount() {
         let n = 0;
-        for (const id of inbox.keys()) if (isUnread(id)) n++;
+        for (const m of inbox.values()) if (isUnread(m)) n++;
         return n;
     }
 
@@ -103,7 +118,7 @@
         const items = [...inbox.values()]
             .filter((m) => filterKind === 'all' || m._kinds.has(filterKind))
             .filter((m) => !from || String(m.sender).toLowerCase() === from)
-            .filter((m) => !unreadOnly || isUnread(Number(m.id)))
+            .filter((m) => !unreadOnly || isUnread(m))
             .sort((a, b) => b.id - a.id).slice(0, 300);
         if (!items.length) {
             list.innerHTML = `<div class="sc-inbox-empty">${inbox.size
@@ -115,7 +130,7 @@
         for (const m of items) {
             const row = document.createElement('button');
             row.type = 'button';
-            const unread = isUnread(Number(m.id));
+            const unread = isUnread(m);
             row.className = 'sc-inbox-item' + (unread ? ' unread' : '');
             const where = isDm(m.channel) ? 'Direct message' : (m.channel || 'general');
             const sender = String(m.sender).toLowerCase();
@@ -143,11 +158,13 @@
     }
 
     function jumpTo(m) {
-        readIds.add(Number(m.id));
-        LS.set('scranton-inbox-read', JSON.stringify([...readIds].filter((id) => id > lastSeen).slice(-500)));
+        readKeys.add(keyOf(m));
+        LS.set('scranton-inbox-read-keys', JSON.stringify([...readKeys].slice(-500)));
         renderInboxBadge();
         window.scCloseInbox();
-        const ch = m.channel || 'general';
+        // 4: the channel may have been renamed or deleted since; don't open a ghost channel.
+        let ch = m.channel || 'general';
+        if (!window.channelList.includes(ch)) ch = 'general';
         if (ch !== window.activeChannel && typeof switchChannel === 'function') switchChannel(ch);
         setTimeout(() => { if (typeof scrollToMessage === 'function') scrollToMessage(m.id); }, 60);
         closeDrawer();
@@ -167,18 +184,19 @@
         document.querySelectorAll('.sc-dimmed').forEach((el) => el.classList.remove('sc-dimmed'));
     };
     window.scInboxMarkRead = function () {
-        for (const id of inbox.keys()) lastSeen = Math.max(lastSeen, id);
-        LS.set('scranton-inbox-seen', String(lastSeen));
-        readIds.clear(); LS.set('scranton-inbox-read', '[]');
+        for (const m of inbox.values()) seenTs = Math.max(seenTs, tsOf(m));
+        seenTs = Math.max(seenTs, Date.now() / 1000);
+        LS.set('scranton-inbox-seen-ts', String(seenTs));
+        readKeys.clear(); LS.set('scranton-inbox-read-keys', '[]');
         renderInboxBadge();
         renderInbox();
     };
 
     if (typeof appendMessage === 'function') {
         const origAppend = appendMessage;
-        appendMessage = function (msg) {
+        appendMessage = function (msg, options) {
             const r = origAppend.apply(this, arguments);
-            try { consider(msg); addSelfAvatar(msg); } catch (_) { /* never break chat rendering */ }
+            try { consider(msg); addSelfAvatar(msg, options && options.container); } catch (_) { /* never break chat rendering */ }
             return r;
         };
     }
@@ -244,6 +262,7 @@
                 else if (inboxOpen() && row.classList.contains('active')) row.classList.add('sc-dimmed');
             });
             renderDms();
+            updateTitle();
         };
     }
     if (typeof switchChannel === 'function') {
@@ -309,9 +328,11 @@
         if (n) n.textContent = me();
         document.querySelectorAll('.message.self .avatar').forEach((av) => { av.innerHTML = myAvatarHtml(); });
     }
-    function addSelfAvatar(msg) {
+    function addSelfAvatar(msg, container) {
         if (!msg || String(msg.sender || '').toLowerCase() !== me().toLowerCase()) return;
-        const el = document.getElementById(`message-${msg.id}`);
+        // During history replay messages are built in a fragment that isn't in the page yet.
+        const el = (container && container.querySelector && container.querySelector(`#message-${CSS.escape(String(msg.id))}`))
+            || document.getElementById(`message-${msg.id}`);
         if (!el || el.querySelector('.avatar-wrap')) return;
         const wrap = document.createElement('div');
         wrap.className = 'avatar-wrap sc-self-avatar';
@@ -359,7 +380,7 @@
         renderDms();
         renderInboxBadge();
         updateTitle();
-        (window.scOnTeamChange || []).push(renderDms);
+        (window.scOnTeamChange || []).push(renderDms, recheckPending);
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && inboxOpen()) window.scCloseInbox(); });
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

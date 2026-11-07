@@ -101,3 +101,36 @@ class ScrantonDmRoutingTests(unittest.TestCase):
     def test_agent_message_in_dm_does_not_loop(self):
         r = self.make()
         self.assertEqual(r.get_targets("pm", "done", "dm-pm"), [])
+
+
+class ScrantonChannelSeedOnceTests(unittest.TestCase):
+    def test_deleted_team_channel_does_not_come_back(self):
+        import app
+        tmp = Path(tempfile.mkdtemp())
+        cfg = {"server": {"data_dir": str(tmp)}, "team": {"channels": ["lu-portfolio"]}}
+        with mock.patch.object(app, "config", cfg), \
+             mock.patch.object(app, "room_settings", {"title": "Scranton", "username": "user"}):
+            app._load_settings()
+            self.assertIn("lu-portfolio", app.room_settings["channels"])
+            # Lu deletes it, settings are saved, Scranton restarts
+            app.room_settings["channels"].remove("lu-portfolio")
+            (tmp / "settings.json").write_text(json.dumps(app.room_settings), "utf-8")
+        with mock.patch.object(app, "config", cfg), \
+             mock.patch.object(app, "room_settings", {"title": "Scranton", "username": "user"}):
+            app._load_settings()
+            self.assertNotIn("lu-portfolio", app.room_settings["channels"])
+
+    def test_owner_name_default(self):
+        import app
+        tmp = Path(tempfile.mkdtemp())
+        with mock.patch.object(app, "config", {"server": {"data_dir": str(tmp)}, "team": {"owner": "Lu"}}), \
+             mock.patch.object(app, "room_settings", {"title": "Scranton", "username": "user"}):
+            app._load_settings()
+            self.assertEqual(app.room_settings["username"], "Lu")
+
+
+class ScrantonLogRedactionTests(unittest.TestCase):
+    def test_token_never_printed_and_masked_in_access_log(self):
+        src = (Path(__file__).resolve().parent.parent / "run.py").read_text("utf-8")
+        self.assertNotIn('Session token: {session_token}', src)
+        self.assertIn("token=)[^&", src)

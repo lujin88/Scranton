@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh issue list:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh issue create:*)",
+      "Bash(gh issue comment:*)",
+      "Read(**/data/logs/**)"
+    ],
+    "deny": [
+      "Edit",
+      "Write",
+      "Read(**/provider-config/**)",
+      "Read(**/*_queue.jsonl)",
+      "Read(**/data/run/**)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh issue close:*)",
+      "Bash(gh issue delete:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}

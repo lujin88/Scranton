@@ -54,7 +54,7 @@ async def main():
     for n in tok: hb(n, n == "visual")
 
     async with async_playwright() as p:
-        br = await p.chromium.launch(args=["--no-sandbox"])
+        br = await p.chromium.launch(executable_path=__import__("os").environ.get("CHROME") or None, args=["--no-sandbox"])
         ctx = await br.new_context(viewport={"width": 1440, "height": 900})
         pg = await ctx.new_page()
         errs = []
@@ -170,6 +170,25 @@ async def main():
         await m.mouse.click(30, 600); await m.wait_for_timeout(300)
         check("phone: tap outside closes team drawer", not await m.evaluate("document.body.classList.contains('sc-drawer-team')"))
         pass
+
+        # review fixes
+        await pg.evaluate("window.ws.send(JSON.stringify({type:'channel_create', name:'dm-nobody'}))")
+        await pg.wait_for_timeout(600)
+        check("dm- channel for a non-teammate is refused", "dm-nobody" not in await pg.evaluate("window.channelList"))
+        await pg.evaluate("window.ws.send(JSON.stringify({type:'channel_rename', old_name:'lu-portfolio', new_name:'dm-pm'}))")
+        await pg.wait_for_timeout(600)
+        check("renaming a channel to dm-… is refused", "lu-portfolio" in await pg.evaluate("window.channelList"))
+        await pg.evaluate("window.ws.send(JSON.stringify({type:'message', channel:'ghost', text:'stray message'}))")
+        await pg.wait_for_timeout(800)
+        ch = await pg.evaluate("[...document.querySelectorAll('.message')].filter(e => e.textContent.includes('stray message')).map(e => e.dataset.channel)[0]")
+        check("message to an unknown channel lands in #general", ch == "general", ch)
+        token = await pg.evaluate("window.SESSION_TOKEN || ''")
+        log = (DATA / "logs" / "server.log").read_text() if (DATA / "logs" / "server.log").exists() else ""
+        check("session token never appears in the server log", token and token not in log, "token found in log" if token in log else "")
+        await pg.reload(); await pg.wait_for_timeout(1500)
+        await pg.click("#channel-sidebar-list >> text=lu-portfolio"); await pg.wait_for_timeout(500)
+        mine = await pg.locator(".message.self .avatar-wrap").count()
+        check("your picture shows on your old messages after reload", mine >= 1, mine)
 
         check("no JavaScript errors anywhere", not errs, errs[:3])
         await br.close()

@@ -173,10 +173,16 @@ def _load_settings():
         room_settings["username"] = _owner[:20]
     # Scranton: channels listed under [team].channels in config.toml always
     # exist. Channels you add in the UI are kept too; nothing is removed.
+    # Each one is added once; if you later delete or rename it, it stays gone.
+    seeded = set(room_settings.get("seeded_channels", []) or [])
     for ch in (config or {}).get("team", {}).get("channels", []) or []:
         ch = str(ch).strip().lower()
-        if _CHANNEL_NAME_RE.match(ch) and ch not in room_settings["channels"]:
+        if not _CHANNEL_NAME_RE.match(ch) or ch in seeded:
+            continue
+        if ch not in room_settings["channels"]:
             room_settings["channels"].append(ch)
+        seeded.add(ch)
+    room_settings["seeded_channels"] = sorted(seeded)
 
 
 def _save_settings():
@@ -888,6 +894,12 @@ async def _handle_new_message(msg: dict):
             )
 
     raw_targets = router.get_targets(sender, text, channel)
+    # Scranton: a DM whose handle isn't a teammate would route nowhere silently.
+    if (channel.startswith("dm-") and not raw_targets and msg_type == "chat"
+            and sender.lower() == str(room_settings.get("username", "")).lower()
+            and channel[3:] not in router.agent_names):
+        store.add("system", f"Nobody received this: there's no teammate called @{channel[3:]}.",
+                  msg_type="system", channel=channel)
     # Resolve base family names to actual registered instances
     # e.g. 'claude' → 'claude-prime' when slot-1 was renamed
     targets = []
@@ -1196,6 +1208,10 @@ async def websocket_endpoint(websocket: WebSocket):
                 attachments = event.get("attachments", [])
                 sender = event.get("sender") or room_settings.get("username", "user")
                 channel = event.get("channel", "general")
+                # Scranton: a stale view (renamed/deleted channel) must not store
+                # messages where no list shows them.
+                if channel not in room_settings.get("channels", ["general"]):
+                    channel = "general"
 
                 if not text and not attachments:
                     continue
@@ -1458,6 +1474,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
             elif event.get("type") == "channel_create":
                 name = (event.get("name") or "").strip().lower()
+                # Scranton: dm-<handle> is reserved for direct messages with a configured teammate.
+                if name.startswith("dm-") and name[3:] not in (config or {}).get("agents", {}):
+                    continue
                 if not name or not _CHANNEL_NAME_RE.match(name):
                     continue
                 if name in room_settings["channels"]:
@@ -1469,6 +1488,8 @@ async def websocket_endpoint(websocket: WebSocket):
             elif event.get("type") == "channel_rename":
                 old_name = (event.get("old_name") or "").strip().lower()
                 new_name = (event.get("new_name") or "").strip().lower()
+                if old_name.startswith("dm-") or new_name.startswith("dm-"):
+                    continue  # Scranton: DM channels can't be renamed, and dm- names are reserved
                 if old_name == "general":
                     continue
                 if not new_name or not _CHANNEL_NAME_RE.match(new_name):

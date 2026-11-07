@@ -113,7 +113,7 @@ role_card = "roles/ux-copywriter.md"
 [agents.help]
 label = "Scranton 帮手"
 command = "claude"
-cwd = "."
+cwd = "helper"
 color = "#cad3f5"
 role = "Scranton Helper: collects feedback about Scranton itself and files it as GitHub issues in lujin88/Scranton"
 role_card = "roles/scranton-help.md"

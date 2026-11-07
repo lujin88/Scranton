@@ -737,7 +737,7 @@ def main():
 
     # Scranton: API keys are always stripped so the CLIs use your subscription,
     # even when the tmux server was started from a shell that has them set.
-    strip_vars = {"CLAUDECODE", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "CURSOR_API_KEY"} | set(agent_cfg.get("strip_env", []))
+    strip_vars = {"CLAUDECODE", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY", "CURSOR_API_KEY"} | set(agent_cfg.get("strip_env", []))
     env = {k: v for k, v in os.environ.items() if k not in strip_vars}
 
     resolved = shutil.which(command)

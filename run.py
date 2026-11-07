@@ -151,13 +151,33 @@ def main():
                 print("  Aborted.\n")
                 sys.exit(1)
 
-    print(f"\n  agentchattr")
+    print(f"\n  Scranton")
     print(f"  Web UI:  http://{host}:{port}")
     print(f"  MCP HTTP: http://{host}:{http_port}/mcp  (Claude, Codex)")
     print(f"  MCP SSE:  http://{host}:{sse_port}/sse   (Gemini)")
     print(f"  Data:    {data_dir}")
     print(f"  Agents auto-trigger on @mention")
-    print(f"\n  Session token: {session_token}\n")
+    # Scranton: the session token is never written to logs (the helper agent
+    # reads logs to file issues). Access-log lines have ?token=... masked.
+    print("\n  Session token: (hidden)\n")
+
+    import logging as _logging
+
+    class _RedactToken(_logging.Filter):
+        _re = __import__("re").compile(r"(token=)[^&\s\"']+")
+
+        def filter(self, record):
+            try:
+                if record.args:
+                    record.args = tuple(self._re.sub(r"\1[redacted]", a) if isinstance(a, str) else a
+                                        for a in record.args)
+                record.msg = self._re.sub(r"\1[redacted]", str(record.msg))
+            except Exception:
+                pass
+            return True
+
+    for _name in ("uvicorn.access", "uvicorn.error", "uvicorn"):
+        _logging.getLogger(_name).addFilter(_RedactToken())
 
     uvicorn.run(app, host=host, port=port, log_level="info")
 

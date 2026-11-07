@@ -126,10 +126,15 @@ Start a non-autostart teammate by hand: `./scranton.sh start growth`.
 
 **Feedback loop:** when something about Scranton itself bothers you, say it in #scranton-feedback (or `@help …` anywhere). The helper files it as an issue in `lujin88/Scranton` with the `feedback` label; it never edits Scranton itself. Fixes come back as PRs for you to merge. The helper needs the GitHub CLI logged in once: `brew install gh` then `gh auth login`.
 
+> **Log `gh` in as the team's bot account, not your own.** Every teammate on this Mac shares that login. With your account they could merge as you, including design PRs that only you should merge.
+
+The helper works in `helper/`, not in the Scranton code. `helper/.claude/settings.json` lets it list, open and comment on issues and read `data/logs/`, and blocks editing files, reading other teammates' connection tokens, merging, closing and pushing. The server never writes its session token to the logs.
+
 - **role_card**: the nine original harness role cards are in `roles/` (unchanged). Each wake-up tells the agent the card's path and to read it before acting. Growth, Support, Hardware, Web dev and Video have no saved cards yet (待确认), so they only get a one-line `role`.
 - **role** (one line) is added to every wake-up as `ROLE: …`. A role picked in the Team panel (⋯) is added in front; it doesn't replace the card.
 - **[team].brief** (称呼 Lu, 简洁中文, report format, merge rule) is added on the first wake-up and every 10th after. Merge rule: **code PRs** are merged by QA with `scripts/merge-pr.sh` after review; **`design` PRs** are merged only by Lu; publishing and deleting still need Lu's OK.
-- **[team].channels** are created on start (`lu-portfolio`).
+- **[team].channels** are created on the first start (`lu-portfolio`, `scranton-feedback`). Delete or rename one and it stays that way.
+- **Direct messages** use channels named `dm-<handle>`. That prefix is reserved: you can't create or rename other channels to it.
 - **avatar**: the 14 portraits from the handover package are in `static/avatars/` (resized to 256 px). Alternates weren't copied.
 - **cwd**: the lu-portfolio team works in `../LuJin-Portfolio`, i.e. clone that repo next to Scranton.
 

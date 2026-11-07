@@ -19,7 +19,7 @@ RUN_DIR="data/run"
 mkdir -p "$LOG_DIR" "$RUN_DIR"
 
 # Subscriptions only: never let an API key reach the CLIs.
-unset ANTHROPIC_API_KEY OPENAI_API_KEY CURSOR_API_KEY
+unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN OPENAI_API_KEY CURSOR_API_KEY
 
 PY=".venv/bin/python"
 
