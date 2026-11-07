@@ -60,6 +60,12 @@ class Router:
             ch["paused"] = False
             ch["guard_emitted"] = False
             if not mentions:
+                # Scranton: in a direct-message channel (dm-<agent>) a plain
+                # message goes to that teammate, no @ needed.
+                if channel.startswith("dm-"):
+                    dm_target = channel[3:]
+                    if dm_target in self.agent_names:
+                        return [dm_target]
                 if self.default_mention in ("both", "all"):
                     return list(self.agent_names)
                 elif self.default_mention == "none":

@@ -247,6 +247,15 @@
         });
     }
 
+    // Shared with scranton-nav.js
+    window.scGetTeam = () => scTeam;
+    window.scAvatarHtml = avatarHtml;
+    window.scAgentState = agentState;
+    window.scLabelOf = labelOf;
+    window.scOnTeamChange = [];
+    const _origRender = renderTeam;
+    renderTeam = function () { _origRender(); for (const f of window.scOnTeamChange) { try { f(); } catch (_) {} } };
+
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
     else init();
 })();

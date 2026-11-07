@@ -79,3 +79,25 @@ class ScrantonChannelSeedTests(unittest.TestCase):
         ):
             app._load_settings()
             self.assertEqual(app.room_settings["channels"], ["general", "mine", "lu-portfolio"])
+
+
+class ScrantonDmRoutingTests(unittest.TestCase):
+    def make(self):
+        from router import Router
+        return Router(["pm", "dev", "visual", "visualqa"], default_mention="none")
+
+    def test_plain_message_in_dm_goes_to_that_teammate(self):
+        self.assertEqual(self.make().get_targets("Lu", "你好", "dm-pm"), ["pm"])
+
+    def test_dm_handle_is_exact(self):
+        self.assertEqual(self.make().get_targets("Lu", "hi", "dm-visual"), ["visual"])
+
+    def test_explicit_mention_in_dm_still_wins(self):
+        self.assertEqual(sorted(self.make().get_targets("Lu", "@dev look", "dm-pm")), ["dev"])
+
+    def test_plain_message_in_normal_channel_goes_nowhere(self):
+        self.assertEqual(self.make().get_targets("Lu", "hello", "lu-portfolio"), [])
+
+    def test_agent_message_in_dm_does_not_loop(self):
+        r = self.make()
+        self.assertEqual(r.get_targets("pm", "done", "dm-pm"), [])

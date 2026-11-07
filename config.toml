@@ -21,6 +21,7 @@ data_dir = "./data"
 # were open in those notes too; nothing was filled in by guessing.
 
 [team]
+owner = "Lu"          # your name in the chat; agents @Lu you
 channels = ["lu-portfolio", "scranton-feedback"]
 brief = "称呼 Lu，频道里用简洁中文汇报，格式：做了什么｜PR 链接｜还剩什么｜卡在哪。Lu 最终拍板，不看代码。合并规则：代码 PR 由 QA 审查通过后用 scripts/merge-pr.sh 合并，不用问 Lu；带 design 标签的 PR 由视觉校正给出结论后交给 Lu，只有 Lu 合并。发布、删除、清理类事项先问 Lu。"
 

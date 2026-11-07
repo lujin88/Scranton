@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/static/style.css?v=259">
     <link rel="stylesheet" href="/static/sessions.css?v=223">
     <link rel="stylesheet" href="/static/jobs.css?v=225">
-    <link rel="stylesheet" href="/static/scranton.css?v=1">
+    <link rel="stylesheet" href="/static/scranton.css?v=3">
     <meta name="theme-color" content="#2d2238">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/static/manifest.json">
@@ -169,13 +169,39 @@
         <div id="content-area">
             <aside id="channel-sidebar" class="hidden">
                 <div id="channel-sidebar-top"></div>
-                <div class="channel-sidebar-header">
-                    <span>Channels</span>
-                    <button id="channel-sidebar-add" class="channel-sidebar-header-add" onclick="showChannelCreateDialog()" title="Add channel">+</button>
+                <div class="sc-side-scroll">
+                    <button id="sc-inbox-row" class="sc-side-row" type="button" onclick="scOpenInbox()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+                        <span class="sc-side-label">Inbox</span>
+                        <span id="sc-inbox-badge" class="sc-badge hidden"></span>
+                    </button>
+                    <div class="channel-sidebar-header sc-section-header" data-section="channels">
+                        <button class="sc-section-toggle" type="button" onclick="scToggleSection('channels')"><span class="sc-chevron">▾</span><span>Channels</span></button>
+                        <button id="channel-sidebar-add" class="channel-sidebar-header-add" onclick="showChannelCreateDialog()" title="Add channel">+</button>
+                    </div>
+                    <div id="channel-sidebar-list" class="sc-section-body" data-section="channels"></div>
+                    <div class="channel-sidebar-header sc-section-header" data-section="dms">
+                        <button class="sc-section-toggle" type="button" onclick="scToggleSection('dms')"><span class="sc-chevron">▾</span><span>Direct messages</span></button>
+                    </div>
+                    <div id="sc-dm-list" class="sc-section-body" data-section="dms"></div>
                 </div>
-                <div id="channel-sidebar-list"></div>
+                <button id="sc-me" class="sc-me" type="button" title="Your name and picture">
+                    <span id="sc-me-avatar" class="sc-me-avatar"></span>
+                    <span id="sc-me-name" class="sc-me-name">Lu</span>
+                </button>
+                <input id="sc-me-file" type="file" accept="image/png,image/jpeg,image/webp" hidden>
                 <div class="channel-sidebar-grip" id="channel-sidebar-grip"></div>
             </aside>
+            <div id="sc-center">
+            <section id="sc-inbox" class="hidden" aria-label="Inbox">
+                <div class="sc-inbox-head">
+                    <h2>Inbox</h2>
+                    <span class="sc-inbox-sub">@mentions of you, replies to you, and direct messages</span>
+                    <button type="button" class="sc-inbox-btn" onclick="scInboxMarkRead()">Mark all read</button>
+                    <button type="button" class="sc-inbox-btn" onclick="scCloseInbox()" aria-label="Close">✕</button>
+                </div>
+                <div id="sc-inbox-list"></div>
+            </section>
             <main id="timeline">
                 <div id="day-float" aria-hidden="true"><span></span></div>
                 <div id="loading-indicator">
@@ -187,6 +213,131 @@
                     <span class="typing-name"></span> is thinking...
                 </div>
             </main>
+            <footer>
+                <div id="schedules-bar" class="hidden">
+                    <div class="schedules-bar-summary">
+                        <svg class="schedules-icon" width="14" height="14" viewBox="0 0 16 16" fill="none">
+                            <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2"/>
+                            <path d="M8 4v4.5l3 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span class="schedules-count" id="schedules-count"></span>
+                        <span class="schedules-next" id="schedules-next"></span>
+                        <a class="schedules-see-all" onclick="toggleSchedulesExpand()">See all</a>
+                    </div>
+                    <div class="schedules-bar-list hidden" id="schedules-list"></div>
+                </div>
+                <div id="mention-toggles-row">
+                    <div id="mention-toggles"></div>
+                    <button id="clear-chat-btn" class="ghost-btn" onclick="clearChat()" title="Clear chat in this channel">Clear Chat</button>
+                </div>
+                <div id="slash-menu" class="hidden"></div>
+                <div id="mention-menu" class="hidden"></div>
+                <div id="attachments"></div>
+                <div id="attachment-status" class="attachment-status" role="status"></div>
+                <div id="input-row">
+                    <span id="sender-label" class="sender-label">user</span>
+                    <button id="session-launch-btn" onclick="showSessionLauncher()" title="Start a session">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                    </button>
+                    <textarea id="input"
+                        placeholder="Message the team · @ to assign"
+                        rows="1"
+                        autofocus></textarea>
+                    <button id="mic" type="button" onmousedown="event.preventDefault()" onclick="toggleVoice()" title="Voice typing (local speech-to-text)" aria-label="Voice typing" aria-pressed="false">
+                        <svg id="mic-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                            <line x1="12" y1="19" x2="12" y2="23"/>
+                            <line x1="8" y1="23" x2="16" y2="23"/>
+                        </svg>
+                    </button>
+                    <div class="send-group">
+                        <button id="send" onclick="sendMessage()">Send</button>
+                        <button id="schedule-btn" class="send-clock" onclick="toggleSchedulePopover(event)" title="Schedule message">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 6v6.5l4 2"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="schedule-popover" class="schedule-popover hidden">
+                        <div class="sched-pop-header">
+                            <span>Schedule message</span>
+                            <button class="sched-pop-close" onclick="closeSchedulePopover()">&times;</button>
+                        </div>
+                        <div class="sched-pop-body">
+                            <div class="sched-pop-row">
+                                <label class="sched-pop-label">When</label>
+                                <select id="sched-date" class="sched-pop-select" onchange="updateSchedulePopoverState()"></select>
+                            </div>
+                            <div class="sched-pop-row sched-time-row">
+                                <label class="sched-pop-label">At</label>
+                                <select id="sched-hour" class="sched-pop-select sched-pop-select-sm" onchange="updateSchedulePopoverState()"></select>
+                                <span class="sched-time-colon">:</span>
+                                <select id="sched-minute" class="sched-pop-select sched-pop-select-sm" onchange="updateSchedulePopoverState()"></select>
+                                <select id="sched-ampm" class="sched-pop-select sched-pop-select-sm" onchange="updateSchedulePopoverState()"></select>
+                            </div>
+                            <div class="sched-pop-row">
+                                <label class="sched-pop-check">
+                                    <input type="checkbox" id="sched-relative" onchange="toggleRelativeFields()">
+                                    <span>In a while from now</span>
+                                </label>
+                            </div>
+                            <div class="sched-pop-row sched-relative-fields hidden" id="sched-relative-fields">
+                                <label class="sched-pop-label">In</label>
+                                <div class="sched-num-wrap">
+                                    <input type="number" id="sched-rel-h" class="sched-pop-num" value="0" min="0" max="72" onchange="updateSchedulePopoverState()">
+                                    <div class="sched-num-btns">
+                                        <button type="button" onclick="stepNumInput('sched-rel-h',1)" tabindex="-1">&#9650;</button>
+                                        <button type="button" onclick="stepNumInput('sched-rel-h',-1)" tabindex="-1">&#9660;</button>
+                                    </div>
+                                </div>
+                                <span class="sched-time-colon">h</span>
+                                <div class="sched-num-wrap">
+                                    <input type="number" id="sched-rel-m" class="sched-pop-num" value="30" min="0" max="59" onchange="updateSchedulePopoverState()">
+                                    <div class="sched-num-btns">
+                                        <button type="button" onclick="stepNumInput('sched-rel-m',1)" tabindex="-1">&#9650;</button>
+                                        <button type="button" onclick="stepNumInput('sched-rel-m',-1)" tabindex="-1">&#9660;</button>
+                                    </div>
+                                </div>
+                                <span class="sched-time-colon">m</span>
+                            </div>
+                            <div class="sched-pop-row">
+                                <label class="sched-pop-check">
+                                    <input type="checkbox" id="sched-recurring" onchange="toggleRecurringFields()">
+                                    <span>Recurring</span>
+                                </label>
+                            </div>
+                            <div class="sched-pop-row sched-recurring-fields hidden" id="sched-recurring-fields">
+                                <label class="sched-pop-label">Every</label>
+                                <div class="sched-num-wrap">
+                                    <input type="number" id="sched-interval-val" class="sched-pop-num" value="1" min="1" max="99">
+                                    <div class="sched-num-btns">
+                                        <button type="button" onclick="stepSchedNum(1)" tabindex="-1">&#9650;</button>
+                                        <button type="button" onclick="stepSchedNum(-1)" tabindex="-1">&#9660;</button>
+                                    </div>
+                                </div>
+                                <select id="sched-interval-unit" class="sched-pop-select">
+                                    <option value="minutes">minutes</option>
+                                    <option value="hours" selected>hours</option>
+                                    <option value="days">days</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="sched-pop-error hidden" id="sched-pop-error"></div>
+                        <div class="sched-pop-footer">
+                            <button class="sched-pop-cancel" onclick="closeSchedulePopover()">Cancel</button>
+                            <button class="sched-pop-submit" onclick="submitSchedulePopover()">Schedule</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="input-hint">
+                    Enter to send &middot; Shift+Enter for newline &middot; Paste or drop files &middot; Mic for voice &middot; Type / or @ for autocomplete
+                </div>
+            </footer>
+            </div>
             <aside id="team-panel" aria-label="Team">
                 <div class="team-header">Team</div>
                 <div id="team-list"></div>
@@ -245,130 +396,6 @@
 
         <div id="scroll-anchor" class="hidden" onclick="scrollToBottom()"><span class="unread-badge">0</span><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
 
-        <footer>
-            <div id="schedules-bar" class="hidden">
-                <div class="schedules-bar-summary">
-                    <svg class="schedules-icon" width="14" height="14" viewBox="0 0 16 16" fill="none">
-                        <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2"/>
-                        <path d="M8 4v4.5l3 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    <span class="schedules-count" id="schedules-count"></span>
-                    <span class="schedules-next" id="schedules-next"></span>
-                    <a class="schedules-see-all" onclick="toggleSchedulesExpand()">See all</a>
-                </div>
-                <div class="schedules-bar-list hidden" id="schedules-list"></div>
-            </div>
-            <div id="mention-toggles-row">
-                <div id="mention-toggles"></div>
-                <button id="clear-chat-btn" class="ghost-btn" onclick="clearChat()" title="Clear chat in this channel">Clear Chat</button>
-            </div>
-            <div id="slash-menu" class="hidden"></div>
-            <div id="mention-menu" class="hidden"></div>
-            <div id="attachments"></div>
-            <div id="attachment-status" class="attachment-status" role="status"></div>
-            <div id="input-row">
-                <span id="sender-label" class="sender-label">user</span>
-                <button id="session-launch-btn" onclick="showSessionLauncher()" title="Start a session">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="5 3 19 12 5 21 5 3"/>
-                    </svg>
-                </button>
-                <textarea id="input"
-                    placeholder="Message the team · @ to assign"
-                    rows="1"
-                    autofocus></textarea>
-                <button id="mic" type="button" onmousedown="event.preventDefault()" onclick="toggleVoice()" title="Voice typing (local speech-to-text)" aria-label="Voice typing" aria-pressed="false">
-                    <svg id="mic-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                        <line x1="12" y1="19" x2="12" y2="23"/>
-                        <line x1="8" y1="23" x2="16" y2="23"/>
-                    </svg>
-                </button>
-                <div class="send-group">
-                    <button id="send" onclick="sendMessage()">Send</button>
-                    <button id="schedule-btn" class="send-clock" onclick="toggleSchedulePopover(event)" title="Schedule message">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"/>
-                            <path d="M12 6v6.5l4 2"/>
-                        </svg>
-                    </button>
-                </div>
-                <div id="schedule-popover" class="schedule-popover hidden">
-                    <div class="sched-pop-header">
-                        <span>Schedule message</span>
-                        <button class="sched-pop-close" onclick="closeSchedulePopover()">&times;</button>
-                    </div>
-                    <div class="sched-pop-body">
-                        <div class="sched-pop-row">
-                            <label class="sched-pop-label">When</label>
-                            <select id="sched-date" class="sched-pop-select" onchange="updateSchedulePopoverState()"></select>
-                        </div>
-                        <div class="sched-pop-row sched-time-row">
-                            <label class="sched-pop-label">At</label>
-                            <select id="sched-hour" class="sched-pop-select sched-pop-select-sm" onchange="updateSchedulePopoverState()"></select>
-                            <span class="sched-time-colon">:</span>
-                            <select id="sched-minute" class="sched-pop-select sched-pop-select-sm" onchange="updateSchedulePopoverState()"></select>
-                            <select id="sched-ampm" class="sched-pop-select sched-pop-select-sm" onchange="updateSchedulePopoverState()"></select>
-                        </div>
-                        <div class="sched-pop-row">
-                            <label class="sched-pop-check">
-                                <input type="checkbox" id="sched-relative" onchange="toggleRelativeFields()">
-                                <span>In a while from now</span>
-                            </label>
-                        </div>
-                        <div class="sched-pop-row sched-relative-fields hidden" id="sched-relative-fields">
-                            <label class="sched-pop-label">In</label>
-                            <div class="sched-num-wrap">
-                                <input type="number" id="sched-rel-h" class="sched-pop-num" value="0" min="0" max="72" onchange="updateSchedulePopoverState()">
-                                <div class="sched-num-btns">
-                                    <button type="button" onclick="stepNumInput('sched-rel-h',1)" tabindex="-1">&#9650;</button>
-                                    <button type="button" onclick="stepNumInput('sched-rel-h',-1)" tabindex="-1">&#9660;</button>
-                                </div>
-                            </div>
-                            <span class="sched-time-colon">h</span>
-                            <div class="sched-num-wrap">
-                                <input type="number" id="sched-rel-m" class="sched-pop-num" value="30" min="0" max="59" onchange="updateSchedulePopoverState()">
-                                <div class="sched-num-btns">
-                                    <button type="button" onclick="stepNumInput('sched-rel-m',1)" tabindex="-1">&#9650;</button>
-                                    <button type="button" onclick="stepNumInput('sched-rel-m',-1)" tabindex="-1">&#9660;</button>
-                                </div>
-                            </div>
-                            <span class="sched-time-colon">m</span>
-                        </div>
-                        <div class="sched-pop-row">
-                            <label class="sched-pop-check">
-                                <input type="checkbox" id="sched-recurring" onchange="toggleRecurringFields()">
-                                <span>Recurring</span>
-                            </label>
-                        </div>
-                        <div class="sched-pop-row sched-recurring-fields hidden" id="sched-recurring-fields">
-                            <label class="sched-pop-label">Every</label>
-                            <div class="sched-num-wrap">
-                                <input type="number" id="sched-interval-val" class="sched-pop-num" value="1" min="1" max="99">
-                                <div class="sched-num-btns">
-                                    <button type="button" onclick="stepSchedNum(1)" tabindex="-1">&#9650;</button>
-                                    <button type="button" onclick="stepSchedNum(-1)" tabindex="-1">&#9660;</button>
-                                </div>
-                            </div>
-                            <select id="sched-interval-unit" class="sched-pop-select">
-                                <option value="minutes">minutes</option>
-                                <option value="hours" selected>hours</option>
-                                <option value="days">days</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="sched-pop-error hidden" id="sched-pop-error"></div>
-                    <div class="sched-pop-footer">
-                        <button class="sched-pop-cancel" onclick="closeSchedulePopover()">Cancel</button>
-                        <button class="sched-pop-submit" onclick="submitSchedulePopover()">Schedule</button>
-                    </div>
-                </div>
-            </div>
-            <div class="input-hint">
-                Enter to send &middot; Shift+Enter for newline &middot; Paste or drop files &middot; Mic for voice &middot; Type / or @ for autocomplete
-            </div>
-        </footer>
     </div>
 
     <div id="dropzone" class="hidden">
@@ -384,6 +411,7 @@
     <script src="/static/channels.js?v=226"></script>
     <script src="/static/rules-panel.js?v=224"></script>
     <script src="/static/chat.js?v=275"></script>
-    <script src="/static/scranton.js?v=1"></script>
+    <script src="/static/scranton.js?v=2"></script>
+    <script src="/static/scranton-nav.js?v=2"></script>
 </body>
 </html>

@@ -167,6 +167,10 @@ def _load_settings():
         room_settings["channels"] = ["general"]
     elif "general" not in room_settings["channels"]:
         room_settings["channels"].insert(0, "general")
+    # Scranton: your display name defaults to [team].owner until you change it.
+    _owner = str((config or {}).get("team", {}).get("owner", "") or "").strip()
+    if _owner and room_settings.get("username", "user") == "user":
+        room_settings["username"] = _owner[:20]
     # Scranton: channels listed under [team].channels in config.toml always
     # exist. Channels you add in the UI are kept too; nothing is removed.
     for ch in (config or {}).get("team", {}).get("channels", []) or []:
