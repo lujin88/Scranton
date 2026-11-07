@@ -211,3 +211,9 @@ footer {
 @media (max-width: 1080px) { footer { margin-right: 0; } }
 @media (max-width: 760px) { footer { margin-left: 0; } }
 @media (max-width: 760px) { .sender-label { display: none; } }
+
+/* Teammate portraits */
+.avatar img, .team-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
+.team-avatar.has-pic { overflow: visible; }
+.team-avatar.has-pic img { border-radius: 8px; }
+.team-avatar svg { width: 16px; height: 16px; }

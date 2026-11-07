@@ -472,9 +472,15 @@ def _report_rule_sync(server_port: int, agent_name: str, epoch: int, token: str 
 
 def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = False, trigger_flag=None,
                    server_port: int = 8300, agent_name: str = "", get_token_fn=None,
-                   refresh_interval: int = 10):
-    """Poll queue file and inject an MCP read task when triggered."""
+                   refresh_interval: int = 10, default_role: str = "", team_brief: str = ""):
+    """Poll queue file and inject an MCP read task when triggered.
+
+    Scranton: default_role comes from the agent's `role` in config.toml and is
+    used when no role was set in the UI. team_brief comes from [team].brief and
+    is added on the first wake-up and then every `refresh_interval` wake-ups.
+    """
     first_mention = True
+    brief_count = 0
     last_rules_epoch = 0  # 0 = unknown/cold start — will inject on first trigger
     trigger_count = 0
     while True:
@@ -536,8 +542,14 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                     role = _fetch_role(server_port, current_name)
                     if not role and current_name != agent_name:
                         role = _fetch_role(server_port, agent_name)
+                    if not role:
+                        role = default_role
                     if role:
                         prompt += f"\n\nROLE: {role}"
+                    if team_brief:
+                        if brief_count == 0 or (refresh_interval > 0 and brief_count % refresh_interval == 0):
+                            prompt += f"\n\nTEAM: {team_brief}"
+                        brief_count += 1
 
                     # Smart rules injection: first trigger, epoch change, or periodic refresh
                     _token = get_token_fn() if get_token_fn else ""
@@ -800,6 +812,9 @@ def main():
     _is_multi_instance = registration.get("slot", 1) > 1
     _trigger_flag = [False]  # shared: queue watcher sets True, activity checker reads
     _refresh_interval = 10  # default; overridden per-trigger by server settings
+    # Scranton: role and team brief from config.toml
+    _default_role = str(agent_cfg.get("role", "") or "").strip()
+    _team_brief = str(config.get("team", {}).get("brief", "") or "").strip()
 
     def start_watcher(inject_fn):
         nonlocal _watcher_inject_fn, _watcher_thread
@@ -809,7 +824,8 @@ def main():
             args=(get_identity, inject_fn),
             kwargs={"is_multi_instance": _is_multi_instance, "trigger_flag": _trigger_flag,
                     "server_port": server_port, "agent_name": assigned_name,
-                    "get_token_fn": get_token, "refresh_interval": _refresh_interval},
+                    "get_token_fn": get_token, "refresh_interval": _refresh_interval,
+                    "default_role": _default_role, "team_brief": _team_brief},
             daemon=True,
         )
         _watcher_thread.start()
@@ -824,7 +840,8 @@ def main():
                     args=(get_identity, _watcher_inject_fn),
                     kwargs={"is_multi_instance": _is_multi_instance, "trigger_flag": _trigger_flag,
                             "server_port": server_port, "agent_name": assigned_name,
-                            "get_token_fn": get_token, "refresh_interval": _refresh_interval},
+                            "get_token_fn": get_token, "refresh_interval": _refresh_interval,
+                    "default_role": _default_role, "team_brief": _team_brief},
                     daemon=True,
                 )
                 _watcher_thread.start()

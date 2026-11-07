@@ -15,6 +15,52 @@
         pending: 'Starting',
     };
     let lastStatus = {};
+    let scTeam = {};   // from /api/scranton/team: label, role, provider, avatar per config entry
+
+    function baseOf(name) {
+        const cfg = (typeof agentConfig !== 'undefined' && agentConfig[name]) || {};
+        if (cfg.base && scTeam[cfg.base]) return cfg.base;
+        if (scTeam[name]) return name;
+        const stripped = name.replace(/-\d+$/, '');
+        return scTeam[stripped] ? stripped : name;
+    }
+
+    function labelOf(name) {
+        const c = (typeof agentConfig !== 'undefined' && agentConfig[name]) || scTeam[baseOf(name)] || {};
+        return c.label || name;
+    }
+
+    function avatarHtml(name) {
+        const t = scTeam[baseOf(name)];
+        if (t && t.avatar) return `<img src="${t.avatar}" alt="" loading="lazy">`;
+        if (t && t.provider && typeof BRAND_AVATARS !== 'undefined' && BRAND_AVATARS[t.provider]) return BRAND_AVATARS[t.provider];
+        return '';
+    }
+
+    async function loadTeam() {
+        try {
+            const r = await fetch('/api/scranton/team', { headers: { 'X-Session-Token': SESSION_TOKEN } });
+            if (r.ok) scTeam = await r.json();
+        } catch (_) { /* server restarting */ }
+        renderTeam();
+        refreshMessageAvatars();
+    }
+
+    function refreshMessageAvatars() {
+        document.querySelectorAll('.avatar-wrap[data-agent]').forEach((wrap) => {
+            const html = avatarHtml(wrap.dataset.agent || '');
+            const av = wrap.querySelector('.avatar');
+            if (html && av && av.dataset.sc !== '1') { av.innerHTML = html; av.dataset.sc = '1'; }
+        });
+    }
+
+    // Messages: use the teammate's portrait (or its CLI's icon) instead of a generic person.
+    if (typeof getAvatarSvg === 'function') {
+        const origAvatar = getAvatarSvg;
+        getAvatarSvg = function (sender) {
+            return avatarHtml(String(sender || '').toLowerCase()) || origAvatar.apply(this, arguments);
+        };
+    }
 
     function agentState(name) {
         const pill = document.getElementById(`status-${name}`);
@@ -30,6 +76,8 @@
         if (!list || typeof agentConfig === 'undefined') return;
         list.innerHTML = '';
         const names = Object.keys(agentConfig);
+        const covered = new Set(names.map(baseOf));
+        for (const key of Object.keys(scTeam)) if (!covered.has(key)) names.push(key);
         if (!names.length) {
             const empty = document.createElement('div');
             empty.className = 'team-empty';
@@ -42,24 +90,29 @@
         names.sort((a, b) => {
             const d = order[agentState(a)] - order[agentState(b)];
             if (d) return d;
-            return (agentConfig[a].label || a).localeCompare(agentConfig[b].label || b);
+            return labelOf(a).localeCompare(labelOf(b));
         });
         for (const name of names) {
-            const cfg = agentConfig[name] || {};
+            const t = scTeam[baseOf(name)] || {};
+            const cfg = agentConfig[name] || { label: t.label };
             const state = agentState(name);
             const info = lastStatus[name] || {};
             const color = (typeof colorOverrides !== 'undefined' && colorOverrides[name]) || info.color || cfg.color || '#888';
-            const role = (typeof _agentRoles !== 'undefined' && _agentRoles[name]) || info.role || '';
+            const role = (typeof _agentRoles !== 'undefined' && _agentRoles[name]) || info.role || t.role || '';
 
             const row = document.createElement('button');
             row.type = 'button';
             row.className = `team-row ${state}`;
             row.style.setProperty('--agent-color', color);
-            row.title = `@${name}`;
+            row.title = state === 'offline' && !agentConfig[name]
+                ? `@${name} · not running (./scranton.sh start ${name})`
+                : `@${name}`;
 
             const avatar = document.createElement('span');
             avatar.className = 'team-avatar';
-            avatar.textContent = (cfg.label || name).trim().charAt(0).toUpperCase();
+            const pic = avatarHtml(name);
+            if (pic) { avatar.innerHTML = pic; avatar.classList.add('has-pic'); }
+            else avatar.textContent = (cfg.label || name).trim().charAt(0).toUpperCase();
             const dot = document.createElement('span');
             dot.className = 'team-dot';
             avatar.appendChild(dot);
@@ -71,7 +124,9 @@
             nm.textContent = cfg.label || name;
             const st = document.createElement('span');
             st.className = 'team-state';
-            st.textContent = role ? `${STATE_TEXT[state]} · ${role}` : STATE_TEXT[state];
+            const roleShort = role.split(/[:：]/)[0];
+            st.textContent = `@${name} · ${STATE_TEXT[state]}`;
+            if (roleShort && roleShort !== (cfg.label || name)) st.textContent += ` · ${roleShort}`;
             text.append(nm, st);
 
             row.append(avatar, text);
@@ -79,7 +134,7 @@
             row.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const pill = document.getElementById(`status-${name}`);
-                if (pill) pill.click();
+                if (pill) pill.click(); else insertMention(name);
             });
             // Long-press / double-click inserts an @mention into the composer.
             row.addEventListener('dblclick', () => insertMention(name));
@@ -155,6 +210,7 @@
         if (typeof setChannelSidebarMode === 'function') setChannelSidebarMode('sidebar', true);
         addTeamButton();
         renderTeam();
+        loadTeam();
 
         // Tap outside a drawer closes it; picking a channel closes the channel drawer.
         document.addEventListener('click', (e) => {

@@ -167,6 +167,12 @@ def _load_settings():
         room_settings["channels"] = ["general"]
     elif "general" not in room_settings["channels"]:
         room_settings["channels"].insert(0, "general")
+    # Scranton: channels listed under [team].channels in config.toml always
+    # exist. Channels you add in the UI are kept too; nothing is removed.
+    for ch in (config or {}).get("team", {}).get("channels", []) or []:
+        ch = str(ch).strip().lower()
+        if _CHANNEL_NAME_RE.match(ch) and ch not in room_settings["channels"]:
+            room_settings["channels"].append(ch)
 
 
 def _save_settings():
@@ -2123,6 +2129,44 @@ async def delete_job(job_id: int, request: Request):
     if result is None:
         return JSONResponse({"error": "not found"}, status_code=404)
     return result
+
+
+_AVATAR_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"}
+
+
+def _scranton_team() -> dict:
+    """Per-teammate display info from config.toml (Scranton).
+
+    avatar: a file name inside static/avatars/ (e.g. "pm-bear.jpg"); anything
+    with a path separator or an unknown extension is ignored.
+    """
+    out = {}
+    avatar_dir = Path(__file__).parent / "static" / "avatars"
+    for name, cfg in (config or {}).get("agents", {}).items():
+        if not isinstance(cfg, dict):
+            continue
+        command = str(cfg.get("command", "") or "")
+        provider = Path(command).name if command else ""
+        if provider in ("agent", "cursor-agent"):
+            provider = "cursor"
+        avatar = str(cfg.get("avatar", "") or "").strip()
+        url = ""
+        if avatar and "/" not in avatar and "\\" not in avatar and Path(avatar).suffix.lower() in _AVATAR_EXTS:
+            if (avatar_dir / avatar).is_file():
+                url = f"/static/avatars/{avatar}"
+        out[name] = {
+            "label": str(cfg.get("label", name)),
+            "role": str(cfg.get("role", "") or ""),
+            "provider": provider,
+            "avatar": url,
+            "autostart": bool(cfg.get("autostart", True)),
+        }
+    return out
+
+
+@app.get("/api/scranton/team")
+async def scranton_team():
+    return JSONResponse(_scranton_team())
 
 
 @app.get("/api/roles")

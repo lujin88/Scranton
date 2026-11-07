@@ -7,34 +7,147 @@ host = "127.0.0.1"
 allowed_origins = []
 data_dir = "./data"
 
-# Scranton team. Each entry is one CLI you already pay for and are logged into.
-# "cwd" is the folder the agent works in (relative to this repo, or absolute).
-# Add more teammates by copying a block and giving it a new name, e.g.
-# [agents.designer] with command = "claude".
+# Scranton team. Each teammate is one CLI you're already logged into with
+# your subscription: "claude" (Claude plan), "codex" (ChatGPT plan, also for
+# the GPT roles), "agent" (Cursor plan). The block name is the @handle.
+#
+#   role      one line added to every wake-up ("ROLE: ...")
+#   cwd       folder the agent works in, relative to this repo
+#   autostart false = listed here but not started by ./scranton.sh start
+#             (start it by hand: ./scranton.sh start growth)
+#
+# Copied from "Buzz 设定整理 (2026-11-07)". Things marked 待确认 were open
+# in that note too; nothing was filled in by guessing.
 
-[agents.claude]
+[team]
+channels = ["lu-portfolio"]
+brief = "称呼 Lu，用简洁中文。Lu 负责最终拍板。编程工作 Lu 不看代码。PR 由 06_cursor review bot 审查，Lu 确认后才能合并；清理类事项先报批。"
+
+# --- lu-portfolio 群里的成员 ---
+
+[agents.pm]
+label = "项目经理"
+command = "claude"
+cwd = "../LuJin-Portfolio"
+color = "#c6a0f6"
+role = "项目经理：项目统筹，lu-portfolio 的主联系人，对接 Lu"
+avatar = "pm-bear.jpg"
+
+[agents.harness]          # 是否在 lu-portfolio 群：待确认
+label = "Harness 管理员"
+command = "claude"
+cwd = "../LuJin-Portfolio"
+color = "#f5a97f"
+role = "Harness 管理员：管理 harness"
+avatar = "harness-fox.jpg"
+
+[agents.dev]
+label = "开发工程师"
+command = "claude"
+cwd = "../LuJin-Portfolio"
+color = "#8aadf4"
+role = "开发工程师：开发"
+avatar = "dev-raccoon.jpg"
+
+[agents.qa]
+label = "代码审查与 QA"
+command = "claude"
+cwd = "../LuJin-Portfolio"
+color = "#a6da95"
+role = "代码审查与 QA：代码审查和测试"
+avatar = "qa-snake.jpg"
+
+[agents.visual]           # 原设定是 GPT
+label = "视觉设计师"
+command = "codex"
+cwd = "../LuJin-Portfolio"
+color = "#f5bde6"
+role = "视觉设计师：视觉设计"
+avatar = "visual-cat.jpg"
+
+[agents.visualqa]
+label = "视觉校正"
+command = "codex"
+cwd = "../LuJin-Portfolio"
+color = "#eed49f"
+role = "视觉校正：视觉还原校对"
+avatar = "visualqa-lynx.jpg"
+
+[agents.motion]
+label = "动效设计师"
+command = "codex"
+cwd = "../LuJin-Portfolio"
+color = "#8bd5ca"
+role = "动效设计师：动效"
+avatar = "motion-otter.jpg"
+
+[agents.research]
+label = "UX 调研员"
+command = "claude"
+cwd = "../LuJin-Portfolio"
+color = "#91d7e3"
+role = "UX 调研员：用户研究"
+avatar = "research-rabbit.jpg"
+
+[agents.copy]
+label = "UX 文案"
+command = "claude"
+cwd = "../LuJin-Portfolio"
+color = "#f0c6c6"
+role = "UX 文案：文案"
+avatar = "copy-ferret.jpg"
+
+# --- 不在 lu-portfolio 群：先不自动启动。模型原设定未写，暂用 claude（待确认）---
+
+[agents.growth]
+label = "增长 / 推广"
 command = "claude"
 cwd = ".."
-color = "#d97757"
-label = "Claude"
+color = "#ee99a0"
+role = "增长 / 推广：推广"
+avatar = "growth-fox.jpg"
+autostart = false
 
-[agents.codex]
-command = "codex"
+[agents.cs]
+label = "客服 / 用户反馈"
+command = "claude"
 cwd = ".."
-color = "#10a37f"
-label = "Codex"
+color = "#b7bdf8"
+role = "客服 / 用户反馈：用户反馈"
+avatar = "cs-rabbit.jpg"
+autostart = false
 
-# Cursor CLI ("agent", older installs call it "cursor-agent").
-# Cursor reads MCP servers from .cursor/mcp.json in its working folder.
-[agents.cursor]
+[agents.hardware]
+label = "硬件顾问 AI Pet"
+command = "claude"
+cwd = ".."
+color = "#a5adcb"
+role = "硬件顾问：AI Pet 硬件"
+avatar = "hw-tortoise.jpg"
+autostart = false
+
+# --- 原设定里只有头像，是否已建 agent 待确认 ---
+
+[agents.webdev]
+label = "网页开发"
 command = "agent"
-cwd = ".."
-color = "#5b6cff"
-label = "Cursor"
+cwd = "../LuJin-Portfolio"
+color = "#7dc4e4"
+role = "网页开发：网页开发"
+autostart = false
 mcp_inject = "settings_file"
 mcp_settings_path = ".cursor/mcp.json"
 mcp_transport = "http"
 mcp_http_key = "url"
+
+[agents.video]
+label = "视频制作"
+command = "claude"
+cwd = ".."
+color = "#939ab7"
+role = "视频制作：视频"
+avatar = "video-rabbit.jpg"
+autostart = false
 
 [routing]
 # "none" = only route on explicit @mention. "all" = route to all agents by default.

@@ -106,8 +106,8 @@ class ConfigOverrideTests(unittest.TestCase):
         os.environ["AGENTCHATTR_PORT"] = "8310"
         config = config_loader.load_config(ROOT)
         # Agent definitions must be untouched by path/port overrides
-        self.assertIn("claude", config["agents"])
-        self.assertEqual(config["agents"]["claude"]["command"], "claude")
+        self.assertIn("pm", config["agents"])
+        self.assertEqual(config["agents"]["pm"]["command"], "claude")
 
 
 class CliOverrideExtractionTests(unittest.TestCase):

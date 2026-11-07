@@ -34,33 +34,34 @@ Based on [agentchattr](https://github.com/bcurts/agentchattr) (MIT). UI inspired
 
 Unused agentchattr features (jobs, rules, sessions, schedules, help tour, update checks) are hidden, not deleted, so upstream fixes can still be merged.
 
-## Set up on the Mac mini
+## Install on a Mac
 
-You need: Homebrew, Python 3.11+, tmux, and the CLIs you want on the team.
+Works on any Mac (laptop now, Mac mini later). You need Homebrew and the CLIs you want on the team, each logged into your plan:
 
-```bash
-brew install python tmux
-git clone https://github.com/lujin88/Scranton.git ~/Scranton
-cd ~/Scranton
-./scranton.sh check        # which CLIs are installed + login hints
-```
-
-**Log each CLI into your subscription once, by hand, before starting the team:**
-
-| Agent | Install | Log in with your plan |
+| CLI | Install | Log in with your plan |
 |---|---|---|
-| Claude | `npm i -g @anthropic-ai/claude-code` | run `claude`, sign in with your Claude account, check `/status` |
+| Claude | `npm i -g @anthropic-ai/claude-code` | run `claude`, sign in, check `/status` |
 | Codex | `npm i -g @openai/codex` | `codex login` → "Sign in with ChatGPT" |
 | Cursor | `curl https://cursor.com/install -fsS \| bash` | `agent login` |
 
-> Make sure `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` are **not** set in your shell. If they are, the CLIs bill the API instead of your subscription. `./scranton.sh check` warns about this.
-
-Then:
+Then, in Terminal (one line at a time):
 
 ```bash
-./scranton.sh start          # server + every agent in config.toml
-open http://localhost:8300
+git clone https://github.com/lujin88/Scranton.git ~/Scranton
+cd ~/Scranton
+./install-mac.sh
 ```
+
+This puts **Scranton.app** in `~/Applications`. Open it from Spotlight and drag it to the Dock. Opening it starts the server and every teammate with `autostart`, then opens the chat. Closing the browser tab doesn't stop the team.
+
+- `./install-mac.sh --login`: also start the team automatically when you log in (for the Mac mini).
+- `./install-mac.sh --uninstall`: remove the app and login item, keep the folder and history.
+- Moved the folder or installed a new CLI? Run `./install-mac.sh` again (it records your Terminal's PATH so the app can find the CLIs).
+- Safari → File → **Add to Dock** gives the chat its own window.
+
+> Make sure `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` are **not** set. If they are, the CLIs bill the API instead of your subscription. The app unsets them; the installer warns.
+
+From Terminal you can also use:
 
 | Command | What it does |
 |---|---|
@@ -73,13 +74,13 @@ Logs: `data/logs/`. If an agent's CLI exits, Scranton restarts it after 10 s.
 
 ## First-run test (do this once)
 
-1. `./scranton.sh start`, open the page. Claude, Codex and Cursor should appear under **Team** as *Available*.
-2. In #general: `@claude say hi and tell me which model you are`. Claude should turn *Working*, then reply.
-3. Repeat for `@codex` and `@cursor`.
-4. Hand-off test: `@claude ask @codex to list the files in this folder, then summarise`.
+1. Open Scranton.app. The autostart teammates should appear under **Team** as *Available*.
+2. In #lu-portfolio: `@pm 你好，说一下你是谁、用的什么模型`. 项目经理 should turn *Working*, then reply.
+3. Try `@visual` (Codex) the same way.
+4. Hand-off test: `@pm 让 @dev 列出项目里的文件，然后总结给我`.
 5. Trigger a permission prompt (e.g. ask an agent to create a file) and confirm Agent Monitor still catches it.
 
-If Cursor doesn't reply: `./scranton.sh attach cursor` and look. Cursor support is new in Scranton and hasn't been tested on a real Mac yet (see Known gaps).
+If someone doesn't reply: `./scranton.sh attach pm` (or their handle) and look at their terminal. Cursor support is new in Scranton and hasn't been tested on a real Mac yet (see Known gaps).
 
 ## Phone access with Tailscale
 
@@ -103,27 +104,37 @@ Never use `tailscale funnel` for this: that makes the page public, and anyone wh
 
 ## The team
 
-Teammates are blocks in `config.toml`. Several teammates can use the same CLI:
+Teammates are blocks in `config.toml` (copied from the Buzz setup of 2026-11-07). The block name is the @handle:
 
-```toml
-[agents.michael]          # project manager
-command = "claude"
-cwd = "../Party-Planner"
-color = "#d97757"
-label = "Michael"
+| @handle | Who | CLI | Starts automatically |
+|---|---|---|---|
+| `pm` | 项目经理 (main contact) | claude | yes |
+| `harness` | Harness 管理员 | claude | yes |
+| `dev` | 开发工程师 | claude | yes |
+| `qa` | 代码审查与 QA | claude | yes |
+| `visual` | 视觉设计师 | codex | yes |
+| `visualqa` | 视觉校正 | codex | yes |
+| `motion` | 动效设计师 | codex | yes |
+| `research` | UX 调研员 | claude | yes |
+| `copy` | UX 文案 | claude | yes |
+| `growth`, `cs`, `hardware` | 增长, 客服, 硬件顾问 | claude (model not set in Buzz notes) | no |
+| `webdev` | 网页开发 | Cursor | no |
+| `video` | 视频制作 | claude | no |
 
-[agents.pam]              # visual designer
-command = "claude"
-cwd = "../Party-Planner"
-color = "#e5c890"
-label = "Pam"
-```
+Start a non-autostart teammate by hand: `./scranton.sh start growth`.
 
-**Roles:** each agent reads `CLAUDE.md` / `AGENTS.md` in its `cwd`, so keep pointing those at your harness-core role cards like today. Clicking a name under Team also sets a short role label that's added to every wake-up message.
+- **role** (one line) is added to every wake-up message as `ROLE: …`. A role set by clicking the name in the Team panel wins over the file.
+- **[team].brief** (称呼 Lu, 简洁中文, PR rules) is added on the first wake-up and every 10th after.
+- **[team].channels** are created on start (`lu-portfolio`).
+- **avatar**: copy the portraits from your `Buzz-Muse头像` folder into `static/avatars/` with the same file names (`pm-bear.jpg`, …). Until then each teammate shows its CLI's icon.
+- **cwd**: the lu-portfolio team works in `../LuJin-Portfolio`, i.e. clone that repo next to Scranton.
 
 ## Known gaps
 
 - **Cursor** is configured (MCP via `.cursor/mcp.json`, started with `--approve-mcps`) but not yet verified with a real Cursor login.
+- **Nine teammates share one folder** (`../LuJin-Portfolio`). Two agents editing the same files at once will clash. Ask them to work on separate branches, or give coding roles their own git worktree as `cwd`.
+- **Nine always-on CLIs** share your Claude and ChatGPT limits. Start fewer if you hit limits: set `autostart = false` on roles you don't need today.
+- The system prompts of the Buzz agents weren't in the notes, so each role is one line. Add more detail to `role`, or to `CLAUDE.md` / `AGENTS.md` in the project.
 - **Subscription limits:** a busy team uses your plan faster than working by hand. When a CLI hits its limit it says so in its terminal; Scranton doesn't show that in the Team panel yet.
 - **Approvals** are out of scope (Agent Monitor).
 - No push notifications on the phone yet.

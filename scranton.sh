@@ -32,7 +32,7 @@ ensure_venv() {
 server_running() { lsof -i :"$PORT" -sTCP:LISTEN >/dev/null 2>&1; }
 
 agent_names() {
-    .venv/bin/python -c "import tomllib;c=tomllib.load(open('config.toml','rb'));print(' '.join(n for n,a in c.get('agents',{}).items() if a.get('type')!='api'))"
+    .venv/bin/python -c "import tomllib;c=tomllib.load(open('config.toml','rb'));print(' '.join(n for n,a in c.get('agents',{}).items() if a.get('type')!='api' and a.get('autostart',True)))"
 }
 
 wrapper_running() { pgrep -f "wrapper.py $1( |$)" >/dev/null 2>&1; }
@@ -50,7 +50,12 @@ start_agent() {
     name="$1"
     if wrapper_running "$name"; then echo "  $name already running"; return; fi
     extra=""
-    [ "$name" = "cursor" ] && extra="-- --approve-mcps"
+    cmd=$(.venv/bin/python -c "import tomllib,sys;print(tomllib.load(open('config.toml','rb')).get('agents',{}).get(sys.argv[1],{}).get('command',''))" "$name")
+    [ -n "$cmd" ] || { echo "  $name is not in config.toml"; return; }
+    if ! command -v "$cmd" >/dev/null 2>&1; then echo "  $name skipped: '$cmd' is not installed"; return; fi
+    dir=$(.venv/bin/python -c "import tomllib,sys;print(tomllib.load(open('config.toml','rb')).get('agents',{}).get(sys.argv[1],{}).get('cwd','.'))" "$name")
+    if [ ! -d "$dir" ]; then echo "  $name skipped: folder $dir doesn't exist (clone the project next to Scranton, or change cwd in config.toml)"; return; fi
+    case "$cmd" in agent|cursor-agent) extra="-- --approve-mcps" ;; esac
     # shellcheck disable=SC2086
     nohup .venv/bin/python wrapper.py "$name" $extra > "$LOG_DIR/$name.log" 2>&1 &
     echo "  started $name  (log: $LOG_DIR/$name.log, terminal: ./scranton.sh attach $name)"
@@ -72,7 +77,7 @@ case "${1:-}" in
     status)
         ensure_venv
         if server_running; then echo "Server: running (http://localhost:$PORT)"; else echo "Server: stopped"; fi
-        for a in $(agent_names); do
+        for a in $(.venv/bin/python -c "import tomllib;print(' '.join(tomllib.load(open('config.toml','rb')).get('agents',{})))"); do
             if wrapper_running "$a"; then echo "  $a: running"; else echo "  $a: stopped"; fi
         done
         ;;
