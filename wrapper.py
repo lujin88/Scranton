@@ -826,7 +826,7 @@ def main():
         _card_path = (ROOT / _card).resolve()
         if _card_path.is_file():
             _default_role = (f"{_default_role} | " if _default_role else "") + \
-                f"完整角色卡（规则以它为准，开工前先读）: {_card_path}"
+                f"Full role card (the source of truth; read it before you start): {_card_path}"
         else:
             print(f"  Warning: role_card {_card} not found")
     _team_brief = str(config.get("team", {}).get("brief", "") or "").strip()
