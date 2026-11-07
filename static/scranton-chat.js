@@ -11,6 +11,7 @@
     const QUICK = ['👍', '❤️', '😂', '🎉', '👀', '✅', '🙏', '🔥'];
 
     const byId = new Map();          // id -> msg (as received, plus reactions)
+    window.scMsgs = byId;            // read-only use elsewhere (who has not answered yet)
     const replies = new Map();       // rootId -> [msg]
     const openThreads = [];          // rootIds, newest last
     let activeThread = null;

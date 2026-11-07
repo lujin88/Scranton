@@ -339,3 +339,10 @@ body.sc-welcome-open #sc-empty-room { display: none; }
 #sc-track button { border: 0; background: var(--ds-accent); color: #fff; font: inherit; font-size: var(--ds-fs-sm); height: 30px; padding: 0 12px; border-radius: var(--ds-r-control); cursor: pointer; }
 #sc-track button.x { background: none; color: var(--ds-text-2); width: 30px; padding: 0; display: grid; place-items: center; }
 #sc-track button.x:hover { background: var(--ds-hover); }
+#sc-unsent { display: flex; align-items: center; gap: 10px; max-width: var(--ds-read-w); margin: 0 auto 6px !important; padding: 6px 6px 6px 14px;
+    background: rgba(244, 112, 103, 0.12); border-radius: var(--ds-r-card); color: #f8a39d; font-size: var(--ds-fs-sm); }
+#sc-unsent span { flex: 1; }
+#sc-unsent button { border: 0; background: var(--ds-overlay); color: var(--ds-text); font: inherit; font-size: var(--ds-fs-sm); height: 30px; padding: 0 12px; border-radius: var(--ds-r-control); cursor: pointer; }
+#sc-noreply { display: flex; flex-direction: column; gap: 4px; padding: 6px 0 10px; color: var(--ds-text-3); font-size: var(--ds-fs-sm); }
+#sc-noreply button { border: 0; background: none; color: var(--ds-accent); font: inherit; font-size: var(--ds-fs-sm); cursor: pointer; padding: 0 4px; }
+#sc-noreply button:hover { text-decoration: underline; }

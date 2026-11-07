@@ -1,5 +1,6 @@
 """Session store — persists active session runs to JSON."""
 
+from safe_io import atomic_write, quarantine
 import json
 import time
 import threading
@@ -57,7 +58,7 @@ class SessionStore:
             self._sessions = []
 
     def _save(self):
-        self._path.write_text(
+        atomic_write(self._path, 
             json.dumps(self._sessions, indent=2, ensure_ascii=False) + "\n",
             "utf-8",
         )
@@ -98,7 +99,7 @@ class SessionStore:
         saved["is_custom"] = True
         custom = [t for t in custom if t.get("id") != saved.get("id")]
         custom.append(saved)
-        custom_path.write_text(json.dumps(custom, indent=2, ensure_ascii=False) + "\n", "utf-8")
+        atomic_write(custom_path, json.dumps(custom, indent=2, ensure_ascii=False) + "\n", "utf-8")
         self._templates[saved["id"]] = saved
         return saved
 
@@ -117,7 +118,7 @@ class SessionStore:
 
         new_custom = [t for t in custom if t.get("id") != template_id]
         if len(new_custom) != len(custom):
-            custom_path.write_text(json.dumps(new_custom, indent=2, ensure_ascii=False) + "\n", "utf-8")
+            atomic_write(custom_path, json.dumps(new_custom, indent=2, ensure_ascii=False) + "\n", "utf-8")
 
         self._templates.pop(template_id, None)
         return True

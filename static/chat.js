@@ -93,6 +93,73 @@ window.scIsQuiet = function () {
 };
 fetch('/api/scranton/quiet', { headers: { 'X-Session-Token': SESSION_TOKEN } }).then((r) => r.json()).then((q) => { if (q && q.from) window.scQuiet = q; }).catch(() => {});
 
+// --- Scranton: sent-but-not-confirmed messages -------------------------------
+let scPending = null;   // { text, channel, timer }
+function scAwaitEcho(text, channel) {
+    if (scPending) clearTimeout(scPending.timer);
+    try { localStorage.setItem('scranton-unsent', JSON.stringify({ text, channel, t: Date.now() })); } catch (_) {}
+    scPending = { text, channel, timer: setTimeout(() => { if (scPending) scNotSent(scPending.text, scPending.channel); }, 6000) };
+}
+function scEchoed(msg) {
+    if (!msg) return;
+    const me = String(username || '').toLowerCase();
+    if (String(msg.sender || '').toLowerCase() !== me) return;
+    let stored = null;
+    try { stored = JSON.parse(localStorage.getItem('scranton-unsent') || 'null'); } catch (_) {}
+    const want = scPending || stored;
+    if (!want) return;
+    // the server may have turned @项目经理 into @pm or added a quote line: compare the end
+    const norm = (v) => String(v || '').replace(/@\S+/g, '').replace(/\s+/g, ' ').trim();
+    const tail = norm(want.text).slice(-30);
+    if (!tail || norm(msg.text).includes(tail)) {
+        if (scPending) clearTimeout(scPending.timer);
+        scPending = null;
+        try { localStorage.removeItem('scranton-unsent'); } catch (_) {}
+        document.getElementById('sc-unsent')?.remove();
+    }
+}
+function scNotSent(text, channel) {
+    scPending = null;
+    document.getElementById('sc-unsent')?.remove();
+    const bar = document.createElement('div');
+    bar.id = 'sc-unsent';
+    bar.innerHTML = '<span>Your last message didn\'t reach Scranton.</span><button type="button" data-a="retry">Put it back</button>';
+    const row = document.getElementById('input-row');
+    row?.parentElement?.insertBefore(bar, row);
+    bar.onclick = (e) => {
+        if (!e.target.closest('[data-a]')) return;
+        const input = document.getElementById('input');
+        if (input) { input.value = text; input.focus(); if (typeof updateSendButton === 'function') updateSendButton(); }
+        bar.remove();
+        try { localStorage.removeItem('scranton-unsent'); } catch (_) {}
+    };
+}
+// after a reload (e.g. the server restarted), offer a message that was never confirmed
+setTimeout(() => {
+    try {
+        const u = JSON.parse(localStorage.getItem('scranton-unsent') || 'null');
+        if (u && Date.now() - u.t < 3600e3 && !scPending) scNotSent(u.text, u.channel);
+    } catch (_) {}
+}, 4000);
+
+// Scranton: links and images in rendered messages may only point to http(s), mailto,
+// this site or an anchor. Blocks javascript:/data: links an agent might paste in.
+function scSafeHtml(html) {
+    const t = document.createElement('template');
+    t.innerHTML = html;
+    const ok = (u) => /^(https?:|mailto:|\/(?!\/)|#|\.{0,2}\/)/i.test(String(u || '').trim());
+    t.content.querySelectorAll('script,iframe,object,embed,form,style,link,meta,base,svg,math').forEach((n) => n.remove());
+    t.content.querySelectorAll('*').forEach((n) => {
+        for (const a of [...n.attributes]) {
+            const name = a.name.toLowerCase();
+            if (name.startsWith('on') || name === 'srcdoc' || name === 'formaction') n.removeAttribute(a.name);
+            else if ((name === 'href' || name === 'src' || name === 'xlink:href' || name === 'action') && !ok(a.value)) n.removeAttribute(a.name);
+        }
+        if (n.tagName === 'A' && /^https?:/i.test(n.getAttribute('href') || '')) { n.setAttribute('rel', 'noopener noreferrer'); n.setAttribute('target', '_blank'); }
+    });
+    return t.innerHTML;
+}
+
 function playNotificationSound(sender) {
     if (window.scIsQuiet && window.scIsQuiet()) return;
     const key = sender.toLowerCase();
@@ -296,7 +363,7 @@ function renderMarkdown(text) {
     // Restore paths
     text = text.replace(/\x00P(\d+)\x00/g, (_, i) => pathSlots[parseInt(i)]);
     // Parse markdown, then color @mentions, URLs, and file paths in the output
-    let html = marked.parse(text);
+    let html = scSafeHtml(marked.parse(text));
     // Remove wrapping <p> tags for single-line messages to keep them inline
     const trimmed = html.trim();
     if (trimmed.startsWith('<p>') && trimmed.endsWith('</p>') && trimmed.indexOf('<p>', 1) === -1) {
@@ -838,6 +905,7 @@ function dayFloatRefresh() {
 // --- Messages ---
 
 function appendMessage(msg, options = {}) {
+    try { scEchoed(msg); } catch (_) { /* never break rendering */ }
     // History replay and a live delivery can contain the same saved message.
     if (document.getElementById(`message-${msg.id}`)) return;
     const container = options.container || document.getElementById('messages');
@@ -2572,8 +2640,14 @@ function sendMessage() {
         payload.reply_to = replyingTo.id;
     }
 
+    // Scranton: never lose what you typed. Keep it until the server shows it back;
+    // if it doesn't within a few seconds (half-dead connection), offer it again.
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(payload));
+        scAwaitEcho(text, activeChannel);
+    } else {
+        scNotSent(text, activeChannel);
+        return;
     }
 
     input.value = '';

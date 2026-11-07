@@ -1,5 +1,6 @@
 """Rules store — shared working style for agents. Agents propose, humans approve."""
 
+from safe_io import atomic_write, quarantine
 import json
 import time
 import threading
@@ -63,7 +64,7 @@ class RuleStore:
             "epoch": self._epoch,
             "rules": self._rules,
         }
-        self._path.write_text(
+        atomic_write(self._path, 
             json.dumps(data, indent=2, ensure_ascii=False) + "\n",
             "utf-8",
         )

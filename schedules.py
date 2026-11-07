@@ -1,5 +1,6 @@
 """Schedule store — recurring prompts fired without human intervention."""
 
+from safe_io import atomic_write, quarantine
 import json
 import math
 import re
@@ -97,6 +98,7 @@ class ScheduleStore:
         self._schedules: list[dict] = []
         self._lock = threading.Lock()
         self._callbacks: list = []
+        self.lost = False
         self._load()
 
     def _load(self):
@@ -106,11 +108,13 @@ class ScheduleStore:
             raw = json.loads(self._path.read_text("utf-8"))
             if isinstance(raw, list):
                 self._schedules = raw
-        except (json.JSONDecodeError, TypeError):
+        except (json.JSONDecodeError, TypeError, UnicodeDecodeError):
+            quarantine(self._path)   # keep the broken file; don't overwrite it on the next save
             self._schedules = []
+            self.lost = True         # Scranton: lets the built-in schedules be created again
 
     def _save(self):
-        self._path.write_text(
+        atomic_write(self._path, 
             json.dumps(self._schedules, indent=2, ensure_ascii=False) + "\n",
             "utf-8",
         )

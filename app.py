@@ -1,5 +1,6 @@
 """agentchattr — FastAPI web UI + agent auto-trigger."""
 
+from safe_io import atomic_write, quarantine
 import asyncio
 import json
 import re as _re
@@ -73,19 +74,15 @@ def _hats_path() -> Path:
 
 
 def _load_hats():
+    # Scranton: hats are off. They were inline SVG from agents, which can carry script.
     global agent_hats
-    p = _hats_path()
-    if p.exists():
-        try:
-            agent_hats = json.loads(p.read_text("utf-8"))
-        except Exception:
-            agent_hats = {}
+    agent_hats = {}
 
 
 def _save_hats():
     p = _hats_path()
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(agent_hats), "utf-8")
+    atomic_write(p, json.dumps(agent_hats), "utf-8")
 
 
 def _sanitize_svg(svg: str) -> str:
@@ -98,6 +95,7 @@ def _sanitize_svg(svg: str) -> str:
 
 def set_agent_hat(agent: str, svg: str) -> str | None:
     """Validate, sanitize, and store a hat SVG. Returns error string or None."""
+    return "Hats are turned off in Scranton."
     svg = svg.strip()
     if not svg.lower().startswith("<svg"):
         return "Hat must be an SVG element (starts with <svg)."
@@ -158,7 +156,8 @@ def _load_settings():
             saved = json.loads(p.read_text("utf-8"))
             room_settings.update(saved)
         except Exception:
-            pass
+            moved = quarantine(p)   # keep the broken file instead of overwriting it
+            print(f"  settings.json couldn't be read; kept a copy at {moved}")
     # settings.json is hand-editable, so the file bypasses every check the
     # live update path applies. Re-normalise on load rather than trust it.
     room_settings["subtitle"] = normalize_room_subtitle(room_settings.get("subtitle")) or ""
@@ -243,6 +242,8 @@ def _seed_team_schedules(cfg: dict):
     if not schedules:
         return
     seeded = set(room_settings.get("seeded_schedules", []) or [])
+    if getattr(schedules, "lost", False):
+        seeded = set()   # schedules.json was unreadable: bring the built-in ones back
     changed = False
     for item in (cfg or {}).get("team", {}).get("schedules", []) or []:
         sid = str(item.get("id", "")).strip()
@@ -281,7 +282,7 @@ def _daily_ids(cfg: dict) -> list[str]:
 def _save_settings():
     p = _settings_path()
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(room_settings, indent=2), "utf-8")
+    atomic_write(p, json.dumps(room_settings, indent=2), "utf-8")
 
 
 def _extract_agent_token(request: Request) -> str:
@@ -335,11 +336,22 @@ def _install_security_middleware(token: str, cfg: dict):
 
     class SecurityMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request: Request, call_next):
-            if request.url.path == "/":
-                host = request.headers.get("host", "").lower()
-                if host not in allowed_hosts:
-                    return JSONResponse({"error": f"forbidden: unknown host {host!r}. To open Scranton from this address, add https://{host} to [server] allowed_origins in config.local.toml and restart."}, status_code=403)
             path = request.url.path
+            # Scranton: every path, not only "/", must come to a known host (DNS rebinding),
+            # and a browser request from another site is refused before anything else,
+            # including the loopback-only agent routes (a web page can't register agents).
+            host = request.headers.get("host", "").lower()
+            if host not in allowed_hosts:
+                return JSONResponse({"error": f"forbidden: unknown host {host!r}. To open Scranton from this address, add https://{host} to [server] allowed_origins in config.local.toml and restart."}, status_code=403)
+            origin = request.headers.get("origin")
+            if origin and origin not in allowed_origins:
+                return JSONResponse({"error": "forbidden: origin not allowed"}, status_code=403)
+            # Only Lu's own Tailscale login may come in through Tailscale Serve, when set.
+            owner_login = str(cfg.get("server", {}).get("owner_login", "") or "").strip().lower()
+            if owner_login:
+                proxied = any(h in request.headers for h in ("x-forwarded-for", "forwarded", "x-real-ip", "tailscale-user-login"))
+                if proxied and request.headers.get("tailscale-user-login", "").strip().lower() != owner_login:
+                    return JSONResponse({"error": "forbidden: this Scranton belongs to someone else on the tailnet"}, status_code=403)
 
             # Static assets, index page, and uploaded images are public.
             # The index page injects the token client-side via same-origin script.
@@ -643,6 +655,15 @@ def configure(cfg: dict, session_token: str = ""):
                     sender = s.get("created_by", "user")
                     mention_str = " ".join(f"@{t}" for t in targets)
                     full_text = f"{mention_str} {prompt}" if mention_str else prompt
+                    # Scranton: missed while the Mac slept → say it's late, not pretend.
+                    late = _time.time() - float(s.get("next_run", 0) or 0)
+                    if s.get("daily_at") and late > 600:
+                        full_text += f" (missed {s.get('daily_at')}, running now)"
+                    # Mark it run first: a crash right after posting must not post it twice.
+                    if s.get("one_shot"):
+                        schedules.delete(s["id"])
+                    else:
+                        schedules.mark_run(s["id"])
                     # store.add triggers _handle_new_message via callback,
                     # which routes @mentions to agents — no manual trigger needed.
                     store.add(
@@ -650,10 +671,6 @@ def configure(cfg: dict, session_token: str = ""):
                         full_text,
                         channel=channel,
                     )
-                    if s.get("one_shot"):
-                        schedules.delete(s["id"])
-                    else:
-                        schedules.mark_run(s["id"])
             except Exception:
                 log.exception("schedule runner error")
 
@@ -2448,7 +2465,7 @@ async def scranton_me_avatar_set(request: Request):
         return JSONResponse({"error": "use a JPG, PNG or WebP picture"}, status_code=400)
     _ME_AVATAR.parent.mkdir(parents=True, exist_ok=True)
     if data:
-        _ME_AVATAR.write_text(data, "utf-8")
+        atomic_write(_ME_AVATAR, data, "utf-8")
     else:
         _ME_AVATAR.unlink(missing_ok=True)
     await broadcast_team_changed()
@@ -3309,8 +3326,13 @@ async def serve_upload(filename: str):
     if not filepath.is_relative_to(upload_dir.resolve()):
         return JSONResponse({"error": "invalid path"}, status_code=400)
     if filepath.is_file():
+        if filepath.suffix.lower() == ".svg":
+            # an SVG opened in its own tab would run its scripts on Scranton's origin
+            return FileResponse(filepath, media_type="image/svg+xml",
+                                headers={"Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
+                                         "X-Content-Type-Options": "nosniff"})
         if filepath.suffix.lower() in IMAGE_UPLOAD_EXTS:
-            return FileResponse(filepath)
+            return FileResponse(filepath, headers={"X-Content-Type-Options": "nosniff"})
         # Documents are downloads, never executable same-origin pages.
         return FileResponse(filepath, media_type="application/octet-stream",
                             filename=filepath.name,

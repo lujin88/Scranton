@@ -29,7 +29,7 @@ class AllowedOriginTests(unittest.TestCase):
                             "session_token": TOKEN}.items():
             stack.enter_context(patch.object(app, name, value))
         app._install_security_middleware(TOKEN, cfg)
-        return stack.enter_context(TestClient(api))
+        return stack.enter_context(TestClient(api, base_url="http://127.0.0.1:8300"))
 
     def get(self, client, origin):
         headers = {"X-Session-Token": TOKEN}
@@ -68,7 +68,7 @@ class RolesWriteTests(unittest.TestCase):
         for name, value in {"app": api, "config": cfg, "registry": None, "session_token": TOKEN}.items():
             stack.enter_context(patch.object(app, name, value))
         app._install_security_middleware(TOKEN, cfg)
-        self.c = stack.enter_context(TestClient(api))
+        self.c = stack.enter_context(TestClient(api, base_url="http://127.0.0.1:8300"))
 
     def test_read_is_public(self):
         self.assertEqual(self.c.get("/api/roles").status_code, 200)
@@ -106,7 +106,7 @@ class HostAndProxyTests(unittest.TestCase):
             stack.enter_context(patch.object(app, name, value))
         app._install_security_middleware(TOKEN, cfg)
         # TestClient's peer address is "testclient"; pretend to be loopback.
-        return stack.enter_context(TestClient(api, client=("127.0.0.1", 50000)))
+        return stack.enter_context(TestClient(api, client=("127.0.0.1", 50000), base_url="http://127.0.0.1:8300"))
 
     def test_index_rejects_unknown_host(self):
         c = self.make_client()

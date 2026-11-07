@@ -178,16 +178,9 @@ def _resolve_tool_identity(
             return "", f"Error: {field_name} is required."
         return "", None
 
-    if registry:
-        resolved = registry.resolve_name(provided)
-        if resolved != provided and registry.is_registered(resolved):
-            provided = resolved
-        if registry.is_agent_family(provided):
-            return "", f"Error: authenticated agent session required for '{provided}'."
-
-    if provided:
-        _touch_presence(provided)
-    return provided, None
+    # Scranton: MCP is for agents only. Without a valid agent token nobody may act
+    # under a name, so a local process can't post as Lu, "system" or "Scranton".
+    return "", f"Error: authenticated agent session required for '{provided}'."
 
 
 def chat_send(

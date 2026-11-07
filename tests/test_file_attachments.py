@@ -30,7 +30,7 @@ class FileAttachmentTests(unittest.TestCase):
                             'session_token': 'attachment-test'}.items():
             self.stack.enter_context(patch.object(app, name, value))
         app._install_security_middleware('attachment-test', self.config)
-        self.client = self.stack.enter_context(TestClient(api))
+        self.client = self.stack.enter_context(TestClient(api, base_url="http://127.0.0.1:8300"))
         self.headers = {'X-Session-Token': 'attachment-test'}
 
     def upload(self, name, content=b'test bytes', mime='application/octet-stream'):

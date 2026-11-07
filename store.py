@@ -8,6 +8,9 @@ import uuid
 from pathlib import Path
 
 
+MAX_TEXT = 32_000   # characters per message
+
+
 class MessageStore:
     def __init__(self, path: str):
         self._path = Path(path)
@@ -57,6 +60,9 @@ class MessageStore:
             timestamp: float | None = None,
             time_str: str | None = None,
             _bulk: bool = False) -> dict:
+        # Scranton: a pasted 5 MB log would freeze every client; keep messages readable.
+        if not _bulk and isinstance(text, str) and len(text) > MAX_TEXT:
+            text = text[:MAX_TEXT] + f"\n\n… (cut: the message was {len(text):,} characters; attach long output as a file)"
         with self._lock:
             ts = timestamp if timestamp is not None else time.time()
             msg = {
@@ -74,13 +80,20 @@ class MessageStore:
                 msg["reply_to"] = reply_to
             if metadata:
                 msg["metadata"] = metadata
-            self._next_id += 1
-            self._messages.append(msg)
             if not _bulk:
-                with open(self._path, "a", encoding="utf-8") as f:
-                    f.write(json.dumps(msg, ensure_ascii=False) + "\n")
+                # Write first: if the disk is full the message must not exist only in memory.
+                line = json.dumps(msg, ensure_ascii=False) + "\n"
+                with open(self._path, "a+b") as f:
+                    f.seek(0, os.SEEK_END)
+                    if f.tell() > 0:
+                        f.seek(-1, os.SEEK_END)
+                        if f.read(1) != b"\n":   # a half-written last line must not swallow this one
+                            f.write(b"\n")
+                    f.write(line.encode("utf-8"))
                     f.flush()
                     os.fsync(f.fileno())
+            self._next_id += 1
+            self._messages.append(msg)
 
         # Fire callbacks outside the lock (skip during bulk import)
         if not _bulk:

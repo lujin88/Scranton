@@ -268,6 +268,48 @@
 
     window.scRenderWorking = () => renderWorking();
 
+    // "项目经理 hasn't answered yet (12 min)": you @'d someone here, they're not working,
+    // and nothing came back. Quiet hint with a way to look at their terminal.
+    function renderNoReply() {
+        const ch = current();
+        const list = document.getElementById('messages');
+        const msgs = window.scMsgs;
+        if (!list || !msgs) return;
+        const me = String((window.scMe && window.scMe()) || window.username || '').toLowerCase();
+        const mine = [...msgs.values()].filter((m) => (m.channel || 'general') === ch).sort((a, b) => a.id - b.id);
+        const waiting = [];
+        for (const h of Object.keys(team())) {
+            let asked = null;
+            for (const m of mine) {
+                const who = String(m.sender || '').toLowerCase();
+                if (who === me && (isDm(ch) ? ch.slice(3) === h : new RegExp('@' + h + '(?![\\w-])').test(String(m.text || '')))) asked = m;
+                else if (asked && (who === h || who.startsWith(h + '-'))) asked = null;
+            }
+            if (!asked || state(h) === 'working') continue;
+            const mins = Math.floor((Date.now() / 1000 - Number(asked.timestamp || 0)) / 60);
+            if (mins >= 10 && mins < 24 * 60) waiting.push([h, mins]);
+        }
+        let row = document.getElementById('sc-noreply');
+        if (!waiting.length) { row?.remove(); return; }
+        if (!row) { row = document.createElement('div'); row.id = 'sc-noreply'; }
+        const key = waiting.map(([h, m]) => h + m).join(',');
+        if (row.dataset.k !== key) {
+            row.dataset.k = key;
+            row.innerHTML = waiting.map(([h, m]) => `<span>${esc(label(h))} hasn't answered yet · ${m < 60 ? m + ' min' : Math.floor(m / 60) + ' h'}`
+                + ` <button type="button" data-term="${esc(h)}">${state(h) === 'offline' ? 'Start' : 'Open terminal'}</button></span>`).join('');
+            row.onclick = async (e) => {
+                const b = e.target.closest('[data-term]');
+                if (!b) return;
+                const h = b.dataset.term;
+                if (state(h) === 'offline') { b.textContent = 'Starting…'; start([h], ch, b); }
+                else window.scOpenAgent && window.scOpenAgent(h, 'terminal');
+            };
+        }
+        if (list.lastElementChild !== row && list.lastElementChild?.id !== 'sc-working') list.appendChild(row);
+    }
+    setInterval(renderNoReply, 15000);
+    setTimeout(renderNoReply, 3000);
+
     // ---- wiring --------------------------------------------------------------
     if (typeof handleServerEvent === 'function') {
         const orig = handleServerEvent;
