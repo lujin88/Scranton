@@ -177,3 +177,22 @@ select, input[type="text"], input[type="search"], textarea { border-color: trans
 }
 .sc-quoted b { color: var(--ds-text); font-weight: 600; margin-right: 4px; }
 .message.self .sc-quoted { margin-left: auto; }
+
+/* ================================================================ review pass: fewer pieces, one column */
+/* messages and composer share one column edge */
+#messages { padding-left: 0 !important; padding-right: 0 !important; width: calc(100% - 2 * var(--ds-5)); }
+/* reading size: 15px body with air */
+.msg-text { font-size: var(--ds-fs-lg) !important; line-height: 1.55 !important; }
+.message:not(.self) .msg-text, .message.self .msg-text { padding: 10px 16px !important; }
+#messages .message { margin-bottom: var(--ds-2); }
+/* quick @: plain text, not more boxes */
+.mention-toggle { background: transparent !important; padding: 4px 8px !important; }
+.mention-toggle:hover { background: var(--ds-hover) !important; }
+#input-row .send-group:not(.inactive) #send:hover { background: rgba(76, 141, 246, 0.12) !important; }
+/* members pill: just the faces */
+#sc-members-btn .sc-mb-count { color: var(--ds-text-2); }
+.message.self .chat-bubble { background: transparent !important; padding: 0 !important; }
+#messages > .message { padding-left: 0 !important; padding-right: 0 !important; }
+#messages { width: calc(100% - 2 * var(--ds-5)) !important; max-width: var(--ds-read-w) !important; }
+.message.self .msg-text { border-radius: var(--ds-r-bubble) !important; border-top-right-radius: 6px !important; }
+.sc-self-avatar .avatar { background: var(--ds-accent-soft) !important; color: #9cc0ff !important; }
