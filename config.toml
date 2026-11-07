@@ -21,7 +21,7 @@ data_dir = "./data"
 # were open in those notes too; nothing was filled in by guessing.
 
 [team]
-channels = ["lu-portfolio"]
+channels = ["lu-portfolio", "scranton-feedback"]
 brief = "称呼 Lu，频道里用简洁中文汇报，格式：做了什么｜PR 链接｜还剩什么｜卡在哪。Lu 最终拍板，不看代码。合并规则：代码 PR 由 QA 审查通过后用 scripts/merge-pr.sh 合并，不用问 Lu；带 design 标签的 PR 由视觉校正给出结论后交给 Lu，只有 Lu 合并。发布、删除、清理类事项先问 Lu。"
 
 # --- lu-portfolio 群里的成员 ---
@@ -106,6 +106,16 @@ color = "#f0c6c6"
 role = "UX 文案：文案"
 avatar = "09-ux-copywriter-ferret.jpg"
 role_card = "roles/ux-copywriter.md"
+
+# --- Scranton 自己的帮手：收集对 Scranton 的反馈，开成 GitHub issue ---
+
+[agents.help]
+label = "Scranton 帮手"
+command = "claude"
+cwd = "."
+color = "#cad3f5"
+role = "Scranton 帮手：收集对 Scranton 本身的反馈，整理成 lujin88/Scranton 的 GitHub issue"
+role_card = "roles/scranton-help.md"
 
 # --- 不在 lu-portfolio 群：先不自动启动。模型原设定未写，暂用 claude（待确认）---
 

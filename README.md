@@ -119,9 +119,12 @@ Teammates are blocks in `config.toml`, taken from the Buzz setup notes and `BUZZ
 | `copy` | UX 文案 | claude | yes |
 | `growth`, `cs`, `hardware` | 增长, 客服, 硬件顾问 | claude (model not set in Buzz notes) | no |
 | `webdev` | 网页开发 | Cursor | no |
+| `help` | Scranton 帮手: turns feedback about Scranton into GitHub issues | claude | yes |
 | `video` | 视频制作 | claude | no |
 
 Start a non-autostart teammate by hand: `./scranton.sh start growth`.
+
+**Feedback loop:** when something about Scranton itself bothers you, say it in #scranton-feedback (or `@help …` anywhere). The helper files it as an issue in `lujin88/Scranton` with the `feedback` label; it never edits Scranton itself. Fixes come back as PRs for you to merge. The helper needs the GitHub CLI logged in once: `brew install gh` then `gh auth login`.
 
 - **role_card**: the nine original harness role cards are in `roles/` (unchanged). Each wake-up tells the agent the card's path and to read it before acting. Growth, Support, Hardware, Web dev and Video have no saved cards yet (待确认), so they only get a one-line `role`.
 - **role** (one line) is added to every wake-up as `ROLE: …`. A role picked in the Team panel (⋯) is added in front; it doesn't replace the card.
