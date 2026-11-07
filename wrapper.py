@@ -470,6 +470,30 @@ def _report_rule_sync(server_port: int, agent_name: str, epoch: int, token: str 
         pass
 
 
+def _requeue(queue_file: Path, lines: list[str]) -> None:
+    """Put undelivered mentions back in front of anything that arrived meanwhile."""
+    try:
+        newer = queue_file.read_text("utf-8") if queue_file.exists() else ""
+        queue_file.write_text("".join(l if l.endswith("\n") else l + "\n" for l in lines if l.strip()) + newer, "utf-8")
+    except OSError:
+        pass
+
+
+def _post(server_port: int, sender: str, token: str, channel: str, reply_to, text: str) -> None:
+    """Say something in the chat as this agent (used when a mention can't be delivered)."""
+    try:
+        import urllib.request
+        body = {"text": text, "channel": channel, "sender": sender}
+        if reply_to is not None:
+            body["reply_to"] = reply_to
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{server_port}/api/send", method="POST", data=json.dumps(body).encode(),
+            headers={"Content-Type": "application/json", **({"Authorization": f"Bearer {token}"} if token else {})})
+        urllib.request.urlopen(req, timeout=3)
+    except Exception as exc:
+        print(f"  couldn't post to chat: {exc}", flush=True)
+
+
 def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = False, trigger_flag=None,
                    server_port: int = 8300, agent_name: str = "", get_token_fn=None,
                    refresh_interval: int = 10, default_role: str = "", team_brief: str = ""):
@@ -480,6 +504,8 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
     is added on the first wake-up and then every `refresh_interval` wake-ups.
     """
     first_mention = True
+    stuck_since = 0.0
+    failures = 0
     brief_count = 0
     last_rules_epoch = 0  # 0 = unknown/cold start — will inject on first trigger
     trigger_count = 0
@@ -552,6 +578,7 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
 
                     # Use current identity (may have changed via rename)
                     current_name, _ = get_identity_fn()
+                    _undo = (brief_count, last_rules_epoch, first_mention)
                     # Append role if set — check both current name and base name
                     role = _fetch_role(server_port, current_name)
                     if not role and current_name != agent_name:
@@ -593,9 +620,31 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                     # Flatten to single line — multi-line text triggers paste
                     # detection in CLIs (Claude Code shows "[Pasted text +N]")
                     # which can break injection of long session prompts
-                    inject_fn(prompt.replace("\r", " ").replace("\n", " "))
-        except Exception:
-            pass
+                    result = inject_fn(prompt.replace("\r", " ").replace("\n", " "))
+                    blocked = result == "question"
+                    if not blocked and result is not False:
+                        stuck_since = 0.0
+                        failures = 0
+                    else:
+                        # Not delivered: put the mention back and try again shortly.
+                        failures += 1
+                        # it wasn't delivered, so the brief/rules weren't either
+                        brief_count, last_rules_epoch, first_mention = _undo
+                        _requeue(queue_file, lines)
+                        if trigger_flag is not None:
+                            trigger_flag[0] = False
+                        if blocked and not stuck_since:
+                            stuck_since = time.time()
+                            _post(server_port, current_name, _token, channel, thread_root,
+                                  "I can't read this yet: my terminal is waiting on a question. "
+                                  "Open my profile → Terminal to answer it, and I'll pick this up right after.")
+                        if not blocked and failures == 3:
+                            _post(server_port, current_name, _token, channel, thread_root,
+                                  "Your message didn't reach my terminal (tmux error, 3 tries). "
+                                  "Try restarting me from my profile.")
+                        time.sleep(10 if blocked else 3)
+        except Exception as exc:
+            print(f"  queue watcher: {type(exc).__name__}: {exc}", flush=True)
 
         time.sleep(1)
 

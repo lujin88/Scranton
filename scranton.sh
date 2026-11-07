@@ -139,13 +139,13 @@ start_agent() {
                 grep -qxF ".cursor/mcp.json" "$ex" || echo ".cursor/mcp.json" >> "$ex"
             fi
             # shellcheck disable=SC2086
-            "$PY" tools/spawn.py "$RUN_DIR/$name.pid" "$LOG_DIR/$name.log" -- "$PY" wrapper.py "$name" -- --approve-mcps $pflags >/dev/null ;;
+            "$PY" tools/spawn.py "$RUN_DIR/$name.pid" "$LOG_DIR/$name.log" -- "$PY" -u wrapper.py "$name" -- --approve-mcps $pflags >/dev/null ;;
         *)
             if [ -n "$pflags" ]; then
                 # shellcheck disable=SC2086
-                "$PY" tools/spawn.py "$RUN_DIR/$name.pid" "$LOG_DIR/$name.log" -- "$PY" wrapper.py "$name" -- $pflags >/dev/null
+                "$PY" tools/spawn.py "$RUN_DIR/$name.pid" "$LOG_DIR/$name.log" -- "$PY" -u wrapper.py "$name" -- $pflags >/dev/null
             else
-                "$PY" tools/spawn.py "$RUN_DIR/$name.pid" "$LOG_DIR/$name.log" -- "$PY" wrapper.py "$name" >/dev/null
+                "$PY" tools/spawn.py "$RUN_DIR/$name.pid" "$LOG_DIR/$name.log" -- "$PY" -u wrapper.py "$name" >/dev/null
             fi ;;
     esac
     echo "  started $name  (permissions: $perm${model:+, model: $model}, terminal: ./scranton.sh attach $name)"

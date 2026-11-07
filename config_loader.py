@@ -168,6 +168,17 @@ def load_config(root: Path | None = None) -> dict:
                     if key in vals:
                         config["agents"][name][key] = vals[key]
 
+        # an app's default model, for agents that didn't pick their own
+        defaults = (ui or {}).get("_defaults") or {}
+        if isinstance(defaults, dict):
+            for agent_cfg in config.get("agents", {}).values():
+                if not isinstance(agent_cfg, dict) or agent_cfg.get("model"):
+                    continue
+                cmd = os.path.basename(str(agent_cfg.get("command", "") or ""))
+                pid = "cursor" if cmd in ("agent", "cursor-agent") else cmd
+                if isinstance(defaults.get(pid), str) and defaults[pid]:
+                    agent_cfg["model"] = defaults[pid]
+
     # Scranton: folders may start with ~ (e.g. ~/.buzz/REPOS/LuJin-Portfolio)
     for agent_cfg in config.get("agents", {}).values():
         if isinstance(agent_cfg, dict) and isinstance(agent_cfg.get("cwd"), str):

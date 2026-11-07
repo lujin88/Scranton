@@ -76,6 +76,10 @@
         menu.remove(); menu = null;
         document.getElementById('sc-me')?.setAttribute('aria-expanded', 'false');
     }
+    // Grok-style: flat list, rows with a value and › open a submenu to the right.
+    function row(a, ic, text, extra) {
+        return `<button type="button" role="menuitem" data-a="${a}"${extra ? ' aria-haspopup="menu"' : ''}>${ic}<span>${text}</span>${extra || ''}</button>`;
+    }
     function openMenu() {
         const chip = document.getElementById('sc-me');
         if (!chip) return;
@@ -85,43 +89,81 @@
         menu.id = 'sc-account-menu';
         menu.setAttribute('role', 'menu');
         const st = myStatus();
+        const stLabel = (STATUSES.find(([k]) => k === st) || STATUSES[0])[1];
+        const chev = window.scIcon ? window.scIcon('right', 16) : '›';
         menu.innerHTML = `
-            <div class="sc-am-head"><span class="sc-am-av">${pic}<span class="sc-me-dot ${st}"></span></span>
-                <div><div class="sc-am-name">${esc(me())}</div>
-                <label class="sc-am-status ${st}"><span class="sc-st-dot"></span><select aria-label="Your status">
-                    ${STATUSES.map(([v, l]) => `<option value="${v}"${v === st ? ' selected' : ''}>${l}</option>`).join('')}
-                </select></label></div></div>
-            <button type="button" role="menuitem" data-a="settings">${svg('settings')}<span>Settings</span></button>
-            <button type="button" role="menuitem" data-a="update">${svg('update')}<span>Check for updates</span></button>
+            <div class="sc-am-head"><span class="sc-am-av">${pic}<span class="sc-me-dot ${st}"></span></span><span class="sc-am-name">${esc(me())}</span></div>
+            ${row('status', `<span class="sc-am-dot ${st}"></span>`, 'Status', `<em>${stLabel}</em><i class="sc-am-chev">${chev}</i>`)}
+            ${row('settings', svg('settings'), 'Settings')}
+            ${row('update', svg('update'), 'Check for updates')}
             <hr>
-            <button type="button" role="menuitem" data-a="feedback">${svg('feedback')}<span>Send feedback</span></button>`;
+            ${row('support', svg('support'), 'Support', `<i class="sc-am-chev">${chev}</i>`)}`;
         document.body.appendChild(menu);
         const r = chip.getBoundingClientRect();
         menu.style.left = `${Math.max(8, r.left)}px`;
         menu.style.bottom = `${Math.max(8, window.innerHeight - r.top + 6)}px`;
         chip.setAttribute('aria-expanded', 'true');
         menu.querySelector('button')?.focus();
+
+        let sub = null;
+        const closeSub = () => { sub?.remove(); sub = null; menu?.querySelectorAll('[aria-expanded]').forEach((b) => b.removeAttribute('aria-expanded')); };
+        function openSub(btn) {
+            if (sub && sub.dataset.for === btn.dataset.a) return;
+            closeSub();
+            sub = document.createElement('div');
+            sub.className = 'sc-am-sub'; sub.dataset.for = btn.dataset.a; sub.setAttribute('role', 'menu');
+            if (btn.dataset.a === 'status') {
+                const cur = myStatus();
+                sub.innerHTML = STATUSES.map(([v, l]) => `<button type="button" role="menuitemradio" aria-checked="${v === cur}" data-s="${v}"><span class="sc-am-dot ${v}"></span><span>${l}</span>${v === cur ? (window.scIcon ? window.scIcon('check', 16) : '') : ''}</button>`).join('');
+            } else {
+                sub.innerHTML = `<button type="button" role="menuitem" data-a="feedback">${svg('mail')}<span>Send feedback</span></button>
+                    <button type="button" role="menuitem" data-a="shortcuts">${svg('keyboard')}<span>Keyboard shortcuts</span></button>`;
+            }
+            menu.appendChild(sub);
+            const br = btn.getBoundingClientRect(), mr = menu.getBoundingClientRect();
+            sub.style.left = `${mr.width - 4}px`;
+            sub.style.top = `${br.top - mr.top - 8}px`;
+            btn.setAttribute('aria-expanded', 'true');
+        }
+        menu.addEventListener('mouseover', (e) => {
+            const b = e.target.closest('#sc-account-menu > button');
+            if (!b) return;
+            if (b.hasAttribute('aria-haspopup')) openSub(b); else closeSub();
+        });
         menu.addEventListener('click', (e) => {
-            const a = e.target.closest('[data-a]')?.dataset.a;
-            if (!a) return;
+            const s2 = e.target.closest('[data-s]');
+            if (s2) {
+                setStatus(s2.dataset.s); closeMenu(); return;
+            }
+            const b = e.target.closest('[data-a]');
+            if (!b) return;
+            if (b.hasAttribute('aria-haspopup')) { openSub(b); sub?.querySelector('button')?.focus(); return; }
+            const a = b.dataset.a;
             closeMenu();
-            if (a === 'profile') window.scOpenSettings('profile');
             if (a === 'settings') window.scOpenSettings('profile');
             if (a === 'update') window.scCheckUpdate && window.scCheckUpdate();
             if (a === 'feedback') sendFeedback();
+            if (a === 'shortcuts') openShortcuts();
         });
-        menu.querySelector('.sc-am-status select').addEventListener('change', (e) => {
-            setStatus(e.target.value);
-            menu.querySelector('.sc-am-status').className = `sc-am-status ${e.target.value}`;
-            menu.querySelector('.sc-am-av .sc-me-dot').className = `sc-me-dot ${e.target.value}`;
-        });
-        menu.querySelector('.sc-am-status').addEventListener('click', (e) => e.stopPropagation());
         menu.addEventListener('keydown', (e) => {
-            const items = [...menu.querySelectorAll('button')];
+            const inSub = sub && sub.contains(document.activeElement);
+            const items = [...(inSub ? sub : menu).querySelectorAll(inSub ? 'button' : ':scope > button')];
             const i = items.indexOf(document.activeElement);
             if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
             if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+            if (e.key === 'ArrowRight' && !inSub && document.activeElement?.hasAttribute('aria-haspopup')) {
+                e.preventDefault(); openSub(document.activeElement); sub?.querySelector('button')?.focus();
+            }
+            if (e.key === 'ArrowLeft' && inSub) {
+                e.preventDefault(); const owner = menu.querySelector(`[data-a="${sub.dataset.for}"]`); closeSub(); owner?.focus();
+            }
         });
+    }
+    function openShortcuts() {
+        const k = isMac ? '⌘' : 'Ctrl+';
+        const rows = [[`${k}K`, 'Search'], [`${k}U`, 'Upload files'], ['Enter', 'Send'], ['Shift+Enter', 'New line'],
+            ['Alt+↑ / Alt+↓', 'Move the selected channel'], ['Delete', 'Delete the selected channel'], ['Esc', 'Close']];
+        openDialog('Keyboard shortcuts', `<dl class="sc-keys">${rows.map(([key, what]) => `<dt>${what}</dt><dd><kbd>${esc(key)}</kbd></dd>`).join('')}</dl>`);
     }
     function sendFeedback() {
         const team = window.scGetTeam ? window.scGetTeam() : {};

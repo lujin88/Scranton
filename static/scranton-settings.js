@@ -281,20 +281,22 @@
         // Brand marks from Remix Icon's Logos set, on each brand's own colour
         const badge = { claude: ['claude', '#d97757', '#fff'], codex: ['openai', '#ffffff', '#000'], cursor: ['cursor-ai', '#000000', '#fff'] };
         return `<header class="sc-st-head"><h2>Connections</h2><p>Agents run on the apps you already pay for. Sign in once per app. No API keys.</p></header>
+            <div class="sc-conn-hd"><span>Default model</span></div>
             <div class="sc-conn">${list.map((c) => {
                 const [b, col, fg] = badge[c.id] || ['robot', '#444', '#fff'];
-                const status = !c.installed ? ['missing', 'Not installed'] : c.connected === true ? ['ok', `Connected${c.account ? ' · ' + esc(c.account) : ''}`]
-                    : c.connected === false ? ['off', c.account ? esc(c.account) : 'Not signed in'] : ['unknown', 'Installed'];
-                const used = c.teammates.length ? `${c.teammates.length} agent${c.teammates.length === 1 ? '' : 's'}: ${c.teammates.map((h) => esc(label(h))).join(', ')}` : 'No agents use it yet';
+                const status = !c.installed ? ['missing', 'Not installed'] : c.connected === true ? ['ok', 'Connected']
+                    : c.connected === false ? ['off', 'Not signed in'] : ['unknown', 'Installed'];
+                const n = c.teammates.length;
+                const models = (c.models || []).map((m) => m[0] === '' ? ['', 'App default', m[2] || ''] : m);
                 return `<div class="sc-conn-r">
                     <span class="sc-conn-logo" style="background:${col};color:${fg}">${icon(b, 22)}</span>
-                    <span class="sc-conn-txt"><b>${esc(c.name)}</b><small>${esc(c.plan)} · ${used}</small></span>
-                    <span class="sc-pill ${status[0]}">${status[1]}</span>
-                    ${c.installed ? `<button type="button" class="sc-btn${c.connected === true ? '' : ' primary'}" data-connect="${esc(c.id)}">${c.connected === true ? 'Sign in again' : 'Connect'}</button>`
+                    <span class="sc-conn-txt"><b>${esc(c.name)} <span class="sc-pill ${status[0]}"${c.account ? ` title="${esc(c.account)}"` : ''}>${status[1]}</span></b><small>${esc(c.plan)} · ${n} agent${n === 1 ? '' : 's'}</small></span>
+                    ${c.installed ? `<select data-default="${esc(c.id)}" aria-label="${esc(c.name)} default model">${modelOptions(models, c.default_model || '')}</select>` : '<span></span>'}
+                    ${c.installed ? `<button type="button" class="sc-btn${c.connected === true ? '' : ' primary'}" data-connect="${esc(c.id)}">${c.connected === true ? 'Switch account' : 'Connect'}</button>`
                         : '<a class="sc-btn" href="https://github.com/lujin88/Scranton#install-on-a-mac" target="_blank" rel="noopener">How to install</a>'}
                 </div>`;
             }).join('')}</div>
-            <p class="sc-st-note" id="sc-conn-note">Connect opens the app's own sign-in on your Mac (a Terminal window plus your browser).</p>`;
+            <p class="sc-st-note" id="sc-conn-note">Default model is for agents that don't pick their own. It applies the next time they start.</p>`;
     }
 
     // ---------------------------------------------------------------- Updates
@@ -362,7 +364,7 @@
             const r = await api(`/api/scranton/connections/${conn.dataset.connect}/login`, {});
             const note = root.querySelector('#sc-conn-note');
             if (note) note.textContent = r.ok ? `A Terminal window opened on your Mac. ${r.hint} Then come back and press Check again.` : r.error;
-            conn.textContent = 'Check again'; conn.dataset.connect = ''; conn.onclick = () => render();
+            conn.textContent = 'Check again'; conn.removeAttribute('data-connect'); conn.onclick = () => render();
             return;
         }
         const msg = t.closest('[data-msg]');
@@ -428,6 +430,13 @@
             return;
         }
         if (e.target.id && e.target.id.startsWith('sc-new-')) return;
+        const def = e.target.closest('select[data-default]');
+        if (def) {
+            const r = await api(`/api/scranton/connections/${encodeURIComponent(def.dataset.default)}/default`, { model: def.value });
+            const note = root.querySelector('#sc-conn-note');
+            if (note) note.textContent = r.ok ? 'Saved. Agents pick it up the next time they start.' : (r.error || 'Couldn\'t save.');
+            return;
+        }
         const chk = e.target.closest('input[data-channel]');
         if (chk && agentOpen && window.ws && window.ws.readyState === WebSocket.OPEN) {
             window.ws.send(JSON.stringify({ type: 'members_update', channel: chk.dataset.channel, add: chk.checked ? [agentOpen] : [], remove: chk.checked ? [] : [agentOpen] }));

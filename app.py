@@ -2450,6 +2450,18 @@ async def scranton_connection_login(provider: str):
     return JSONResponse(await asyncio.to_thread(_sc_team.open_login, provider))
 
 
+@app.post("/api/scranton/connections/{provider}/default")
+async def scranton_connection_default(provider: str, request: Request):
+    """Default model for this app's agents (applies the next time each one starts)."""
+    body = await request.json()
+    try:
+        r = _sc_team.set_provider_default(provider, str(body.get("model", "")))
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    await broadcast_team_changed()
+    return JSONResponse(r)
+
+
 @app.get("/api/scranton/teammate/{name}")
 async def scranton_teammate(name: str):
     recent = []

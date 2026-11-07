@@ -264,9 +264,33 @@ def connections(config: dict) -> list[dict]:
         out.append({
             "id": pid, "name": p["name"], "plan": p["plan"], "installed": bool(cli),
             "connected": ok, "account": who, "teammates": used.get(pid, []),
-            "login_hint": p["login_hint"], "models": p["models"],
+            "login_hint": p["login_hint"], "models": models_for(pid) if cli else p["models"],
+            "default_model": provider_defaults().get(pid, ""),
         })
     return out
+
+
+def provider_defaults() -> dict:
+    d = load_overrides().get("_defaults")
+    return d if isinstance(d, dict) else {}
+
+
+def set_provider_default(pid: str, model: str) -> dict:
+    """Model an app's agents use when they don't pick their own ("" = the app's default)."""
+    if pid not in PROVIDERS:
+        raise ValueError("unknown app")
+    model = str(model or "").strip()
+    if model and not MODEL_RE.match(model):
+        raise ValueError("model names are letters, numbers, dots, dashes and colons")
+    data = load_overrides()
+    d = data.get("_defaults") if isinstance(data.get("_defaults"), dict) else {}
+    if model:
+        d[pid] = model
+    else:
+        d.pop(pid, None)
+    data["_defaults"] = d
+    _write(data)
+    return {"ok": True, "default_model": model}
 
 
 def open_login(pid: str) -> dict:

@@ -15,6 +15,7 @@ How it works:
 import os
 import shlex
 import shutil
+import re
 import subprocess
 import sys
 import time
@@ -75,7 +76,50 @@ def _drop_buffer(name: str) -> None:
                    capture_output=True, timeout=TMUX_COMMAND_TIMEOUT)
 
 
-def inject(text: str, *, tmux_session: str, delay: float = 0.3) -> bool:
+# A first-run or sign-in question on the agent's screen. Typing the prompt into
+# it would answer the question (Enter picks the highlighted choice), so wait.
+_QUESTION_RE = re.compile(
+    r"Do you trust|trust the files|Yes, I trust|Yes, I accept|No, exit|Enter to confirm"
+    r"|Press Enter to continue|Select login method|Sign in with ChatGPT|Log in with|Choose the text style"
+    r"|Allow this|Do you want to proceed|Approve\?|\(y/n\)|\[Y/n\]",
+    re.I,
+)
+
+
+def pane_text(tmux_session: str, lines: int = 40) -> str:
+    try:
+        r = subprocess.run(["tmux", "capture-pane", "-p", "-J", "-t", _exact_pane(tmux_session), "-S", f"-{lines}"],
+                           capture_output=True, timeout=TMUX_COMMAND_TIMEOUT)
+        return r.stdout.decode("utf-8", errors="replace") if r.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+def waiting_on_question(tmux_session: str) -> bool:
+    return bool(_QUESTION_RE.search(pane_text(tmux_session, 15)))
+
+
+def inject(text: str, *, tmux_session: str, delay: float = 0.3):
+    """Returns True when delivered, "question" when the agent's screen shows a
+    question (nothing was typed), False when tmux failed."""
+    if waiting_on_question(tmux_session):
+        print(f"  WAITING: {tmux_session} shows a question; not typing into it", flush=True)
+        return "question"
+    ok = _inject(text, tmux_session=tmux_session, delay=delay)
+    if ok:
+        # The prompt still sitting in the input box means Enter was swallowed
+        # (e.g. the CLI was still drawing). Press it once more.
+        time.sleep(1.5)
+        head = text[:30]
+        tail = pane_text(tmux_session, 8)
+        if (head and head in tail) or "[Pasted text" in tail:
+            subprocess.run(["tmux", "send-keys", "-t", _exact_pane(tmux_session), "Enter"],
+                           capture_output=True, timeout=TMUX_COMMAND_TIMEOUT)
+            print("  INJECT: pressed Enter again (prompt was still in the input box)", flush=True)
+    return ok
+
+
+def _inject(text: str, *, tmux_session: str, delay: float = 0.3) -> bool:
     """Deliver text to the agent CLI as ONE bracketed paste, then press Enter.
 
     Why a paste and not send-keys: a pty's raw input queue is finite (1024
