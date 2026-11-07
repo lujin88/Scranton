@@ -129,8 +129,22 @@ def load_config(root: Path | None = None) -> dict:
         for name, agent_cfg in local_agents.items():
             if name not in config_agents:
                 config_agents[name] = agent_cfg
-            else:
-                print(f"  Warning: Ignoring local agent '{name}' (already defined in config.toml)")
+            elif isinstance(agent_cfg, dict):
+                # Scranton: per-machine tweaks to a shared teammate (on/off, folder, permissions)
+                # live here, so config.toml stays untouched and "Update now" keeps working.
+                for key in ("autostart", "cwd", "permissions"):
+                    if key in agent_cfg:
+                        config_agents[name][key] = agent_cfg[key]
+
+        # Scranton: this Mac's phone address (Tailscale) and team settings.
+        local_server = local.get("server", {})
+        if "allowed_origins" in local_server:
+            merged = list(config.setdefault("server", {}).get("allowed_origins", []))
+            merged += [o for o in local_server["allowed_origins"] if o not in merged]
+            config["server"]["allowed_origins"] = merged
+        for key in ("owner", "permissions"):
+            if key in local.get("team", {}):
+                config.setdefault("team", {})[key] = local["team"][key]
 
     _apply_env_overrides(config)
 

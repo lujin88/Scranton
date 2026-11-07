@@ -593,7 +593,7 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                     # Flatten to single line — multi-line text triggers paste
                     # detection in CLIs (Claude Code shows "[Pasted text +N]")
                     # which can break injection of long session prompts
-                    inject_fn(prompt.replace("\n", " "))
+                    inject_fn(prompt.replace("\r", " ").replace("\n", " "))
         except Exception:
             pass
 
@@ -745,9 +745,12 @@ def main():
 
         return changed
 
+    # Scranton: keep work that arrived while this teammate was down (a crash, an update,
+    # "Resume"), but only the last few items so a long outage doesn't replay a flood.
     queue_file = _identity["queue"]
     if queue_file.exists():
-        queue_file.write_text("", "utf-8")
+        pending = [l for l in queue_file.read_text("utf-8").splitlines() if l.strip()]
+        queue_file.write_text("".join(l + "\n" for l in pending[-5:]), "utf-8")
 
     # Scranton: API keys are always stripped so the CLIs use your subscription,
     # even when the tmux server was started from a shell that has them set.

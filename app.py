@@ -245,7 +245,7 @@ def _install_security_middleware(token: str, cfg: dict):
             if request.url.path == "/":
                 host = request.headers.get("host", "").lower()
                 if host not in allowed_hosts:
-                    return JSONResponse({"error": f"forbidden: unknown host {host!r}. To open Scranton from this address, add https://{host} to server.allowed_origins in config.toml and restart."}, status_code=403)
+                    return JSONResponse({"error": f"forbidden: unknown host {host!r}. To open Scranton from this address, add https://{host} to [server] allowed_origins in config.local.toml and restart."}, status_code=403)
             path = request.url.path
 
             # Static assets, index page, and uploaded images are public.
@@ -253,7 +253,12 @@ def _install_security_middleware(token: str, cfg: dict):
             # Images keep their public preview URLs. Other attachments require
             # the browser session token, like the rest of the API.
             public_image = path.startswith("/uploads/") and Path(path).suffix.lower() in IMAGE_UPLOAD_EXTS
-            if path == "/" or path.startswith(("/static/", "/api/roles")) or public_image:
+            if path == "/" or path.startswith("/static/") or public_image:
+                return await call_next(request)
+            # Scranton: only *reading* roles is public (the wrapper reads them without a token).
+            # Writing a role changes what full-permission agents are told, so POST goes through
+            # the origin + session-token checks below like every other write.
+            if path == "/api/roles" and request.method == "GET":
                 return await call_next(request)
 
             # Agent registration/heartbeat: loopback only (no remote agent minting).
@@ -940,8 +945,8 @@ async def _handle_new_message(msg: dict):
         while rt is not None and rt not in seen:
             seen.add(rt)
             parent = store.get_by_id(int(rt))
-            if not parent:
-                break
+            if not parent or parent.get("channel", "general") != channel:
+                break  # a thread never crosses channels
             thread_root = parent["id"]
             rt = parent.get("reply_to")
     except Exception:
@@ -957,9 +962,14 @@ async def _handle_new_message(msg: dict):
         # Session guard: suppress out-of-turn agent triggers
         if allowed_agent and target != allowed_agent:
             continue
-        if not mcp_bridge.is_online(target):
-            store.add("system", f"{target} appears offline — message queued.", msg_type="system", channel=channel)
-        if agents.is_available(target):
+        available = agents.is_available(target)
+        if not available:
+            # Scranton: not running at all, so nothing was queued. Say so plainly.
+            store.add("system", f"{target} isn't running, so it didn't get this. Start it with ./scranton.sh start {target}, then @ it again.",
+                      msg_type="system", channel=channel)
+        elif not mcp_bridge.is_online(target):
+            store.add("system", f"{target} appears offline — message queued. It picks this up when it's back.", msg_type="system", channel=channel)
+        if available:
             await agents.trigger(target, message=chat_msg, channel=channel, prompt=custom_prompt,
                                  thread=thread_root)
 
@@ -2263,9 +2273,29 @@ def _scranton_team() -> dict:
     return out
 
 
+import scranton_ops as _scranton_ops  # noqa: E402  (update check + resume stopped teammates)
+_scranton_ops.install(app, lambda: config)
+
+
 @app.get("/api/scranton/team")
 async def scranton_team():
     return JSONResponse(_scranton_team())
+
+
+@app.get("/api/scranton/search")
+async def scranton_search(q: str = "", limit: int = 30):
+    """Search message text and sender across all channels, newest first."""
+    needle = (q or "").strip().lower()[:200]
+    if not needle:
+        return JSONResponse([])
+    limit = max(1, min(int(limit or 30), 100))
+    hits = []
+    for m in reversed(store.get_since(0)):
+        if needle in str(m.get("text", "")).lower() or needle in str(m.get("sender", "")).lower():
+            hits.append({k: m.get(k) for k in ("id", "sender", "text", "channel", "time", "timestamp", "reply_to")})
+            if len(hits) >= limit:
+                break
+    return JSONResponse(hits)
 
 
 @app.get("/api/roles")

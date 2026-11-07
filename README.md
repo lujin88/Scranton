@@ -24,7 +24,8 @@ Based on [agentchattr](https://github.com/bcurts/agentchattr) (MIT). UI inspired
 
 - Every agent is the real CLI running in a background tmux session. Scranton only types into its terminal and gives it chat tools over MCP. That is the same as you using the CLI yourself, so it counts against your normal subscription.
 - Status comes from watching each terminal: if the screen is changing, the agent is **Working**.
-- Permission prompts appear in the agent's terminal. Scranton does not handle approvals; Agent Monitor does that separately.
+- **Permissions:** by default (`[team] permissions = "full"`) teammates never stop to ask. Claude runs with `bypassPermissions` (deny rules in the project's `.claude/settings.json` still apply), Codex with no approvals and **no sandbox**, Cursor with `--force`. So Agent Monitor won't see prompts from them. The Help teammate stays on `"ask"`. Set `permissions = "ask"` for a teammate (in `config.local.toml`) to get the normal prompts back.
+- Full permissions mean a teammate can do anything your Mac login can. The real stops for merges and deploys belong on GitHub (branch protection, code owners), not in the agents' instructions.
 
 ## Layout
 
@@ -78,7 +79,7 @@ Logs: `data/logs/`. If a teammate's CLI exits, Scranton restarts it, waiting lon
 2. In #lu-portfolio: `@pm 你好，说一下你是谁、用的什么模型`. 项目经理 should turn *Working*, then reply.
 3. Try `@visual` (Codex) the same way.
 4. Hand-off test: `@pm 让 @dev 列出项目里的文件，然后总结给我`.
-5. Trigger a permission prompt (e.g. ask an agent to create a file) and confirm Agent Monitor still catches it.
+5. The first time a Claude teammate starts in full-permission mode it shows a one-time warning about bypassing permissions. Run `./scranton.sh attach pm` (and each Claude teammate) once and accept it, or that teammate waits on the warning.
 
 If someone doesn't reply: `./scranton.sh attach pm` (or their handle) and look at their terminal. Cursor support is new in Scranton and hasn't been tested on a real Mac yet (see Known gaps).
 
@@ -91,7 +92,7 @@ tailscale serve --bg 8300
 tailscale serve status        # shows https://<mac-name>.<tailnet>.ts.net
 ```
 
-Put that address in `config.toml`, then restart:
+Put that address in `config.local.toml` (your Mac's own settings; copy `config.local.toml.example`), then restart. Keep personal changes out of `config.toml`, so **Update now** keeps working:
 
 ```toml
 [server]
@@ -147,7 +148,8 @@ The helper works in `helper/`, not in the Scranton code. `helper/.claude/setting
 - **Nine always-on CLIs** share your Claude and ChatGPT limits. Start fewer if you hit limits: set `autostart = false` on roles you don't need today.
 - The system prompts of the Buzz agents weren't in the notes, so each role is one line. Add more detail to `role`, or to `CLAUDE.md` / `AGENTS.md` in the project.
 - **Subscription limits:** a busy team uses your plan faster than working by hand. When a CLI hits its limit it says so in its terminal; Scranton doesn't show that in the Team panel yet.
-- **Approvals** are out of scope (Agent Monitor).
+- **Your own settings** go in `config.local.toml`: `[server] allowed_origins`, `[team] owner/permissions`, and per teammate `autostart`, `cwd`, `permissions`. If `config.toml` itself has local edits, Update refuses to run.
+- **Updates:** Update now pulls, installs packages and restarts the server. If the new version won't start, Scranton goes back to the previous one and shows a card. Running teammates keep the old wrapper until they're restarted.
 - No push notifications on the phone yet.
 
 ## Updating from agentchattr

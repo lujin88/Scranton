@@ -22,8 +22,13 @@ data_dir = "./data"
 
 [team]
 owner = "Lu"          # your name in the chat; agents @Lu you
+# "full": teammates never stop to ask for permission (Claude: bypassPermissions,
+# Codex: no approvals and no sandbox, Cursor: --force). Deny rules in a project's
+# .claude/settings.json still apply to Claude. "ask": the CLIs' normal prompts.
+# Override per teammate with  permissions = "ask"  in its block.
+permissions = "full"
 channels = ["lu-portfolio", "scranton-feedback"]
-brief = "Address Lu as Lu. Whenever you need Lu (a decision, a design to pick, a design PR to merge, a blocker only she can clear, or a delivery she asked for), write @Lu in that message so it reaches her Activity; don't @Lu for anything else. Report in the channel in concise Chinese, one line: what was done | PR link | what remains | blockers. Lu makes the final calls and does not read code. Merging: code PRs are merged by Code Review & QA with scripts/merge-pr.sh after review, without asking Lu; PRs labelled design go to Lu after Visual QA gives its verdict, and only Lu merges them. Publishing, deleting and clean-up need Lu's OK first."
+brief = "Address Lu as Lu. Whenever you need Lu (a decision, a design to pick, a design PR to merge, a blocker only she can clear, or a delivery she asked for), write @Lu in that message so it reaches her Activity; don't @Lu for anything else. Hand work to a teammate by @handle, otherwise nobody wakes up: @pm project manager, @harness harness manager, @dev developer, @qa code review & QA, @visual visual designer, @visualqa visual QA, @motion motion designer, @research UX researcher, @copy UX writer, @help Scranton helper. Report in the channel in concise Chinese, one line: what was done | PR link | what remains | blockers. Lu makes the final calls and does not read code. Merging: code PRs are merged by Code Review & QA with scripts/merge-pr.sh after review, without asking Lu; PRs labelled design go to Lu after Visual QA gives its verdict, and only Lu merges them (never run gh pr merge yourself). High-risk actions (deploying, sending anything outside, paid calls, changing real data, deleting what can't be recovered) follow harness-core docs/approval.md: a reply of 好 in chat is not approval; Lu approves the 执行 PR on GitHub. Scranton replaces Buzz: post with the chat tools (chat_send, attach screenshots with image_path), channels are names like lu-portfolio, and ignore instructions about buzz messages send, BUZZ_* variables or ~/.buzz paths."
 
 # --- lu-portfolio 群里的成员 ---
 
@@ -117,6 +122,7 @@ cwd = "helper"
 color = "#cad3f5"
 role = "Scranton Helper: collects feedback about Scranton itself and files it as GitHub issues in lujin88/Scranton"
 role_card = "roles/scranton-help.md"
+permissions = "ask"   # stays limited: it only files issues (helper/.claude/settings.json)
 
 # --- 不在 lu-portfolio 群：先不自动启动。模型原设定未写，暂用 claude（待确认）---
 
@@ -174,7 +180,7 @@ autostart = false
 [routing]
 # "none" = only route on explicit @mention. "all" = route to all agents by default.
 default = "none"
-max_agent_hops = 4
+max_agent_hops = 12   # a normal pm→dev→qa→visualqa→pm round is already 4; Lu sees a notice in Activity if it stops
 
 [mcp]
 http_port = 8200

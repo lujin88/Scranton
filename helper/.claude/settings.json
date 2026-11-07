@@ -1,21 +1,29 @@
 {
   "permissions": {
     "allow": [
+      "mcp__agentchattr__*",
       "Bash(gh issue list:*)",
       "Bash(gh issue view:*)",
       "Bash(gh issue create:*)",
       "Bash(gh issue comment:*)",
-      "Read(**/data/logs/**)"
+      "Bash(gh label list:*)",
+      "Bash(gh label create:*)",
+      "Read(../data/logs/**)"
     ],
     "deny": [
       "Edit",
       "Write",
       "Read(**/provider-config/**)",
+      "Read(../data/provider-config/**)",
       "Read(**/*_queue.jsonl)",
+      "Read(../data/*_queue.jsonl)",
       "Read(**/data/run/**)",
+      "Read(../data/run/**)",
+      "Read(../config.local.toml)",
       "Bash(gh pr merge:*)",
       "Bash(gh issue close:*)",
       "Bash(gh issue delete:*)",
+      "Bash(gh label delete:*)",
       "Bash(git push:*)"
     ]
   }

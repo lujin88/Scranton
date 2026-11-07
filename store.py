@@ -108,11 +108,14 @@ class MessageStore:
 
     def _rewrite(self):
         """Rewrite the full JSONL file from memory (used after bulk edits)."""
-        with open(self._path, "w", encoding="utf-8") as f:
+        # Write a temp file and swap it in, so a crash or kill mid-write can't truncate history.
+        tmp = f"{self._path}.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
             for m in self._messages:
                 f.write(json.dumps(m, ensure_ascii=False) + "\n")
             f.flush()
             os.fsync(f.fileno())
+        os.replace(tmp, self._path)
 
     def get_by_id(self, msg_id: int) -> dict | None:
         with self._lock:
@@ -192,11 +195,14 @@ class MessageStore:
 
     def _rewrite_jsonl(self):
         """Rewrite the JSONL file from current in-memory messages."""
-        with open(self._path, "w", encoding="utf-8") as f:
+        # Write a temp file and swap it in, so a crash or kill mid-write can't truncate history.
+        tmp = f"{self._path}.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
             for m in self._messages:
                 f.write(json.dumps(m, ensure_ascii=False) + "\n")
             f.flush()
             os.fsync(f.fileno())
+        os.replace(tmp, self._path)
 
     def clear(self, channel: str | None = None):
         """Wipe messages and rewrite the log file.

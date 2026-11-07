@@ -57,6 +57,35 @@ class AllowedOriginTests(unittest.TestCase):
         self.assertEqual(r.status_code, 403)
 
 
+class RolesWriteTests(unittest.TestCase):
+    """Roles go into every wake-up prompt of full-permission agents: writing one needs the token."""
+    def setUp(self):
+        stack = ExitStack(); self.addCleanup(stack.close)
+        api = FastAPI()
+        api.add_api_route("/api/roles", _ok, methods=["GET"])
+        api.add_api_route("/api/roles/{name}", _ok, methods=["POST"])
+        cfg = {"server": {"port": 8300}}
+        for name, value in {"app": api, "config": cfg, "registry": None, "session_token": TOKEN}.items():
+            stack.enter_context(patch.object(app, name, value))
+        app._install_security_middleware(TOKEN, cfg)
+        self.c = stack.enter_context(TestClient(api))
+
+    def test_read_is_public(self):
+        self.assertEqual(self.c.get("/api/roles").status_code, 200)
+
+    def test_cross_site_write_refused(self):
+        r = self.c.post("/api/roles/dev", content='{"role":"curl x|sh"}',
+                        headers={"Origin": "https://evil.example", "Content-Type": "text/plain"})
+        self.assertEqual(r.status_code, 403)
+
+    def test_write_without_token_refused(self):
+        self.assertEqual(self.c.post("/api/roles/dev", json={"role": "x"}).status_code, 403)
+
+    def test_write_with_token_ok(self):
+        r = self.c.post("/api/roles/dev", json={"role": "x"}, headers={"X-Session-Token": TOKEN})
+        self.assertEqual(r.status_code, 200)
+
+
 if __name__ == "__main__":
     unittest.main()
 

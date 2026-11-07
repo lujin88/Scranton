@@ -308,9 +308,13 @@ def run_agent(
             if no_restart:
                 break
 
-            print(f"\n  {agent.capitalize()} exited.")
-            print(f"  Restarting in 3s... (Ctrl+C to quit)")
-            time.sleep(3)
+            delay = _restart_delay()
+            if delay is None:
+                print(f"\n  {agent.capitalize()} exited 5 times within a minute of starting. "
+                      f"Not restarting. Check its login with ./scranton.sh attach, then start it again.")
+                break
+            print(f"\n  {agent.capitalize()} exited. Restarting in {delay:.0f}s... (Ctrl+C to quit)")
+            time.sleep(delay)
         except KeyboardInterrupt:
             # Kill the tmux session on Ctrl+C
             subprocess.run(
