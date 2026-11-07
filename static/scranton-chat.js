@@ -87,7 +87,18 @@
             box.type = 'button';
             box.className = 'sc-thread-summary';
             box.dataset.root = rootId;
-            (el.querySelector('.chat-bubble') || el).appendChild(box);
+            // under the bubble, not inside it
+            const bubble = el.querySelector('.chat-bubble');
+            if (bubble) {
+                let col = bubble.parentElement.classList.contains('sc-bubble-col') ? bubble.parentElement : null;
+                if (!col) {
+                    col = document.createElement('div');
+                    col.className = 'sc-bubble-col';
+                    bubble.before(col);
+                    col.appendChild(bubble);
+                }
+                col.appendChild(box);
+            } else el.appendChild(box);
         }
         const people = [...new Set(list.map((m) => String(m.sender)))].slice(-3);
         const unread = list.length > (seenReplyCount.get(rootId) || 0)
@@ -118,6 +129,7 @@
             el.classList.add('sc-msg');
             addToolbar(el, id);
             relabel(el, msg);
+            try { paintQuote(el, msg); } catch (_) { /* never break rendering */ }
         }
         if (msg.reactions && Object.keys(msg.reactions).length) paintReactions(msg, container);
         if (msg.reply_to != null) {
@@ -196,15 +208,16 @@
     // Hover toolbar + menus
     // ------------------------------------------------------------------
     const ri = (n) => (window.scIcon ? window.scIcon(n, 16) : '');
-    const ICONS = { get react() { return ri('emoji'); }, get thread() { return ri('thread'); }, get link() { return ri('link'); },
+    const ICONS = { get reply() { return ri('reply'); }, get react() { return ri('emoji'); }, get thread() { return ri('thread'); }, get link() { return ri('link'); },
         get forward() { return ri('forward'); }, get more() { return ri('more'); } };
 
     function addToolbar(el, id) {
         if (el.querySelector('.sc-tools')) return;
         const bar = document.createElement('div');
         bar.className = 'sc-tools';
-        bar.innerHTML = `<button type="button" data-act="react" title="Add reaction">${ICONS.react}</button>`
-            + `<button type="button" data-act="thread" title="Reply in thread">${ICONS.thread}</button>`
+        bar.innerHTML = `<button type="button" data-act="react" title="Add reaction (E)">${ICONS.react}</button>`
+            + `<button type="button" data-act="reply" title="Reply here (R)">${ICONS.reply}</button>`
+            + `<button type="button" data-act="thread" title="Reply in thread (T)">${ICONS.thread}</button>`
             + `<button type="button" data-act="link" title="Copy link">${ICONS.link}</button>`
             + `<button type="button" data-act="forward" title="Forward message">${ICONS.forward}</button>`
             + `<button type="button" data-act="more" title="More">${ICONS.more}</button>`;
@@ -289,6 +302,7 @@
             ['copy', 'Copy message'],
             ['link', 'Copy link'],
             ['forward', 'Forward message'],
+            ['reply', 'Reply here'],
             ['thread', 'Reply in thread'],
             ['delete', 'Delete message', 'danger'],
         ];
@@ -303,6 +317,7 @@
             if (k === 'link') copyText(linkFor(id), 'Link');
             if (k === 'forward') openForward(anchor, id);
             if (k === 'thread') openThread(rootOf(m) ?? id);
+            if (k === 'reply') quoteReply(id);
             if (k === 'unread') {
                 const ch = m.channel || 'general';
                 if (window.channelUnread) window.channelUnread[ch] = (window.channelUnread[ch] || 0) + 1;
@@ -326,6 +341,7 @@
             const act = tool.dataset.act;
             const m = byId.get(id);
             if (act === 'react') openEmoji(tool, id);
+            if (act === 'reply') quoteReply(id);
             if (act === 'thread') openThread(m ? (rootOf(m) ?? id) : id);
             if (act === 'link') copyText(linkFor(id), 'Link');
             if (act === 'forward') openForward(tool, id);
@@ -344,6 +360,75 @@
         if (!e.target.closest('.sc-pop')) closePops();
     }, true);
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePops(); });
+
+    // ---- Reply here: quote a message in the main conversation (not a thread) ----
+    // The quote travels in the text as a first line "> 项目经理: …", so agents reading
+    // the channel see exactly what you're answering (e.g. "B" to "A, B or C?").
+    let quoting = null;
+    function quoteReply(id) {
+        const m = byId.get(id);
+        if (!m) return;
+        const who = window.scLabelOf ? window.scLabelOf(String(m.sender)) : String(m.sender);
+        const snippet = String(m.text || '').replace(/^> .*\n/, '').replace(/\s+/g, ' ').trim().slice(0, 140);
+        quoting = { id, who, snippet, handle: String(m.sender) };
+        let bar = document.getElementById('sc-quote');
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.id = 'sc-quote';
+            const row = document.getElementById('input-row');
+            row?.parentElement?.insertBefore(bar, row);
+        }
+        bar.innerHTML = `<span class="sc-quote-ic">${ri('reply')}</span><span class="sc-quote-t"><b>${esc(who)}</b> ${esc(snippet)}</span>`
+            + `<button type="button" class="sc-quote-x" aria-label="Cancel reply">${ri('close')}</button>`;
+        bar.querySelector('.sc-quote-x').onclick = clearQuote;
+        document.getElementById('input')?.focus();
+    }
+    function clearQuote() { quoting = null; document.getElementById('sc-quote')?.remove(); }
+    window.scQuoteReply = quoteReply;
+    window.scTakeQuote = () => { const q = quoting; clearQuote(); return q; };
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && quoting && document.activeElement?.id === 'input') clearQuote();
+    });
+
+    // Shortcuts on the message under the pointer: R reply here, T thread, E react
+    let hovered = null;
+    document.addEventListener('mouseover', (e) => { const m = e.target.closest?.('.message.sc-msg'); if (m) hovered = m; });
+    document.addEventListener('keydown', (e) => {
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        const a = document.activeElement;
+        if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable)) return;
+        if (!hovered || !hovered.matches(':hover')) return;
+        const id = Number(hovered.dataset.id);
+        if (!id && id !== 0) return;
+        const k = e.key.toLowerCase();
+        if (k === 'r') { e.preventDefault(); quoteReply(id); }
+        if (k === 't') { e.preventDefault(); const m = byId.get(id); openThread(m ? (rootOf(m) ?? id) : id); }
+        if (k === 'e') { e.preventDefault(); const b = hovered.querySelector('.sc-tools [data-act="react"]'); if (b) openEmoji(b, id); }
+    });
+
+    // Show a "> who: text" first line as a quote block above the message
+    function paintQuote(el, msg) {
+        const t = String(msg && msg.text || '');
+        const mm = t.match(/^> ([^\n]{1,200})\n/);
+        const body = el && el.querySelector('.msg-text');
+        if (!mm || !body || body.dataset.scQuote) return;
+        body.dataset.scQuote = '1';
+        const line = mm[1];
+        const html = body.innerHTML;
+        const escLine = esc('> ' + line).replace(/&#39;/g, "'");
+        let idx = html.indexOf(escLine);
+        if (idx < 0) idx = html.indexOf(esc('> ' + line));
+        if (idx >= 0) {
+            let rest = html.slice(idx + escLine.length).replace(/^(<br\s*\/?>|\n)/, '');
+            body.innerHTML = html.slice(0, idx) + rest;
+        }
+        const q = document.createElement('div');
+        q.className = 'sc-quoted';
+        const c = line.indexOf(': ');
+        q.innerHTML = c > 0 ? `<b>${esc(line.slice(0, c))}</b> ${esc(line.slice(c + 2))}` : esc(line);
+        body.parentElement.insertBefore(q, body);
+    }
+    window.scPaintQuote = paintQuote;
     // Touch screens have no hover: tap a message to show its toolbar.
     if (window.matchMedia('(hover: none)').matches) {
         document.addEventListener('click', (e) => {
@@ -500,12 +585,29 @@
     sendMessage = function () {
         const input = document.getElementById('input');
         const team = (window.scGetTeam && window.scGetTeam()) || {};
+        const q = window.scTakeQuote && input && input.value.trim() ? window.scTakeQuote() : null;
+        if (q) {
+            // the person you're answering gets it, even in a channel
+            const dm = String(window.activeChannel || '').startsWith('dm-');
+            const tag = !dm && team[q.handle] && !new RegExp('@(' + q.handle + '|' + String(team[q.handle].label || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')(?![\\w-])').test(input.value) ? `@${q.handle} ` : '';
+            input.value = `> ${q.who}: ${q.snippet}\n${tag}${input.value}`;
+        }
         if (input && input.value.includes('@')) {
             const pairs = Object.entries(team).map(([h, t]) => [String(t.label || ''), h]).filter(([l]) => l)
                 .sort((a, b) => b[0].length - a[0].length);
             let v = input.value;
             for (const [l, h] of pairs) v = v.split('@' + l).join('@' + h);
             input.value = v;
+            // remember who you @, so the quick @ buttons and the @ list put them first
+            try {
+                const all = JSON.parse(localStorage.getItem('scranton-at-count') || '{}');
+                const ch = all[window.activeChannel] = all[window.activeChannel] || {};
+                const tot = all._all = all._all || {};
+                for (const h of Object.keys(team)) {
+                    if (new RegExp('@' + h.replace(/[-]/g, '\\-') + '(?![\\w-])').test(v)) { ch[h] = (ch[h] || 0) + 1; tot[h] = (tot[h] || 0) + 1; }
+                }
+                localStorage.setItem('scranton-at-count', JSON.stringify(all));
+            } catch (_) { /* storage blocked */ }
         }
         return orig.apply(this, arguments);
     };

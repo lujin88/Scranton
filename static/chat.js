@@ -751,7 +751,7 @@ function maybeInsertDateDivider(container, msg) {
         const divider = document.createElement('div');
         divider.className = 'date-divider';
         divider.dataset.channel = channel;
-        divider.innerHTML = `<span>${formatDateDivider(msgDate)}</span>`;
+        divider.innerHTML = `<span>${window.scIcon ? window.scIcon('calendar', 14) : ''}${formatDateDivider(msgDate)}</span>`;
         if (channel !== activeChannel) {
             divider.style.display = 'none';
         }
@@ -2346,7 +2346,14 @@ function updateMentionMenu() {
         return;
     }
 
-    menu.innerHTML = '';
+    // Scranton: people you @ most come first
+    try {
+        const used = JSON.parse(localStorage.getItem('scranton-at-count') || '{}');
+        const here = used[window.activeChannel] || {}, all = used._all || {};
+        const score = (n) => (here[n] || 0) * 10 + (all[n] || 0);
+        matches.sort((a, b) => score(b.name) - score(a.name));
+    } catch (_) { /* storage blocked */ }
+    menu.innerHTML = `<div class="sc-mm-head">${query ? 'Matching “' + escapeHtml(query) + '”' : 'Type a name to search'}</div>`;
     mentionMenuIndex = Math.min(mentionMenuIndex, matches.length - 1);
 
     matches.forEach((item, i) => {
@@ -2356,7 +2363,7 @@ function updateMentionMenu() {
         const av = window.scAvatarHtml ? window.scAvatarHtml(item.name) : '';
         const st = window.scAgentState ? window.scAgentState(item.name) : '';
         row.innerHTML = av
-            ? `<span class="mention-av ${st}">${av}</span><span class="mention-name">${escapeHtml(item.label)}</span><span class="mention-handle">@${escapeHtml(item.name)}${st === 'offline' ? ' · starts when you send' : ''}</span>`
+            ? `<span class="mention-av ${st}">${av}</span><span class="mention-name">${escapeHtml(item.label)}</span><span class="mention-handle">@${escapeHtml(item.name)}</span>`
             : `<span class="mention-dot" style="background: ${item.color}"></span><span class="mention-name">${escapeHtml(item.label)}</span>`;
         row.addEventListener('mousedown', (e) => {
             e.preventDefault();
@@ -3126,13 +3133,16 @@ function buildMentionToggles() {
     const scTeam = (window.scGetTeam && window.scGetTeam()) || {};
     const scMembers = ((window.scChannelMembers && window.scChannelMembers()) || {})[window.activeChannel];
     let toggleList = Object.entries(agentConfig);
-    if (Array.isArray(scMembers) && !String(window.activeChannel || '').startsWith('dm-')) {
+    if (!toggleList.length) toggleList = Object.keys(scTeam).map((h) => [h, { label: scTeam[h].label, color: 'var(--text-dim)' }]);
+    if (Array.isArray(scMembers) && scMembers.some((h) => scTeam[h]) && !String(window.activeChannel || '').startsWith('dm-')) {
         toggleList = scMembers.filter((h) => scTeam[h]).map((h) => [h, agentConfig[h] || { label: scTeam[h].label, color: 'var(--text-dim)' }]);
     }
     // Keep it short: the 3 people you @ most in this channel (channel order breaks ties)
     try {
-        const used = JSON.parse(localStorage.getItem('scranton-at-count') || '{}')[window.activeChannel] || {};
-        toggleList = toggleList.map((e, i) => [e, i]).sort((x, y) => ((used[y[0][0]] || 0) - (used[x[0][0]] || 0)) || (x[1] - y[1])).map(([e]) => e);
+        const allUse = JSON.parse(localStorage.getItem('scranton-at-count') || '{}');
+        const used = allUse[window.activeChannel] || {}, overall = allUse._all || {};
+        const sc = (n) => (used[n] || 0) * 10 + (overall[n] || 0);
+        toggleList = toggleList.map((e, i) => [e, i]).sort((x, y) => (sc(y[0][0]) - sc(x[0][0])) || (x[1] - y[1])).map(([e]) => e);
     } catch (_) { /* storage blocked */ }
     toggleList = toggleList.slice(0, 3);
     for (const name of activeMentions) {

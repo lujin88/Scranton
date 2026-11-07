@@ -162,6 +162,7 @@
     function openShortcuts() {
         const k = isMac ? '⌘' : 'Ctrl+';
         const rows = [[`${k}K`, 'Search'], [`${k}U`, 'Upload files'], ['Enter', 'Send'], ['Shift+Enter', 'New line'],
+            ['R (on a message)', 'Reply here'], ['T (on a message)', 'Reply in thread'], ['E (on a message)', 'Add reaction'],
             ['Alt+↑ / Alt+↓', 'Move the selected channel'], ['Delete', 'Delete the selected channel'], ['Esc', 'Close']];
         openDialog('Keyboard shortcuts', `<dl class="sc-keys">${rows.map(([key, what]) => `<dt>${what}</dt><dd><kbd>${esc(key)}</kbd></dd>`).join('')}</dl>`);
     }

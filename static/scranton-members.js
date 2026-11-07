@@ -237,23 +237,32 @@
     }, true);
 
     // "项目经理 is working…" above the composer while a teammate in this channel is busy
+    // "项目经理 is working…" sits at the end of the conversation, like a reply on its way.
     function renderWorking() {
         const ch = current();
-        const footer = document.querySelector('#sc-center > footer');
-        if (!footer) return;
-        let bar = document.getElementById('sc-working');
-        if (!bar) {
-            bar = document.createElement('div');
-            bar.id = 'sc-working';
-            bar.setAttribute('aria-live', 'polite');
-            footer.insertBefore(bar, footer.firstChild);
-        }
+        const list = document.getElementById('messages');
+        if (!list) return;
         const who = isDm(ch) ? [ch.slice(3)] : (members[ch] || []);
         const busy = who.filter((h) => team()[h] && state(h) === 'working');
-        const text = busy.length ? `${busy.map((h) => label(h)).join('、')} ${busy.length > 1 ? 'are' : 'is'} working` : '';
-        if (bar.dataset.t === text) return;
-        bar.dataset.t = text;
-        bar.innerHTML = text ? `<span class="sc-dots"><i></i><i></i><i></i></span><span>${esc(text)}…</span>` : '';
+        const key = busy.join(',');
+        let row = document.getElementById('sc-working');
+        if (!busy.length) { row?.remove(); return; }
+        const atBottom = list.parentElement ? (list.parentElement.scrollHeight - list.parentElement.scrollTop - list.parentElement.clientHeight < 80) : false;
+        if (!row) {
+            row = document.createElement('div');
+            row.id = 'sc-working';
+            row.setAttribute('aria-live', 'polite');
+        }
+        if (row.dataset.k !== key) {
+            row.dataset.k = key;
+            const text = `${busy.map((h) => label(h)).join('、')} ${busy.length > 1 ? 'are' : 'is'} working`;
+            row.innerHTML = `<span class="sc-working-av">${busy.slice(0, 3).map((h) => `<span>${avatar(h)}</span>`).join('')}</span>
+                <span class="sc-working-bubble"><span class="sc-dots"><i></i><i></i><i></i></span><span>${esc(text)}…</span></span>`;
+        }
+        if (list.lastElementChild !== row) {
+            list.appendChild(row);
+            if (atBottom && list.parentElement) list.parentElement.scrollTop = list.parentElement.scrollHeight;
+        }
     }
 
     // ---- wiring --------------------------------------------------------------
@@ -279,7 +288,7 @@
         });
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(false); });
         window.addEventListener('resize', () => closePanel(true));
-        (window.scOnTeamChange || []).push(renderHead, makeDraggable);
+        (window.scOnTeamChange || []).push(renderHead, makeDraggable, () => { if (typeof buildMentionToggles === 'function') buildMentionToggles(); });
         // channel switches and DM list re-renders
         const obs = new MutationObserver(() => { makeDraggable(); });
         const dm = document.getElementById('sc-dm-list');
@@ -288,6 +297,8 @@
         if (title) new MutationObserver(() => { closePanel(true); renderHead(); if (typeof buildMentionToggles === 'function') buildMentionToggles(); }).observe(title, { childList: true, characterData: true, subtree: true });
         setInterval(renderHead, 5000);   // status dots
         setInterval(renderWorking, 1500);
+        const msgs = document.getElementById('messages');
+        if (msgs) new MutationObserver(() => { const r = document.getElementById('sc-working'); if (r && msgs.lastElementChild !== r) msgs.appendChild(r); }).observe(msgs, { childList: true });
         renderHead(); makeDraggable();
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
