@@ -496,3 +496,21 @@
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
     else init();
 })();
+
+// Scranton: "@项目经理" typed by hand becomes "@pm" when sent, so it reaches them.
+(function () {
+    if (typeof sendMessage !== 'function') return;
+    const orig = sendMessage;
+    sendMessage = function () {
+        const input = document.getElementById('input');
+        const team = (window.scGetTeam && window.scGetTeam()) || {};
+        if (input && input.value.includes('@')) {
+            const pairs = Object.entries(team).map(([h, t]) => [String(t.label || ''), h]).filter(([l]) => l)
+                .sort((a, b) => b[0].length - a[0].length);
+            let v = input.value;
+            for (const [l, h] of pairs) v = v.split('@' + l).join('@' + h);
+            input.value = v;
+        }
+        return orig.apply(this, arguments);
+    };
+})();

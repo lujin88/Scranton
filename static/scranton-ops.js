@@ -17,7 +17,15 @@
         if (!el) {
             el = document.createElement('div');
             el.id = 'sc-banners';
-            document.body.appendChild(el);
+            // Desktop: part of the sidebar, above your avatar, so it never covers the people list.
+            // Phone: floating above the composer (the sidebar is a drawer there).
+            const me = document.getElementById('sc-me');
+            if (me && me.parentNode && !window.matchMedia('(max-width: 760px)').matches) {
+                el.classList.add('in-sidebar');
+                me.parentNode.insertBefore(el, me);
+            } else {
+                document.body.appendChild(el);
+            }
         }
         return el;
     }

@@ -2283,8 +2283,19 @@ function selectSlashCommand(cmd) {
 function getMentionCandidates() {
     // Build list: registered agents + "all agents" + username (self) + known humans
     const candidates = [];
+    const seen = new Set();
+    // Scranton: everyone on the team can be @-ed, running or not (an @ starts them).
+    // People in this channel come first.
+    const team = (window.scGetTeam && window.scGetTeam()) || {};
+    const members = ((window.scChannelMembers && window.scChannelMembers()) || {})[window.activeChannel] || [];
+    const order = [...members, ...Object.keys(team).filter((h) => !members.includes(h))];
+    for (const h of order) {
+        if (!team[h] || seen.has(h)) continue;
+        seen.add(h);
+        candidates.push({ name: h, label: team[h].label || h, color: (agentConfig[h] && agentConfig[h].color) || 'var(--text-dim)', member: members.includes(h) });
+    }
     for (const [name, cfg] of Object.entries(agentConfig)) {
-        if (cfg.state === 'pending') continue;
+        if (cfg.state === 'pending' || seen.has(name)) continue;
         candidates.push({ name, label: cfg.label || name, color: cfg.color });
     }
     candidates.push({ name: 'all agents', label: 'all agents', color: 'var(--accent)' });
@@ -2309,7 +2320,7 @@ function updateMentionMenu() {
     for (let i = cursor - 1; i >= 0; i--) {
         if (text[i] === '@') { atPos = i; break; }
         // Allow spaces if we are still matching a multi-word label like "all agents"
-        if (!/[\w\-\s]/.test(text[i])) break;
+        if (!/[\p{L}\p{N}_\-\s\/]/u.test(text[i])) break;   // Scranton: Chinese names too
         // Optimization: don't look back more than 30 chars
         if (cursor - i > 30) break;
     }
@@ -2342,7 +2353,11 @@ function updateMentionMenu() {
         const row = document.createElement('div');
         row.className = 'mention-item' + (i === mentionMenuIndex ? ' active' : '');
         row.dataset.name = item.name;
-        row.innerHTML = `<span class="mention-dot" style="background: ${item.color}"></span><span class="mention-name">${escapeHtml(item.label)}</span>`;
+        const av = window.scAvatarHtml ? window.scAvatarHtml(item.name) : '';
+        const st = window.scAgentState ? window.scAgentState(item.name) : '';
+        row.innerHTML = av
+            ? `<span class="mention-av ${st}">${av}</span><span class="mention-name">${escapeHtml(item.label)}</span><span class="mention-handle">@${escapeHtml(item.name)}${st === 'offline' ? ' · starts when you send' : ''}</span>`
+            : `<span class="mention-dot" style="background: ${item.color}"></span><span class="mention-name">${escapeHtml(item.label)}</span>`;
         row.addEventListener('mousedown', (e) => {
             e.preventDefault();
             selectMention(item.name);
@@ -3104,12 +3119,18 @@ function buildMentionToggles() {
     const container = document.getElementById('mention-toggles');
     container.innerHTML = '';
 
-    // Prune stale mentions for agents no longer in config
-    for (const name of activeMentions) {
-        if (!(name in agentConfig)) activeMentions.delete(name);
-    }
 
-    for (const [name, cfg] of Object.entries(agentConfig)) {
+    // Scranton: the quick @ buttons are the people in this channel (running or not)
+    const scTeam = (window.scGetTeam && window.scGetTeam()) || {};
+    const scMembers = ((window.scChannelMembers && window.scChannelMembers()) || {})[window.activeChannel];
+    let toggleList = Object.entries(agentConfig);
+    if (Array.isArray(scMembers) && !String(window.activeChannel || '').startsWith('dm-')) {
+        toggleList = scMembers.filter((h) => scTeam[h]).map((h) => [h, agentConfig[h] || { label: scTeam[h].label, color: 'var(--text-dim)' }]);
+    }
+    for (const name of activeMentions) {
+        if (!toggleList.some(([n]) => n === name)) activeMentions.delete(name);
+    }
+    for (const [name, cfg] of toggleList) {
         if (cfg.state === 'pending') continue;  // skip pending instances
         const btn = document.createElement('button');
         btn.className = 'mention-toggle';

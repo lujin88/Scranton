@@ -95,6 +95,9 @@ start_agent() {
     export SCRANTON_CWD
     # Permission level: [team].permissions, overridable per teammate ("full" or "ask").
     perm=$("$PY" -c "$LOADCFG;import sys;a=c.get('agents',{}).get(sys.argv[1],{});print(a.get('permissions', c.get('team',{}).get('permissions','ask')))" "$name")
+    # Answer the CLI's one-time questions (trust this folder? / full-permission warning)
+    # so the teammate doesn't sit on a prompt in a terminal nobody is looking at.
+    "$PY" tools/first_run.py "$cmd" "${SCRANTON_CWD:-$dir}" "$perm" || true
     case "$perm:$cmd" in
         full:claude)              pflags="--permission-mode bypassPermissions" ;;
         full:codex)               pflags="--dangerously-bypass-approvals-and-sandbox" ;;

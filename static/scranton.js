@@ -228,6 +228,52 @@
         right.insertBefore(btn, right.firstChild);
     }
 
+    // "+" at the start of the composer's bottom row: upload files (drag-and-drop and ⌘V paste work too)
+    function addAttachButton(chips) {
+        if (!chips || document.getElementById('sc-attach-btn')) return;
+        const btn = document.createElement('button');
+        btn.id = 'sc-attach-btn';
+        btn.type = 'button';
+        btn.title = 'Attach files (or drag them in, or paste with ⌘V)';
+        btn.setAttribute('aria-label', 'Attach files');
+        btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+        const file = document.createElement('input');
+        file.type = 'file'; file.multiple = true; file.hidden = true; file.id = 'sc-attach-file';
+        let pop = null;
+        const close = () => { if (pop) { pop.remove(); pop = null; btn.setAttribute('aria-expanded', 'false'); } };
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (pop) { close(); return; }
+            pop = document.createElement('div');
+            pop.id = 'sc-attach-menu';
+            pop.innerHTML = `<button type="button" data-a="files"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg><span>Upload files</span></button>
+                <button type="button" data-a="images"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg><span>Images</span></button>
+                <p>Or drag files into the chat, or paste with ${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘V' : 'Ctrl+V'}.</p>`;
+            document.body.appendChild(pop);
+            const r = btn.getBoundingClientRect();
+            pop.style.left = `${r.left}px`;
+            pop.style.bottom = `${window.innerHeight - r.top + 8}px`;
+            btn.setAttribute('aria-expanded', 'true');
+            pop.addEventListener('click', (ev) => {
+                const a = ev.target.closest('[data-a]')?.dataset.a;
+                if (!a) return;
+                file.accept = a === 'images' ? 'image/*' : '';
+                close();
+                file.click();
+            });
+        });
+        document.addEventListener('click', (e) => { if (pop && !pop.contains(e.target)) close(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+        file.addEventListener('change', async () => {
+            const files = Array.from(file.files || []);
+            file.value = '';
+            if (files.length && typeof uploadFiles === 'function') await uploadFiles(files, false);
+            document.getElementById('input')?.focus();
+        });
+        chips.insertBefore(btn, chips.firstChild);
+        chips.appendChild(file);
+    }
+
     function init() {
         // Channels always live in the sidebar.
         if (typeof setChannelSidebarMode === 'function') setChannelSidebarMode('sidebar', true);
@@ -237,6 +283,7 @@
         const chips = document.getElementById('mention-toggles-row');
         const row = document.getElementById('input-row');
         if (chips && row && chips.parentElement !== row) row.appendChild(chips);
+        addAttachButton(chips);
         renderTeam();
         loadTeam();
 

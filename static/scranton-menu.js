@@ -16,6 +16,58 @@
     };
     const svg = (k) => `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${icon[k]}</svg>`;
 
+    // Your status: shown on your avatar (sidebar and menu). Kept on this device.
+    const STATUSES = [['online', 'Online'], ['away', 'Away'], ['dnd', 'Do not disturb']];
+    function myStatus() {
+        try { const v = localStorage.getItem('scranton-my-status'); return STATUSES.some(([k]) => k === v) ? v : 'online'; } catch (_) { return 'online'; }
+    }
+    function setStatus(v) {
+        try { localStorage.setItem('scranton-my-status', v); } catch (_) { /* private mode */ }
+        paintStatus();
+    }
+    function paintStatus() {
+        const st = myStatus();
+        document.querySelectorAll('#sc-me .sc-me-dot').forEach((d) => { d.className = `sc-me-dot ${st}`; });
+        const chip = document.getElementById('sc-me');
+        if (chip) chip.title = `You · ${STATUSES.find(([k]) => k === st)[1]}`;
+    }
+
+    function openProfile() {
+        const pic = window.scMyAvatarHtml ? window.scMyAvatarHtml() : '';
+        const d = openDialog('Edit profile', `
+            <div class="sc-prof">
+                <button type="button" class="sc-prof-av" data-a="picture" aria-label="Change picture">${pic}<span>Change</span></button>
+                <label class="sc-prof-field"><span>Name</span><input id="sc-prof-name" type="text" maxlength="20" value="${esc(me())}"></label>
+            </div>
+            <div class="sc-prof-actions"><button type="button" class="sc-set-actions-btn" data-a="cancel">Cancel</button>
+                <button type="button" class="sc-set-primary" data-a="save">Save</button></div>`, 'sc-prof-dlg');
+        const input = d.querySelector('#sc-prof-name');
+        input.focus(); input.select();
+        const save = () => {
+            const v = input.value.trim();
+            if (v && v !== me() && window.ws && window.ws.readyState === WebSocket.OPEN) {
+                window.ws.send(JSON.stringify({ type: 'update_settings', data: { username: v } }));
+            }
+            d.remove();
+        };
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
+        d.addEventListener('click', (e) => {
+            const a = e.target.closest('[data-a]')?.dataset.a;
+            if (a === 'picture') {
+                window.scChangePicture && window.scChangePicture();
+                const t0 = Date.now();
+                const iv = setInterval(() => {   // show the new picture once it's been picked
+                    const av = d.querySelector('.sc-prof-av');
+                    if (!document.body.contains(d) || Date.now() - t0 > 60000) { clearInterval(iv); return; }
+                    const now = window.scMyAvatarHtml ? window.scMyAvatarHtml() : '';
+                    if (av && !av.innerHTML.startsWith(now)) av.innerHTML = now + '<span>Change</span>';
+                }, 500);
+            }
+            if (a === 'cancel') d.remove();
+            if (a === 'save') save();
+        });
+    }
+
     // ------------------------------------------------------------------
     // Account menu
     // ------------------------------------------------------------------
@@ -33,14 +85,15 @@
         menu = document.createElement('div');
         menu.id = 'sc-account-menu';
         menu.setAttribute('role', 'menu');
+        const st = myStatus();
         menu.innerHTML = `
-            <div class="sc-am-head"><span class="sc-am-av">${pic}<span class="sc-me-dot"></span></span>
-                <div><div class="sc-am-name">${esc(me())}</div><span class="sc-am-status">Online</span></div></div>
-            <button type="button" role="menuitem" data-a="picture">${svg('picture')}<span>Change picture</span></button>
-            <button type="button" role="menuitem" data-a="rename">${svg('rename')}<span>Change name</span></button>
-            <hr>
+            <div class="sc-am-head"><span class="sc-am-av">${pic}<span class="sc-me-dot ${st}"></span></span>
+                <div><div class="sc-am-name">${esc(me())}</div>
+                <label class="sc-am-status ${st}"><span class="sc-st-dot"></span><select aria-label="Your status">
+                    ${STATUSES.map(([v, l]) => `<option value="${v}"${v === st ? ' selected' : ''}>${l}</option>`).join('')}
+                </select></label></div></div>
+            <button type="button" role="menuitem" data-a="profile">${svg('rename')}<span>Edit profile</span></button>
             <button type="button" role="menuitem" data-a="settings">${svg('settings')}<span>Settings</span></button>
-            <button type="button" role="menuitem" data-a="help">${svg('help')}<span>Help</span></button>
             <button type="button" role="menuitem" data-a="update">${svg('update')}<span>Check for updates</span></button>
             <hr>
             <button type="button" role="menuitem" data-a="feedback">${svg('feedback')}<span>Send feedback</span></button>`;
@@ -54,13 +107,17 @@
             const a = e.target.closest('[data-a]')?.dataset.a;
             if (!a) return;
             closeMenu();
-            if (a === 'picture') window.scChangePicture && window.scChangePicture();
-            if (a === 'rename') window.scRename && window.scRename();
+            if (a === 'profile') openProfile();
             if (a === 'settings') openSettings();
-            if (a === 'help') openHelp();
             if (a === 'update') window.scCheckUpdate && window.scCheckUpdate();
             if (a === 'feedback') sendFeedback();
         });
+        menu.querySelector('.sc-am-status select').addEventListener('change', (e) => {
+            setStatus(e.target.value);
+            menu.querySelector('.sc-am-status').className = `sc-am-status ${e.target.value}`;
+            menu.querySelector('.sc-am-av .sc-me-dot').className = `sc-me-dot ${e.target.value}`;
+        });
+        menu.querySelector('.sc-am-status').addEventListener('click', (e) => e.stopPropagation());
         menu.addEventListener('keydown', (e) => {
             const items = [...menu.querySelectorAll('button')];
             const i = items.indexOf(document.activeElement);
@@ -308,6 +365,7 @@
         if (kbd && !isMac) kbd.textContent = 'Ctrl K';
         document.getElementById('sc-search-btn')?.addEventListener('click', openSearch);
         window.scOpenSettings = openSettings;
+        paintStatus();
         window.scOpenSearch = openSearch;
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

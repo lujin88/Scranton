@@ -1647,6 +1647,17 @@ async def websocket_endpoint(websocket: WebSocket):
                     res = await asyncio.to_thread(_scranton_ops.ensure_running, to_start, config)
                     _report_start(res, ch, "added to the channel")
 
+            elif event.get("type") == "start_agents":
+                # Scranton: the "Start" buttons (DM header, channel member list)
+                names = [str(n).strip().lower() for n in (event.get("names") or [])][:30]
+                ch = (event.get("channel") or "general").strip().lower()
+                if ch not in room_settings["channels"]:
+                    ch = "general"
+                to_start = [n for n in names if n in (config or {}).get("agents", {}) and not agents.is_available(n)]
+                if to_start:
+                    res = await asyncio.to_thread(_scranton_ops.ensure_running, to_start, config)
+                    _report_start(res, ch, "started from the page")
+
             elif event.get("type") == "channel_rename":
                 old_name = (event.get("old_name") or "").strip().lower()
                 new_name = (event.get("new_name") or "").strip().lower()

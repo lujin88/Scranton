@@ -19,20 +19,47 @@
         return true;
     }
 
+    function start(names, channel, btn) {
+        if (!window.ws || window.ws.readyState !== WebSocket.OPEN) return;
+        window.ws.send(JSON.stringify({ type: 'start_agents', names, channel }));
+        if (btn) {
+            btn.dataset.starting = '1';
+            btn.innerHTML = '<span class="sc-start-dot on"></span>Starting…';
+            setTimeout(() => { delete btn.dataset.starting; renderHead(); }, 20000);
+        }
+    }
+
     // ---- header: avatar stack + count ---------------------------------
     function renderHead() {
         const head = document.getElementById('sc-pane-head');
         if (!head) return;
         let btn = document.getElementById('sc-members-btn');
         const ch = current();
-        if (isDm(ch)) { if (btn) btn.remove(); return; }
+        if (isDm(ch)) {
+            // DM with someone who isn't running: offer to start them
+            const h = ch.slice(3);
+            if (team()[h] && state(h) === 'offline') {
+                if (!btn) {
+                    btn = document.createElement('button');
+                    btn.id = 'sc-members-btn';
+                    btn.type = 'button';
+                    head.appendChild(btn);
+                }
+                btn.className = 'sc-start-btn';
+                btn.onclick = (e) => { e.stopPropagation(); start([h], ch, btn); };
+                if (!btn.dataset.starting) btn.innerHTML = `<span class="sc-start-dot"></span>Not running · <b>Start</b>`;
+                btn.title = `Start ${label(h)}`;
+            } else if (btn) btn.remove();
+            return;
+        }
+        if (btn && btn.classList.contains('sc-start-btn')) { btn.remove(); btn = null; }
         if (!btn) {
             btn = document.createElement('button');
             btn.id = 'sc-members-btn';
             btn.type = 'button';
-            btn.addEventListener('click', (e) => { e.stopPropagation(); togglePanel(); });
             head.appendChild(btn);
         }
+        btn.onclick = (e) => { e.stopPropagation(); togglePanel(); };
         const list = (members[ch] || []).filter((h) => team()[h]);
         btn.title = list.length ? `${list.length} teammates in #${ch}. Add or remove` : `Add teammates to #${ch}`;
         btn.setAttribute('aria-label', btn.title);
@@ -68,12 +95,14 @@
         const row = (h, inside) => `<li class="sc-mp-row">
                 <span class="sc-mp-av ${esc(state(h))}">${avatar(h)}<span class="team-dot"></span></span>
                 <span class="sc-mp-who"><b>${esc(label(h))}</b><small>${esc(stateText(h))}</small></span>
+                ${inside && state(h) === 'offline' ? `<button type="button" class="sc-mp-btn start" data-start="${esc(h)}" aria-label="Start ${esc(label(h))}">Start</button>` : ''}
                 ${inside
                     ? `<button type="button" class="sc-mp-btn" data-remove="${esc(h)}" aria-label="Remove ${esc(label(h))} from #${esc(ch)}">Remove</button>`
                     : `<button type="button" class="sc-mp-btn add" data-add="${esc(h)}" aria-label="Add ${esc(label(h))} to #${esc(ch)}">Add</button>`}
             </li>`;
         p.innerHTML = `
             <div class="sc-mp-head"><b>#${esc(ch)}</b><span>${inCh.length} teammate${inCh.length === 1 ? '' : 's'}</span>
+                ${inCh.some((h) => state(h) === 'offline') ? `<button type="button" class="sc-mp-all" data-startall="1">Start everyone</button>` : ''}
                 ${others.length ? `<button type="button" class="sc-mp-all" data-addall="1">Add everyone</button>` : ''}</div>
             <ul class="sc-mp-list">${inCh.map((h) => row(h, true)).join('') || '<li class="sc-mp-empty">Nobody yet. Add teammates below, or drag them here from Direct messages.</li>'}</ul>
             ${others.length ? `<div class="sc-mp-sub">Add to this channel</div><ul class="sc-mp-list">${others.map((h) => row(h, false)).join('')}</ul>` : ''}
@@ -94,6 +123,8 @@
         if (b.dataset.add) send(ch, [b.dataset.add]);
         if (b.dataset.remove) send(ch, [], [b.dataset.remove]);
         if (b.dataset.addall) send(ch, Object.keys(team()).filter((h) => !(members[ch] || []).includes(h)));
+        if (b.dataset.start) { start([b.dataset.start], ch); b.textContent = 'Starting…'; b.disabled = true; }
+        if (b.dataset.startall) { start((members[ch] || []).filter((h) => state(h) === 'offline'), ch); b.textContent = 'Starting…'; b.disabled = true; }
     }
 
     // ---- drag & drop: teammate → channel ---------------------------------
@@ -156,6 +187,7 @@
             if (event && event.type === 'settings' && event.data && event.data.channel_members) {
                 members = event.data.channel_members || {};
                 renderHead();
+                if (typeof buildMentionToggles === 'function') buildMentionToggles();
             }
             return r;
         };
@@ -172,7 +204,7 @@
         const dm = document.getElementById('sc-dm-list');
         if (dm) obs.observe(dm, { childList: true });
         const title = document.getElementById('sc-pane-title');
-        if (title) new MutationObserver(() => { closePanel(); renderHead(); }).observe(title, { childList: true, characterData: true, subtree: true });
+        if (title) new MutationObserver(() => { closePanel(); renderHead(); if (typeof buildMentionToggles === 'function') buildMentionToggles(); }).observe(title, { childList: true, characterData: true, subtree: true });
         setInterval(renderHead, 5000);   // status dots
         renderHead(); makeDraggable();
     }
