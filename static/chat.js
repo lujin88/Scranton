@@ -3127,6 +3127,12 @@ function buildMentionToggles() {
     if (Array.isArray(scMembers) && !String(window.activeChannel || '').startsWith('dm-')) {
         toggleList = scMembers.filter((h) => scTeam[h]).map((h) => [h, agentConfig[h] || { label: scTeam[h].label, color: 'var(--text-dim)' }]);
     }
+    // Keep it short: the 3 people you @ most in this channel (channel order breaks ties)
+    try {
+        const used = JSON.parse(localStorage.getItem('scranton-at-count') || '{}')[window.activeChannel] || {};
+        toggleList = toggleList.map((e, i) => [e, i]).sort((x, y) => ((used[y[0][0]] || 0) - (used[x[0][0]] || 0)) || (x[1] - y[1])).map(([e]) => e);
+    } catch (_) { /* storage blocked */ }
+    toggleList = toggleList.slice(0, 3);
     for (const name of activeMentions) {
         if (!toggleList.some(([n]) => n === name)) activeMentions.delete(name);
     }
@@ -3136,6 +3142,14 @@ function buildMentionToggles() {
         btn.className = 'mention-toggle';
         btn.dataset.agent = name;
         btn.textContent = `@${cfg.label || name}`;
+        btn.addEventListener('click', () => {   // remember who you @ in this channel
+            try {
+                const all = JSON.parse(localStorage.getItem('scranton-at-count') || '{}');
+                const ch = all[window.activeChannel] = all[window.activeChannel] || {};
+                ch[name] = (ch[name] || 0) + 1;
+                localStorage.setItem('scranton-at-count', JSON.stringify(all));
+            } catch (_) { /* storage blocked */ }
+        });
         btn.title = `@${name}`;  // Tooltip: canonical name
         btn.style.setProperty('--agent-color', colorOverrides[name] || cfg.color);
         // Restore active state for mentions that survived the rebuild

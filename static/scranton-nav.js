@@ -232,6 +232,7 @@
         const ch = `dm-${handle}`.slice(0, 20);
         window.scCloseInbox();
         closeDrawer();
+        if (hiddenDms().includes(handle)) setHiddenDms(hiddenDms().filter((x) => x !== handle));
         if (window.channelList.includes(ch)) { if (ch !== window.activeChannel) switchChannel(ch); return; }
         if (!window.ws || window.ws.readyState !== WebSocket.OPEN) return;
         window.ws.send(JSON.stringify({ type: 'channel_create', name: ch }));
@@ -244,6 +245,12 @@
         }, 100);
     }
 
+    // Direct messages you've removed from the list (they come back when they message you)
+    function hiddenDms() { try { return JSON.parse(LS.get('scranton-dm-hidden', '[]')) || []; } catch (_) { return []; } }
+    function setHiddenDms(list) { LS.set('scranton-dm-hidden', JSON.stringify([...new Set(list)])); }
+    window.scShowDm = (h) => { setHiddenDms(hiddenDms().filter((x) => x !== h)); renderDms(); };
+    window.scHiddenDms = hiddenDms;
+
     function renderDms() {
         const list = document.getElementById('sc-dm-list');
         if (!list) return;
@@ -252,8 +259,11 @@
         const order = { working: 0, pending: 1, available: 2, offline: 3 };
         const handles = teamHandles().sort((a, b) => (order[state(a)] - order[state(b)])
             || window.scLabelOf(a).localeCompare(window.scLabelOf(b)));
+        const hidden = hiddenDms();
         for (const h of handles) {
             const ch = `dm-${h}`.slice(0, 20);
+            const unreadNow = (window.channelUnread && window.channelUnread[ch]) || 0;
+            if (hidden.includes(h) && !unreadNow && ch !== window.activeChannel) continue;   // a new message brings them back
             const row = document.createElement('button');
             row.type = 'button';
             row.className = `sc-side-row sc-dm-row ${state(h)}` + (ch === window.activeChannel && !inboxOpen() ? ' active' : '');
@@ -262,6 +272,14 @@
             row.innerHTML = `<span class="sc-dm-avatar">${window.scAvatarHtml ? window.scAvatarHtml(h) : ''}<span class="team-dot"></span></span>`
                 + `<span class="sc-side-label">${esc(window.scLabelOf(h))}</span>`
                 + (unread && ch !== window.activeChannel ? `<span class="sc-badge">${unread > 99 ? '99+' : unread}</span>` : '');
+            const x = document.createElement('span');
+            x.className = 'sc-dm-x';
+            x.setAttribute('role', 'button');
+            x.setAttribute('aria-label', `Remove ${window.scLabelOf(h)} from Direct messages`);
+            x.title = 'Remove from list';
+            x.innerHTML = window.scIcon ? window.scIcon('close', 14) : '×';
+            x.addEventListener('click', (e) => { e.stopPropagation(); setHiddenDms([...hiddenDms(), h]); renderDms(); });
+            row.appendChild(x);
             row.addEventListener('click', () => openDm(h));
             list.appendChild(row);
         }
@@ -360,6 +378,22 @@
         const bubble = el.querySelector('.chat-bubble');
         if (bubble) el.insertBefore(wrap, bubble);
     }
+    // Your photo lives on the Mac (data/me-avatar.txt, not in git) so the phone sees it too.
+    function saveAvatarToServer(url) {
+        fetch('/api/scranton/me/avatar', { method: 'POST', headers: { 'X-Session-Token': window.SESSION_TOKEN, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: url || '' }) }).catch(() => {});
+    }
+    window.scSaveAvatar = saveAvatarToServer;
+    async function loadAvatarFromServer() {
+        try {
+            const r = await fetch('/api/scranton/me/avatar', { headers: { 'X-Session-Token': window.SESSION_TOKEN } }).then((x) => x.json());
+            const cur = LS.get('scranton-me-avatar', '');
+            if (r.data && r.data !== cur) { LS.set('scranton-me-avatar', r.data); renderMe(); }
+            else if (!r.data && cur) saveAvatarToServer(cur);   // first run: keep the one this browser had
+        } catch (_) { /* server restarting */ }
+    }
+    window.scLoadAvatar = loadAvatarFromServer;
+
     function pickAvatar(file) {
         if (!file || !/^image\/(png|jpeg|webp)$/.test(file.type)) return;
         const img = new Image();
@@ -370,7 +404,9 @@
             c.width = c.height = size;
             const s = Math.min(img.width, img.height);
             c.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
-            LS.set('scranton-me-avatar', c.toDataURL('image/jpeg', 0.85));
+            const url = c.toDataURL('image/jpeg', 0.85);
+            LS.set('scranton-me-avatar', url);
+            saveAvatarToServer(url);
             URL.revokeObjectURL(url);
             renderMe();
         };
@@ -412,6 +448,8 @@
         window.scChangePicture = () => file.click();
         window.scRename = editName;
         window.scMyAvatarHtml = myAvatarHtml;
+        window.scRenderMe = renderMe;
+        loadAvatarFromServer();
         window.scMe = me;
         file.addEventListener('change', () => { pickAvatar(file.files && file.files[0]); file.value = ''; });
         renderMe();
@@ -420,7 +458,37 @@
         setInterval(() => { if (me() !== last) { last = me(); renderMe(); renderInbox(); } }, 1000);
     }
 
+    // "+" next to Direct messages: bring back someone you removed (or open any teammate)
+    function initDmAdd() {
+        const btn = document.getElementById('sc-dm-add');
+        if (!btn) return;
+        let pop = null;
+        const close = () => { pop?.remove(); pop = null; };
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (pop) { close(); return; }
+            const hidden = hiddenDms();
+            const team = Object.keys((window.scGetTeam && window.scGetTeam()) || {});
+            const list = hidden.length ? hidden : team;
+            pop = document.createElement('div');
+            pop.id = 'sc-dm-pop';
+            pop.innerHTML = `<div class="sc-dm-pop-h">${hidden.length ? 'Removed from your list' : 'Start a direct message'}</div>`
+                + list.map((h) => `<button type="button" data-h="${esc(h)}"><span class="sc-dm-avatar">${window.scAvatarHtml ? window.scAvatarHtml(h) : ''}</span><span>${esc(window.scLabelOf(h))}</span></button>`).join('');
+            document.body.appendChild(pop);
+            const r = btn.getBoundingClientRect();
+            pop.style.left = `${r.left}px`; pop.style.top = `${r.bottom + 6}px`;
+            pop.addEventListener('click', (ev) => {
+                const h = ev.target.closest('[data-h]')?.dataset.h;
+                if (!h) return;
+                close(); window.scShowDm(h); openDm(h);
+            });
+        });
+        document.addEventListener('mousedown', (e) => { if (pop && !pop.contains(e.target) && e.target !== btn && !btn.contains(e.target)) close(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+    }
+
     function init() {
+        initDmAdd();
         applyCollapsed();
         initInboxFilters();
         initMe();

@@ -179,6 +179,11 @@ The helper works in `helper/`, not in the Scranton code. `helper/.claude/setting
 - **Updates:** Update now pulls, installs packages and restarts the server. If the new version won't start, Scranton goes back to the previous one and shows a card. Running teammates keep the old wrapper until they're restarted.
 - No push notifications on the phone yet.
 
+## Design rules
+
+- **Icons: Remix Icon only** (remixicon.com, Apache-2.0). Use `scIcon('name', size)` from `static/scranton-icons.js`; to add one, copy its path from the remixicon package into that file. No hand-drawn SVGs.
+- Spacing on a 4/8 px grid; sidebar rows 32 px; 12 px sidebar gutter.
+
 ## Updating from agentchattr
 
 Scranton keeps upstream's code and file names so fixes can be pulled in:

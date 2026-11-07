@@ -14,7 +14,7 @@
         update: '<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/>',
         feedback: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
     };
-    const svg = (k) => `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${icon[k]}</svg>`;
+    const svg = (k) => (window.scIcon ? window.scIcon({ picture: 'image', rename: 'edit', feedback: 'feedback', update: 'refresh' }[k] || k, 18) : '');
 
     // Your status: shown on your avatar (sidebar and menu). Kept on this device.
     const STATUSES = [['online', 'Online'], ['away', 'Away'], ['dnd', 'Do not disturb']];
@@ -107,8 +107,8 @@
             const a = e.target.closest('[data-a]')?.dataset.a;
             if (!a) return;
             closeMenu();
-            if (a === 'profile') openProfile();
-            if (a === 'settings') openSettings();
+            if (a === 'profile') window.scOpenSettings('profile');
+            if (a === 'settings') window.scOpenSettings('agents');
             if (a === 'update') window.scCheckUpdate && window.scCheckUpdate();
             if (a === 'feedback') sendFeedback();
         });
@@ -201,7 +201,7 @@
     // Search (⌘K): people, channels and messages, grouped; keyboard first
     // ------------------------------------------------------------------
     const ico = {
-        search: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
+        get search() { return window.scIcon ? window.scIcon('search', 18) : ''; },
         hash: '<span class="sc-sr-hash">#</span>',
     };
     function openSearch() {
@@ -364,7 +364,8 @@
         const kbd = document.getElementById('sc-search-kbd');
         if (kbd && !isMac) kbd.textContent = 'Ctrl K';
         document.getElementById('sc-search-btn')?.addEventListener('click', openSearch);
-        window.scOpenSettings = openSettings;
+        window.scSendFeedback = sendFeedback;
+        window.scPaintStatus = paintStatus;
         paintStatus();
         window.scOpenSearch = openSearch;
     }

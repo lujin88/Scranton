@@ -2414,6 +2414,32 @@ async def scranton_team():
     return JSONResponse(_scranton_team())
 
 
+_ME_AVATAR = Path(__file__).parent / "data" / "me-avatar.txt"   # data/ is gitignored: never pushed
+
+
+@app.get("/api/scranton/me/avatar")
+async def scranton_me_avatar():
+    try:
+        return JSONResponse({"data": _ME_AVATAR.read_text("utf-8").strip()})
+    except OSError:
+        return JSONResponse({"data": ""})
+
+
+@app.post("/api/scranton/me/avatar")
+async def scranton_me_avatar_set(request: Request):
+    body = await request.json()
+    data = str(body.get("data", "") or "").strip()
+    if data and (not _re.match(r"^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$", data) or len(data) > 400_000):
+        return JSONResponse({"error": "use a JPG, PNG or WebP picture"}, status_code=400)
+    _ME_AVATAR.parent.mkdir(parents=True, exist_ok=True)
+    if data:
+        _ME_AVATAR.write_text(data, "utf-8")
+    else:
+        _ME_AVATAR.unlink(missing_ok=True)
+    await broadcast_team_changed()
+    return JSONResponse({"ok": True})
+
+
 @app.get("/api/scranton/connections")
 async def scranton_connections():
     return JSONResponse(await asyncio.to_thread(_sc_team.connections, config))

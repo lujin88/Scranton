@@ -122,13 +122,13 @@
             </div>
             <ul class="sc-mp-list">
                 <li><div class="sc-mp-row on me">
-                    <span class="sc-mp-check locked" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.9997 15.1709L19.1921 5.97852L20.6063 7.39273L9.9997 17.9993L3.63574 11.6354L5.04996 10.2212L9.9997 15.1709Z"/></svg></span>
+                    <span class="sc-mp-check locked" aria-hidden="true">${window.scIcon ? window.scIcon('check', 16) : ''}</span>
                     <span class="sc-mp-av me">${window.scMyAvatarHtml ? window.scMyAvatarHtml() : ''}<span class="team-dot"></span></span>
                     <span class="sc-mp-who"><b>${esc(window.scMe ? window.scMe() : 'You')} <em>you</em></b><small>Always in every channel</small></span>
                 </div></li>${order.filter((h) => team()[h]).map((h) => `
                 <li><label class="sc-mp-row${draft.has(h) ? ' on' : ''}">
                     <input type="checkbox" value="${esc(h)}"${draft.has(h) ? ' checked' : ''}>
-                    <span class="sc-mp-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.9997 15.1709L19.1921 5.97852L20.6063 7.39273L9.9997 17.9993L3.63574 11.6354L5.04996 10.2212L9.9997 15.1709Z"/></svg></span>
+                    <span class="sc-mp-check" aria-hidden="true">${window.scIcon ? window.scIcon('check', 16) : ''}</span>
                     <span class="sc-mp-av ${esc(state(h))}">${avatar(h)}<span class="team-dot"></span></span>
                     <span class="sc-mp-who"><b>${esc(label(h))}</b><small>${esc(stateText(h))}</small></span>
                     ${inCh.includes(h) && draft.has(h) && state(h) === 'offline' ? `<button type="button" class="sc-mp-btn start" data-start="${esc(h)}">Start</button>` : ''}

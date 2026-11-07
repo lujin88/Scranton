@@ -65,14 +65,14 @@ function renderChannelTabs() {
             const editBtn = document.createElement('button');
             editBtn.className = 'ch-edit-btn';
             editBtn.title = 'Rename';
-            editBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L5 13H3v-2L11.5 2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>';
+            editBtn.innerHTML = window.scIcon ? window.scIcon('edit', 16) : 'Rename';
             editBtn.onclick = (e) => { e.stopPropagation(); showChannelRenameDialog(name); };
             actions.appendChild(editBtn);
 
             const delBtn = document.createElement('button');
             delBtn.className = 'ch-delete-btn';
             delBtn.title = 'Delete';
-            delBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V3h4v1M5 4v8.5h6V4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+            delBtn.innerHTML = window.scIcon ? window.scIcon('delete', 16) : 'Delete';
             delBtn.onclick = (e) => { e.stopPropagation(); deleteChannel(name); };
             actions.appendChild(delBtn);
 
@@ -145,13 +145,13 @@ function renderChannelSidebar() {
 
             const editBtn = document.createElement('button');
             editBtn.title = 'Rename';
-            editBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L5 13H3v-2L11.5 2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>';
+            editBtn.innerHTML = window.scIcon ? window.scIcon('edit', 16) : 'Rename';
             editBtn.onclick = (e) => { e.stopPropagation(); _showSidebarRenameDialog(name); };
             actions.appendChild(editBtn);
 
             const delBtn = document.createElement('button');
             delBtn.title = 'Delete';
-            delBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V3h4v1M5 4v8.5h6V4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+            delBtn.innerHTML = window.scIcon ? window.scIcon('delete', 16) : 'Delete';
             delBtn.onclick = (e) => { e.stopPropagation(); _sidebarConfirmDelete(name, row, label); };
             actions.appendChild(delBtn);
 
