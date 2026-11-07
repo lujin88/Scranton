@@ -262,7 +262,14 @@ def run_agent(
                 print(f"  Reattach: tmux attach -t {session_name}")
                 while _session_exists(session_name):
                     time.sleep(1)
-                break
+                # Scranton runs wrappers headless (no terminal to attach to),
+                # so "detached" is the normal state. If the agent CLI later
+                # exits, bring it back instead of silently leaving the team.
+                if no_restart:
+                    break
+                print(f"\n  {agent.capitalize()} exited. Restarting in 10s...")
+                time.sleep(10)
+                continue
 
             # Session gone — agent exited
             if no_restart:

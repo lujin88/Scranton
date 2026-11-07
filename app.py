@@ -27,7 +27,7 @@ from session_engine import SessionEngine
 
 log = logging.getLogger(__name__)
 
-app = FastAPI(title="agentchattr")
+app = FastAPI(title="Scranton")
 
 # --- globals (set by configure()) ---
 store: MessageStore | None = None
@@ -48,7 +48,7 @@ session_token: str = ""
 
 # Room settings (persisted to data/settings.json)
 room_settings: dict = {
-    "title": "agentchattr",
+    "title": "Scranton",
     # Shown beside the title, so several servers can be told apart without
     # renaming the product itself. "" hides it.
     "subtitle": "",
@@ -205,6 +205,12 @@ def _install_security_middleware(token: str, cfg: dict):
         f"http://127.0.0.1:{port}",
         f"http://localhost:{port}",
     }
+    # Scranton: extra origins for phone access through Tailscale Serve,
+    # e.g. "https://mac-mini.tail1234.ts.net". Exact match only, no wildcards.
+    for extra in cfg.get("server", {}).get("allowed_origins", []) or []:
+        extra = str(extra).strip().rstrip("/")
+        if extra:
+            allowed_origins.add(extra)
 
     class SecurityMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request: Request, call_next):
@@ -1304,7 +1310,7 @@ async def websocket_endpoint(websocket: WebSocket):
             elif event.get("type") == "update_settings":
                 new = event.get("data", {})
                 if "title" in new and isinstance(new["title"], str):
-                    room_settings["title"] = new["title"].strip() or "agentchattr"
+                    room_settings["title"] = new["title"].strip() or "Scranton"
                 apply_room_subtitle(new)
                 if "username" in new and isinstance(new["username"], str):
                     room_settings["username"] = new["username"].strip() or "user"
@@ -2685,6 +2691,9 @@ def _compare_versions(current: str, latest_tag: str) -> str:
 async def version_check():
     """Check for newer releases on GitHub."""
     current = _read_local_version()
+    # Scranton is a private fork: don't contact api.github.com about upstream
+    # releases. Pull upstream changes deliberately instead.
+    return JSONResponse({"current": current, "latest": "", "state": "unknown", "url": ""})
     loop = asyncio.get_event_loop()
     release = await loop.run_in_executor(None, _fetch_latest_release)
 

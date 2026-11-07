@@ -92,7 +92,7 @@ class RoomSubtitleTests(unittest.TestCase):
 
     def test_the_product_name_is_not_replaced_by_the_new_setting(self):
         """Control: `title` still means a full rename and is untouched."""
-        self.assertEqual(app.room_settings.get("title"), "agentchattr")
+        self.assertEqual(app.room_settings.get("title"), "Scranton")
 
 
 if __name__ == "__main__":

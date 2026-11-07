@@ -380,7 +380,7 @@ class WrapperUnixLifecycleTests(unittest.TestCase):
                 env={},
                 queue_file=Path("queue.jsonl"),
                 agent="claude",
-                no_restart=False,
+                no_restart=True,
                 start_watcher=lambda inject_fn: None,
                 session_name="agentchattr-claude-1",
             )
@@ -390,6 +390,39 @@ class WrapperUnixLifecycleTests(unittest.TestCase):
         ]
         self.assertEqual(len(has_session_checks), 3)
         self.assertEqual(sleep_calls, [1])
+
+
+    def test_headless_agent_is_restarted_after_it_exits(self):
+        """Scranton: wrappers run without a terminal, so after the agent's
+        tmux session ends the wrapper restarts it (unless --no-restart)."""
+        commands = []
+        sleep_calls = []
+        has_session_states = iter([0, 1])
+
+        def fake_run(args, **kwargs):
+            commands.append(args)
+            if args[:2] == ["tmux", "has-session"]:
+                return SimpleNamespace(returncode=next(has_session_states, 1))
+            return SimpleNamespace(returncode=0, stdout=b"")
+
+        def fake_sleep(seconds):
+            sleep_calls.append(seconds)
+            if seconds == 10:
+                raise KeyboardInterrupt  # stop the test after the restart delay
+
+        with (
+            mock.patch.object(wrapper_unix, "_check_tmux"),
+            mock.patch.object(wrapper_unix.subprocess, "run", side_effect=fake_run),
+            mock.patch.object(wrapper_unix.time, "sleep", side_effect=fake_sleep),
+        ):
+            wrapper_unix.run_agent(
+                command="claude", extra_args=[], cwd=".", env={},
+                queue_file=Path("queue.jsonl"), agent="claude", no_restart=False,
+                start_watcher=lambda inject_fn: None,
+                session_name="agentchattr-claude-1",
+            )
+
+        self.assertIn(10, sleep_calls)
 
 
 @unittest.skipUnless(sys.platform == "win32", "Windows-only wrapper compatibility test")

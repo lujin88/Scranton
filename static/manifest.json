@@ -1,0 +1,9 @@
+{
+  "name": "Scranton",
+  "short_name": "Scranton",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f5f2",
+  "theme_color": "#2d2238",
+  "icons": [{ "src": "/static/scranton-icon.png", "sizes": "512x512", "type": "image/png" }]
+}

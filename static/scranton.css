@@ -1,0 +1,213 @@
+/* Scranton: Buzz-style layout and palette on top of agentchattr.
+   Palette: Catppuccin Macchiato with a mauve accent (the same open palette
+   Buzz uses for its dark theme). Layout: channels left, conversation
+   centre, team with live status right. Phones: one column + drawers. */
+
+:root {
+    --bg: #24273a;            /* base */
+    --bg-header: #1e2030;     /* mantle */
+    --bg-input: #363a4f;      /* surface0 */
+    --bg-msg: #24273a;
+    --bg-msg-hover: #2b2e45;
+    --bg-elevated: #363a4f;
+    --bg-subtle: rgba(202, 211, 245, 0.04);
+    --bg-overlay: rgba(24, 25, 38, 0.6);
+
+    --border: #363a4f;
+    --border-strong: #494d64;
+    --border-subtle: rgba(202, 211, 245, 0.06);
+
+    --text: #cad3f5;
+    --text-dim: #a5adcb;
+    --text-system: #8087a2;
+    --text-muted: #b8c0e0;
+    --text-on-accent: #24273a;
+
+    --accent: #c6a0f6;        /* mauve */
+    --accent-soft: rgba(198, 160, 246, 0.16);
+    --accent-hover: rgba(198, 160, 246, 0.24);
+    --user-color: #c6a0f6;
+    --system-color: #8087a2;
+
+    --success: #a6da95;
+    --online: #a6da95;
+    --danger: #ed8796;
+    --error-color: #ed8796;
+    --warning: #eed49f;
+    --pending: #f5a97f;
+    --info: #8aadf4;
+
+    --sc-sidebar: #1e2030;
+    --sc-sidebar-active: rgba(198, 160, 246, 0.18);
+    --sc-team-w: 248px;
+    --sc-font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+}
+
+body { font-family: var(--sc-font); background: var(--bg); color: var(--text); }
+
+/* ---------- Things Scranton doesn't use: hidden, not deleted ---------- */
+#jobs-toggle, #rules-toggle, #help-btn,
+#session-launch-btn, #session-bar,
+#schedule-btn, #schedule-popover, #schedules-bar,
+#jobs-panel, #rules-panel,
+#update-pill, .discord-pill, .channel-support,
+#channel-bar,                       /* channels live in the sidebar */
+#agent-status,                      /* replaced by the Team panel */
+.input-hint,
+#setting-channel-sidebar, #setting-rules-refresh { display: none !important; }
+.settings-field:has(#setting-channel-sidebar),
+.settings-field:has(#setting-rules-refresh),
+.settings-field:has(#setting-subtitle) { display: none !important; }
+
+/* ---------- Header ---------- */
+header, #app > header {
+    background: var(--bg-header);
+    border-bottom: 1px solid var(--border);
+}
+.header-logo { width: 26px; height: 26px; border-radius: 7px; }
+#room-title { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+.sc-menu-btn {
+    display: none;
+    background: none; border: 0; color: var(--text); padding: 6px; margin-right: 2px;
+    border-radius: 8px; cursor: pointer;
+}
+.sc-team-btn { position: relative; display: none; }
+.sc-team-badge {
+    position: absolute; top: -3px; right: -3px; min-width: 16px; height: 16px;
+    padding: 0 4px; border-radius: 8px; font-size: 10px; line-height: 16px; font-weight: 700;
+    background: var(--accent); color: var(--text-on-accent);
+}
+.sc-team-badge.hidden { display: none; }
+
+/* ---------- Left: channels ---------- */
+#channel-sidebar {
+    background: var(--sc-sidebar);
+    border-right: 1px solid var(--border);
+    --channel-sidebar-w: 232px;
+}
+.channel-sidebar-header { color: var(--text-dim); font-size: 12px; font-weight: 600; letter-spacing: 0.02em; }
+.channel-sidebar-row {
+    margin: 1px 8px; border-radius: 8px; color: var(--text-dim);
+}
+.channel-sidebar-row:hover { background: var(--bg-subtle); color: var(--text); }
+.channel-sidebar-row.active { background: var(--sc-sidebar-active); color: var(--text); font-weight: 600; }
+
+/* ---------- Centre: conversation ---------- */
+#timeline { background: var(--bg); }
+footer { background: var(--bg); border-top: 0; }
+#input-row {
+    background: var(--bg-input); border: 1px solid var(--border-strong);
+    border-radius: 12px; margin: 0 16px 14px; padding: 6px 8px;
+}
+#input-row:focus-within { border-color: var(--accent); }
+#input { background: transparent; color: var(--text); }
+#send { background: var(--accent); color: var(--text-on-accent); border-radius: 8px; font-weight: 600; }
+.sender-label { color: var(--text-dim); }
+
+/* ---------- Right: team ---------- */
+#team-panel {
+    width: var(--sc-team-w); flex-shrink: 0;
+    background: var(--sc-sidebar); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow-y: auto;
+    padding: 14px 8px;
+}
+.team-header {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: var(--text-dim);
+    padding: 0 8px 8px;
+}
+#team-list { display: flex; flex-direction: column; gap: 2px; }
+.team-row {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 7px 8px; border: 0; border-radius: 8px; background: none;
+    color: var(--text); text-align: left; cursor: pointer; font: inherit;
+}
+.team-row:hover { background: var(--bg-subtle); }
+.team-avatar {
+    position: relative; flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px;
+    display: grid; place-items: center; font-weight: 700; font-size: 13px;
+    background: var(--agent-color); color: #1e2030;
+}
+.team-dot {
+    position: absolute; right: -3px; bottom: -3px; width: 11px; height: 11px;
+    border-radius: 50%; border: 2px solid var(--sc-sidebar); background: #6e738d;
+}
+.team-row.available .team-dot { background: var(--online); }
+.team-row.working .team-dot { background: var(--warning); animation: sc-pulse 1.2s ease-in-out infinite; }
+.team-row.pending .team-dot { background: var(--pending); }
+.team-row.offline { opacity: 0.55; }
+.team-text { display: flex; flex-direction: column; min-width: 0; }
+.team-name { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.team-state { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.team-row.working .team-state { color: var(--warning); }
+.team-empty, .team-hint { font-size: 12px; color: var(--text-system); padding: 8px; line-height: 1.45; }
+.team-hint { margin-top: auto; }
+@keyframes sc-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .team-row.working .team-dot { animation: none; } }
+
+/* ---------- Tablet: drop the team column, keep a header button ---------- */
+@media (max-width: 1080px) {
+    .sc-team-btn { display: inline-flex; }
+    #team-panel {
+        position: fixed; top: 0; right: 0; bottom: 0; z-index: 60;
+        width: min(300px, 86vw); transform: translateX(100%);
+        transition: transform 0.2s ease; box-shadow: -8px 0 24px rgba(0, 0, 0, 0.35);
+    }
+    body.sc-drawer-team #team-panel { transform: translateX(0); }
+}
+
+/* ---------- Phone: one column, channels in a drawer ---------- */
+@media (max-width: 760px) {
+    .sc-menu-btn { display: inline-flex; }
+    #channel-sidebar {
+        position: fixed; top: 0; left: 0; bottom: 0; z-index: 60;
+        width: min(280px, 84vw) !important; max-width: none;
+        transform: translateX(-100%); transition: transform 0.2s ease;
+        box-shadow: 8px 0 24px rgba(0, 0, 0, 0.35);
+        padding-top: env(safe-area-inset-top);
+    }
+    #channel-sidebar.hidden { display: flex !important; }
+    body.sc-drawer-channels #channel-sidebar { transform: translateX(0); }
+    .channel-sidebar-grip { display: none; }
+    #settings-toggle, #pins-toggle { padding: 6px; }
+    header, #app > header { padding-top: env(safe-area-inset-top); }
+    #input-row { margin: 0 8px calc(8px + env(safe-area-inset-bottom)); }
+    #mention-toggles-row { padding: 0 8px; overflow-x: auto; }
+    #clear-chat-btn { display: none; }
+    #mic { display: none; }
+    #input { font-size: 16px; } /* stops iOS zooming into the field */
+    #settings-bar { flex-wrap: wrap; }
+}
+body.sc-drawer-channels::after, body.sc-drawer-team::after {
+    content: ""; position: fixed; inset: 0; z-index: 55; background: var(--bg-overlay);
+}
+
+/* ---------- Messages: flat Slack/Buzz rows instead of chat bubbles ---------- */
+.chat-bubble {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 2px 0 4px;
+    max-width: 760px;
+    min-width: 0;
+}
+.message.self .chat-bubble { border-radius: 0; }
+.message:hover .chat-bubble { background: transparent; }
+.message:hover { background: var(--bg-msg-hover); }
+.bubble-header { gap: 8px; }
+#input, #input:focus { border: 0; background: transparent; box-shadow: none; padding-left: 6px; }
+
+/* Everyone, including me, on the left with a name, like Slack/Buzz. */
+.message.self { flex-direction: row; }
+.message.self .msg-sender { display: inline; }
+.message.self .chat-bubble { margin-left: 0; }
+
+/* Composer sits under the conversation column, not under the side panels. */
+footer {
+    background: var(--bg); box-shadow: none;
+    margin-left: 232px; margin-right: var(--sc-team-w);
+    padding: 8px 0 0;
+}
+.channel-sidebar-grip { display: none; }
+@media (max-width: 1080px) { footer { margin-right: 0; } }
+@media (max-width: 760px) { footer { margin-left: 0; } }
+@media (max-width: 760px) { .sender-label { display: none; } }
