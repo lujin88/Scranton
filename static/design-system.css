@@ -209,3 +209,59 @@ select, input[type="text"], input[type="search"], textarea { border-color: trans
 .sc-info-sub { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; color: var(--ds-text); font-weight: 600; }
 .sc-info-hero { padding-bottom: var(--ds-5); }
 .sc-stuck-btn { display: inline-flex; margin-top: 8px; height: 32px; padding: 0 14px; align-items: center; }
+/* return key: never a box, in any state */
+#send, #send:hover, #send:focus, #send:active, .send-group:not(.inactive) #send, .send-group:not(.inactive) #send:hover,
+#input-row .send-group:not(.inactive) #send:hover { background: transparent !important; box-shadow: none !important; }
+#send:hover { color: var(--ds-text) !important; }
+.send-group:not(.inactive) #send:hover { color: var(--ds-accent-hover) !important; }
+#send:focus-visible { outline: 2px solid var(--ds-accent); outline-offset: 2px; }
+
+/* ================================================================ empty states */
+.sc-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; color: var(--ds-text-2); padding: var(--ds-7) var(--ds-5); }
+.sc-empty > svg { color: var(--ds-text-3); margin-bottom: var(--ds-2); }
+.sc-empty h3 { margin: 0; color: var(--ds-text); font-size: var(--ds-fs-lg); font-weight: 600; }
+.sc-empty p { margin: 0; font-size: var(--ds-fs-sm); max-width: 340px; }
+.sc-empty .sc-empty-hint { color: var(--ds-text-3); margin-top: 2px; }
+#sc-empty-room { position: absolute; left: 0; right: 0; top: 38%; transform: translateY(-50%); pointer-events: none; padding: 0; }
+.sc-empty-av { width: 72px; height: 72px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: var(--ds-raised); margin-bottom: var(--ds-3); }
+.sc-empty-av img, .sc-empty-av svg { width: 100%; height: 100%; object-fit: cover; }
+.sc-empty-hash { font-size: 30px; color: var(--ds-text-3); }
+body.sc-inbox-visible #sc-empty-room { display: none; }
+
+/* ================================================================ Activity: same language as a conversation */
+#sc-inbox { background: var(--ds-surface) !important; }
+.sc-inbox-head { border: 0 !important; padding: 16px 24px 8px !important; background: none !important; }
+.sc-inbox-head h2 { font-size: var(--ds-fs-xl); font-weight: 600; }
+.sc-inbox-filters { border: 0 !important; padding: 4px 24px 12px !important; background: none !important; gap: 12px; }
+.sc-tabs { border: 0 !important; gap: 4px; }
+.sc-tab { border: 0 !important; border-radius: var(--ds-r-pill) !important; padding: 6px 14px !important; color: var(--ds-text-2) !important; background: none !important; box-shadow: none !important; }
+.sc-tab::after { display: none !important; }
+.sc-tab.active { background: var(--ds-raised) !important; color: var(--ds-text) !important; }
+.sc-inbox-btn { height: 32px; padding: 0 12px; }
+#sc-inbox-list .sc-empty { margin-top: 12vh; }
+.sc-inbox-item { border: 0 !important; border-radius: var(--ds-r-card); margin: 2px 16px; }
+.sc-inbox-item:hover { background: var(--ds-hover) !important; }
+.sc-inbox-item.unread { background: var(--ds-raised) !important; }
+
+/* ================================================================ settings polish */
+.sc-pf-pic { background: var(--ds-raised) !important; }
+.sc-pf-pic .sc-me-initial, .sc-pf-pic > span { background: var(--ds-raised) !important; color: var(--ds-text) !important; }
+.sc-st-foot { border-top: 0 !important; }
+.sc-st-head { border: 0 !important; }
+
+/* ================================================================ your messages: alignment says it's you, no avatar */
+.message.self .sc-self-avatar, .message.self .avatar-wrap { display: none !important; }
+
+/* phone: no top bar either; drawer + search sit in the floating head */
+@media (max-width: 760px) {
+    #app > header { display: none !important; }
+    #sc-float-tools { display: flex !important; }
+    #sc-pane-head { left: 12px; right: 12px; top: 10px; }
+    #sc-pane-pill { max-width: 46vw; }
+    #messages { width: calc(100% - 24px) !important; }
+    #sc-center > footer { padding: 0 12px 12px !important; }
+}
+@media (max-width: 760px) {
+    .mention-toggle { white-space: nowrap; max-width: 30vw; overflow: hidden; text-overflow: ellipsis; }
+    #mention-toggles .mention-toggle:nth-child(n+3) { display: none !important; }
+}

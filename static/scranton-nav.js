@@ -135,9 +135,9 @@
             .filter((m) => !unreadOnly || isUnread(m))
             .sort((a, b) => b.id - a.id).slice(0, 300);
         if (!items.length) {
-            list.innerHTML = `<div class="sc-inbox-empty">${inbox.size
-                ? 'Nothing matches these filters.'
-                : 'Nothing yet. When a teammate @mentions you, replies to you, or writes in a direct message, it shows up here.'}</div>`;
+            list.innerHTML = `<div class="sc-empty">${window.scIcon ? window.scIcon('bell', 28) : ''}<h3>${inbox.size ? 'Nothing matches' : 'No activity yet'}</h3><p>${inbox.size
+                ? 'Try another filter.'
+                : 'Mentions, replies and direct messages show up here.'}</p></div>`;
             return;
         }
         list.innerHTML = '';

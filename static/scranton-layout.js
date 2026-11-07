@@ -51,7 +51,7 @@
             <button type="button" class="sc-tool" data-t="search" aria-label="Search">${ic('search', 20)}</button>`;
         float.addEventListener('click', (e) => {
             const t = e.target.closest('[data-t]')?.dataset.t;
-            if (t === 'expand') window.scToggleDrawer && window.scToggleDrawer();
+            if (t === 'expand') { e.stopPropagation(); window.scToggleDrawer && window.scToggleDrawer(); }
             if (t === 'search') document.getElementById('sc-search-btn')?.click();
         });
         h.insertBefore(pill, h.firstChild);
@@ -189,8 +189,32 @@
         }
     }
 
+    // Empty conversation: say whose room this is and what to do, instead of a blank sheet.
+    function renderEmpty() {
+        const center = document.getElementById('sc-center');
+        const list = document.getElementById('messages');
+        if (!center || !list) return;
+        const ch = window.activeChannel || 'general';
+        const has = [...list.querySelectorAll('.message')].some((m) => m.offsetParent !== null && !m.classList.contains('join-msg'));
+        let box = document.getElementById('sc-empty-room');
+        const inboxOpen = !document.getElementById('sc-inbox')?.classList.contains('hidden');
+        if (has || inboxOpen) { box?.remove(); return; }
+        if (!box) { box = document.createElement('div'); box.id = 'sc-empty-room'; box.className = 'sc-empty'; center.appendChild(box); }
+        const key = ch + '|' + Object.keys(team()).length;
+        if (box.dataset.k === key) return;
+        box.dataset.k = key;
+        if (isDm(ch) && team()[ch.slice(3)]) {
+            const h = ch.slice(3), t = team()[h] || {};
+            box.innerHTML = `<span class="sc-empty-av">${window.scAvatarHtml ? window.scAvatarHtml(h) : ''}</span><h3>${esc(label(h))}</h3>
+                ${t.role ? `<p>${esc(String(t.role).split(/[|｜:：]/)[0].trim().slice(0, 80))}</p>` : ''}<p class="sc-empty-hint">Ask anything. They start when you send.</p>`;
+        } else {
+            box.innerHTML = `<span class="sc-empty-av sc-empty-hash">#</span><h3>${esc(ch)}</h3><p class="sc-empty-hint">@ someone to give them a task.</p>`;
+        }
+    }
+
     function init() {
         tools(); head();
+        setInterval(renderEmpty, 800);
         const title = document.getElementById('sc-pane-title');
         if (title) new MutationObserver(() => { tab = 'activity'; render(); }).observe(title, { childList: true, characterData: true, subtree: true });
         (window.scOnTeamChange || (window.scOnTeamChange = [])).push(() => { if (isOpen() && tab !== 'terminal') render(); });
