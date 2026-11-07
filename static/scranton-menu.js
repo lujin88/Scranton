@@ -141,58 +141,146 @@
     }
 
     // ------------------------------------------------------------------
-    // Search
+    // Search (⌘K): people, channels and messages, grouped; keyboard first
     // ------------------------------------------------------------------
+    const ico = {
+        search: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
+        hash: '<span class="sc-sr-hash">#</span>',
+    };
     function openSearch() {
-        const d = openDialog('Search', `<input id="sc-search-input" type="search" placeholder="Search messages and people" autocomplete="off" aria-label="Search">
-            <div id="sc-search-results" role="listbox"></div>`, 'sc-search-dlg');
+        document.getElementById('sc-dialog')?.remove();
+        const d = document.createElement('div');
+        d.id = 'sc-dialog';
+        d.innerHTML = `<div class="sc-dlg sc-search-dlg" role="dialog" aria-modal="true" aria-label="Search">
+            <div class="sc-sq">${ico.search}<input id="sc-search-input" type="text" placeholder="Search messages, people and channels" autocomplete="off" spellcheck="false" aria-label="Search">
+                <button type="button" class="sc-sq-clear" hidden aria-label="Clear">Clear</button></div>
+            <div class="sc-sf" role="tablist">
+                <button type="button" data-f="all" class="on">All</button><button type="button" data-f="messages">Messages</button>
+                <button type="button" data-f="people">People</button><button type="button" data-f="channels">Channels</button></div>
+            <div id="sc-search-results" role="listbox"></div>
+            <div class="sc-sfoot"><span id="sc-search-count"></span><span class="sc-keys"><kbd>↑</kbd><kbd>↓</kbd> Navigate <kbd>↵</kbd> Open <kbd>esc</kbd> Close</span></div>
+        </div>`;
+        document.body.appendChild(d);
         const input = d.querySelector('#sc-search-input');
         const out = d.querySelector('#sc-search-results');
-        input.focus();
-        let timer = null, seq = 0;
-        const run = async () => {
+        const count = d.querySelector('#sc-search-count');
+        const clear = d.querySelector('.sc-sq-clear');
+        let filter = 'all', hits = [], seq = 0, timer = null, active = 0;
+        const close = () => d.remove();
+        d.addEventListener('click', (e) => { if (e.target === d) close(); });
+
+        const team = () => (window.scGetTeam ? window.scGetTeam() : {}) || {};
+        const avatar = (h) => (window.scAvatarHtml ? window.scAvatarHtml(h) : '');
+        const stateOf = (h) => (window.scAgentState ? window.scAgentState(h) : 'offline');
+        const channels = () => (window.channelList || []).filter((c) => !String(c).startsWith('dm-'));
+        const mark = (text, q) => {
+            const s = String(text || '').replace(/\s+/g, ' ');
+            if (!q) return esc(s.slice(0, 160));
+            const i = s.toLowerCase().indexOf(q.toLowerCase());
+            const start = Math.max(0, i - 40);
+            const cut = (start ? '…' : '') + s.slice(start, start + 170);
+            const j = cut.toLowerCase().indexOf(q.toLowerCase());
+            if (j < 0) return esc(cut);
+            return esc(cut.slice(0, j)) + '<mark>' + esc(cut.slice(j, j + q.length)) + '</mark>' + esc(cut.slice(j + q.length));
+        };
+
+        function items(q) {
+            const ql = q.toLowerCase();
+            const people = Object.keys(team()).filter((h) => !q || h.includes(ql) || labelOf(h).toLowerCase().includes(ql))
+                .map((h) => ({ kind: 'person', h }));
+            const chans = channels().filter((c) => !q || c.includes(ql)).map((c) => ({ kind: 'channel', c }));
+            const msgs = q ? hits.map((m) => ({ kind: 'message', m })) : [];
+            return {
+                people: filter === 'all' || filter === 'people' ? people.slice(0, q ? 5 : 6) : [],
+                channels: filter === 'all' || filter === 'channels' ? chans.slice(0, q ? 5 : 8) : [],
+                messages: filter === 'all' || filter === 'messages' ? msgs : [],
+            };
+        }
+
+        function row(it, q, idx) {
+            if (it.kind === 'person') {
+                const st = stateOf(it.h);
+                return `<button type="button" class="sc-sr" data-i="${idx}"><span class="sc-sr-av">${avatar(it.h)}<span class="sc-sr-dot ${esc(st)}"></span></span>
+                    <span class="sc-sr-main"><span class="sc-sr-title">${mark(labelOf(it.h), q)}</span><span class="sc-sr-meta">@${esc(it.h)} · ${st === 'working' ? 'Working' : st === 'available' ? 'Online' : 'Not running'}</span></span>
+                    <span class="sc-sr-go">Message</span></button>`;
+            }
+            if (it.kind === 'channel') {
+                const n = ((window.scChannelMembers && window.scChannelMembers()[it.c]) || []).length;
+                return `<button type="button" class="sc-sr" data-i="${idx}"><span class="sc-sr-av sc-sr-icon">${ico.hash}</span>
+                    <span class="sc-sr-main"><span class="sc-sr-title">${mark(it.c, q)}</span><span class="sc-sr-meta">${n ? `${n} teammate${n === 1 ? '' : 's'}` : 'Channel'}</span></span>
+                    <span class="sc-sr-go">Open</span></button>`;
+            }
+            const m = it.m;
+            const ch = String(m.channel || 'general');
+            const where = ch.startsWith('dm-') ? `DM with ${esc(labelOf(ch.slice(3)))}` : `#${esc(ch)}`;
+            return `<button type="button" class="sc-sr sc-sr-msg" data-i="${idx}"><span class="sc-sr-av">${avatar(m.sender) || `<span class="sc-sr-initial">${esc(String(m.sender || '?').charAt(0).toUpperCase())}</span>`}</span>
+                <span class="sc-sr-main"><span class="sc-sr-meta"><b>${esc(labelOf(m.sender))}</b> · ${where} · ${esc(String(m.time || '').slice(0, 5))}</span>
+                <span class="sc-sr-text">${mark(m.text, q)}</span></span></button>`;
+        }
+
+        let flat = [];
+        function render() {
+            const q = input.value.trim();
+            clear.hidden = !q;
+            const g = items(q);
+            flat = [...g.people, ...g.channels, ...g.messages];
+            let idx = 0, html = '';
+            const group = (title, list) => {
+                if (!list.length) return;
+                html += `<div class="sc-sg">${title}</div>` + list.map((it) => row(it, q, idx++)).join('');
+            };
+            group(q ? 'People' : 'Teammates', g.people);
+            group('Channels', g.channels);
+            group('Messages', g.messages);
+            if (!flat.length) html = `<div class="sc-sr-empty">${q ? `Nothing matches “${esc(q)}”.` : 'No teammates or channels yet.'}</div>`;
+            if (q && filter !== 'people' && filter !== 'channels' && !g.messages.length && flat.length) html += '<div class="sc-sr-none">No messages match.</div>';
+            out.innerHTML = html;
+            const msgCount = g.messages.length;
+            count.textContent = q ? `${flat.length} result${flat.length === 1 ? '' : 's'}${msgCount >= 40 ? ' (newest 40 messages)' : ''}` : 'Type to search every channel';
+            active = Math.min(active, Math.max(0, flat.length - 1));
+            highlight();
+        }
+        function highlight() {
+            out.querySelectorAll('.sc-sr').forEach((b) => b.classList.toggle('on', Number(b.dataset.i) === active));
+            out.querySelector('.sc-sr.on')?.scrollIntoView({ block: 'nearest' });
+        }
+        function openItem(i) {
+            const it = flat[i];
+            if (!it) return;
+            close();
+            if (window.scCloseInbox) window.scCloseInbox();
+            if (it.kind === 'person') { window.scOpenDm && window.scOpenDm(it.h); return; }
+            const ch = it.kind === 'channel' ? it.c : String(it.m.channel || 'general');
+            if (ch !== window.activeChannel && typeof switchChannel === 'function' && (window.channelList || []).includes(ch)) switchChannel(ch);
+            if (it.kind === 'message') setTimeout(() => { location.hash = ''; location.hash = `#msg-${Number(it.m.id)}`; }, 150);
+        }
+        async function fetchHits() {
             const q = input.value.trim();
             const mine = ++seq;
-            if (!q) { out.innerHTML = ''; return; }
-            let hits = [];
-            try { hits = await api(`/api/scranton/search?q=${encodeURIComponent(q)}&limit=40`); } catch (_) { /* server restarting */ }
-            if (mine !== seq) return;   // a newer search is on the way
-            const ql = q.toLowerCase();
-            const mark = (t) => {
-                const s = String(t || '').replace(/\s+/g, ' ');
-                const i = s.toLowerCase().indexOf(ql);
-                const start = Math.max(0, i - 40);
-                const cut = (start ? '…' : '') + s.slice(start, start + 160);
-                if (i < 0) return esc(cut);
-                const j = cut.toLowerCase().indexOf(ql);
-                return esc(cut.slice(0, j)) + '<mark>' + esc(cut.slice(j, j + q.length)) + '</mark>' + esc(cut.slice(j + q.length));
-            };
-            out.innerHTML = hits.length ? hits.map((m) => `<button type="button" class="sc-sr" data-id="${Number(m.id)}" data-ch="${esc(m.channel || 'general')}">
-                <span class="sc-sr-meta"><b>${esc(labelOf(m.sender))}</b> · ${esc(String(m.channel || 'general').startsWith('dm-') ? 'DM' : '#' + (m.channel || 'general'))} · ${esc(m.time || '')}</span>
-                <span class="sc-sr-text">${mark(m.text)}</span></button>`).join('')
-                : '<div class="sc-sr-empty">No messages match.</div>';
-        };
-        input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(run, 180); });
+            if (!q) { hits = []; render(); return; }
+            try { hits = await fetch(`/api/scranton/search?q=${encodeURIComponent(q)}&limit=40`, { headers: { 'X-Session-Token': window.SESSION_TOKEN } }).then((r) => r.json()); }
+            catch (_) { hits = []; }
+            if (mine === seq) render();
+        }
+
+        input.addEventListener('input', () => { active = 0; render(); clearTimeout(timer); timer = setTimeout(fetchHits, 160); });
         input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') { const first = out.querySelector('.sc-sr'); if (first) { e.preventDefault(); first.click(); } }
-            if (e.key === 'ArrowDown') { const first = out.querySelector('.sc-sr'); if (first) { e.preventDefault(); first.focus(); } }
+            if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(active + 1, flat.length - 1); highlight(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(active - 1, 0); highlight(); }
+            else if (e.key === 'Enter') { e.preventDefault(); openItem(active); }
+            else if (e.key === 'Escape') { e.preventDefault(); close(); }
         });
-        out.addEventListener('keydown', (e) => {
-            const items = [...out.querySelectorAll('.sc-sr')];
-            const i = items.indexOf(document.activeElement);
-            if (e.key === 'ArrowDown' && i >= 0) { e.preventDefault(); items[Math.min(i + 1, items.length - 1)].focus(); }
-            if (e.key === 'ArrowUp' && i >= 0) { e.preventDefault(); (i === 0 ? input : items[i - 1]).focus(); }
+        out.addEventListener('mousemove', (e) => { const b = e.target.closest('.sc-sr'); if (b && Number(b.dataset.i) !== active) { active = Number(b.dataset.i); highlight(); } });
+        out.addEventListener('click', (e) => { const b = e.target.closest('.sc-sr'); if (b) openItem(Number(b.dataset.i)); });
+        clear.addEventListener('click', () => { input.value = ''; hits = []; render(); input.focus(); });
+        d.querySelector('.sc-sf').addEventListener('click', (e) => {
+            const b = e.target.closest('[data-f]'); if (!b) return;
+            filter = b.dataset.f; active = 0;
+            d.querySelectorAll('.sc-sf button').forEach((x) => x.classList.toggle('on', x === b));
+            render(); input.focus();
         });
-        out.addEventListener('click', (e) => {
-            const b = e.target.closest('.sc-sr');
-            if (!b) return;
-            d.remove();
-            const ch = b.dataset.ch;
-            if (window.scCloseInbox) window.scCloseInbox();
-            if (ch !== window.activeChannel && typeof switchChannel === 'function' && (window.channelList || []).includes(ch)) switchChannel(ch);
-            // Wait for the channel to render, then open the message (and its thread).
-            setTimeout(() => { location.hash = ''; location.hash = `#msg-${b.dataset.id}`; }, 150);
-        });
+        render();
+        input.focus();
     }
 
     function init() {

@@ -120,12 +120,18 @@ function renderChannelSidebar() {
         row.className = 'channel-sidebar-row' + (name === window.activeChannel ? ' active' : '');
         row.dataset.channel = name;
 
+        // Scranton: "#" as its own muted glyph; bold only when unread
+        const hash = document.createElement('span');
+        hash.className = 'sc-hash';
+        hash.textContent = '#';
+        row.appendChild(hash);
         const label = document.createElement('span');
         label.className = 'channel-sidebar-row-label';
-        label.textContent = '# ' + name;
+        label.textContent = name;
         row.appendChild(label);
 
         const unread = window.channelUnread[name] || 0;
+        if (unread > 0 && name !== window.activeChannel) row.classList.add('has-unread');
         if (unread > 0 && name !== window.activeChannel) {
             const dot = document.createElement('span');
             dot.className = 'channel-sidebar-row-unread';

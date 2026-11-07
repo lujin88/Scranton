@@ -2402,6 +2402,8 @@ async def scranton_search(q: str = "", limit: int = 30):
     limit = max(1, min(int(limit or 30), 100))
     hits = []
     for m in reversed(store.get_since(0)):
+        if m.get("sender") == "system" or m.get("type") == "system":
+            continue
         if needle in str(m.get("text", "")).lower() or needle in str(m.get("sender", "")).lower():
             hits.append({k: m.get(k) for k in ("id", "sender", "text", "channel", "time", "timestamp", "reply_to")})
             if len(hits) >= limit:
