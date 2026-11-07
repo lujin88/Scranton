@@ -186,15 +186,16 @@
     // ---------------------------------------------------------------- Connections
     function connectionsView(list) {
         if (!Array.isArray(list)) return '<p class="sc-st-note">Couldn\'t check. Is Scranton running?</p>';
-        const badge = { claude: ['C', '#d97757'], codex: ['G', '#10a37f'], cursor: ['Cu', '#3b3b3b'] };
+        // Brand marks from Remix Icon's Logos set, on each brand's own colour
+        const badge = { claude: ['claude', '#d97757', '#fff'], codex: ['openai', '#ffffff', '#000'], cursor: ['cursor-ai', '#000000', '#fff'] };
         return `<header class="sc-st-head"><h2>Connections</h2><p>Agents run on the apps you already pay for. Sign in once per app. No API keys.</p></header>
             <div class="sc-conn">${list.map((c) => {
-                const [b, col] = badge[c.id] || ['?', '#444'];
+                const [b, col, fg] = badge[c.id] || ['robot', '#444', '#fff'];
                 const status = !c.installed ? ['missing', 'Not installed'] : c.connected === true ? ['ok', `Connected${c.account ? ' · ' + esc(c.account) : ''}`]
                     : c.connected === false ? ['off', c.account ? esc(c.account) : 'Not signed in'] : ['unknown', 'Installed'];
                 const used = c.teammates.length ? `${c.teammates.length} agent${c.teammates.length === 1 ? '' : 's'}: ${c.teammates.map((h) => esc(label(h))).join(', ')}` : 'No agents use it yet';
                 return `<div class="sc-conn-r">
-                    <span class="sc-conn-logo" style="background:${col}">${b}</span>
+                    <span class="sc-conn-logo" style="background:${col};color:${fg}">${icon(b, 22)}</span>
                     <span class="sc-conn-txt"><b>${esc(c.name)}</b><small>${esc(c.plan)} · ${used}</small></span>
                     <span class="sc-pill ${status[0]}">${status[1]}</span>
                     ${c.installed ? `<button type="button" class="sc-btn${c.connected === true ? '' : ' primary'}" data-connect="${esc(c.id)}">${c.connected === true ? 'Sign in again' : 'Connect'}</button>`

@@ -1317,3 +1317,4 @@ body.sc-in-dm #mention-toggles-row > #sc-attach-btn { display: grid !important; 
     background: none; color: var(--text); font: inherit; font-size: 14px; text-align: left; }
 #sc-dm-pop button:hover { background: rgba(255, 255, 255, 0.06); }
 @media (hover: none) { .sc-dm-x { display: grid; } }
+.sc-conn-logo { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
