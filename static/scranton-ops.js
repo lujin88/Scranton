@@ -127,6 +127,39 @@
         };
     }
 
+    // --- new models -------------------------------------------------------
+    // When an app offers a model you haven't seen, offer it as that app's default.
+    function showNewModels(map) {
+        document.querySelectorAll('[id^="sc-newmodel-"]').forEach((el) => { if (!map || !map[el.id.slice(12)]) el.remove(); });
+        for (const [pid, info] of Object.entries(map || {})) {
+            const [id, name] = info.models[0];
+            const more = info.models.length > 1 ? ` (+${info.models.length - 1} more)` : '';
+            const b = banner(`sc-newmodel-${pid}`,
+                `<button type="button" class="sc-card-x" data-a="seen" aria-label="Not now">✕</button>`
+                + `<div class="sc-card-title">New model: ${esc(name)}</div>`
+                + `<div class="sc-card-sub">${esc(info.name)}${esc(more)} · make it the default for your ${esc(info.name)} agents?</div>`
+                + `<button type="button" class="sc-card-btn" data-a="use">Use as default</button>`, 'info');
+            b.onclick = async (e) => {
+                const a = e.target.closest('[data-a]')?.dataset.a;
+                if (!a) return;
+                try {
+                    if (a === 'use') {
+                        await api(`/api/scranton/connections/${pid}/default`, { model: id });
+                        b.innerHTML = `<div class="sc-card-title">${esc(name)} is the default</div><div class="sc-card-sub">Agents pick it up the next time they start. Change it in Settings → Connections.</div>`;
+                        setTimeout(() => drop(b.id), 6000);
+                    }
+                    await api(`/api/scranton/models/${pid}/seen`, {});
+                    if (a === 'seen') drop(b.id);
+                } catch (_) {
+                    const sub = b.querySelector('.sc-card-sub'); if (sub) sub.textContent = 'Couldn\'t reach Scranton. Is it running?';
+                }
+            };
+        }
+    }
+    async function pollModels() {
+        try { showNewModels(await api('/api/scranton/models/new')); } catch (_) { /* server restarting */ }
+    }
+
     async function poll() {
         try {
             const s = await api('/api/scranton/status');
@@ -153,6 +186,8 @@
     function init() {
         poll();
         setInterval(poll, 60 * 1000);
+        setTimeout(pollModels, 3000);
+        setInterval(pollModels, 30 * 60 * 1000);   // model lists change rarely
         // after a reconnect (Mac woke up, server restarted) check right away
         document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
     }

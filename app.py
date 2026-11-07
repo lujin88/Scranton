@@ -2450,6 +2450,21 @@ async def scranton_connection_login(provider: str):
     return JSONResponse(await asyncio.to_thread(_sc_team.open_login, provider))
 
 
+@app.get("/api/scranton/models/new")
+async def scranton_models_new():
+    """New models an app offers since you last looked (for the 'new model' card)."""
+    return JSONResponse(await asyncio.to_thread(_sc_team.new_models))
+
+
+@app.post("/api/scranton/models/{provider}/seen")
+async def scranton_models_seen(provider: str):
+    try:
+        await asyncio.to_thread(_sc_team.mark_models_seen, provider)
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    return JSONResponse({"ok": True})
+
+
 @app.post("/api/scranton/connections/{provider}/default")
 async def scranton_connection_default(provider: str, request: Request):
     """Default model for this app's agents (applies the next time each one starts)."""

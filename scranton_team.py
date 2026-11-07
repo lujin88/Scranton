@@ -271,6 +271,55 @@ def connections(config: dict) -> list[dict]:
     return out
 
 
+SEEN_MODELS = ROOT / "data" / "models-seen.json"
+
+
+def _model_ids(pid: str) -> list[list[str]]:
+    return [[m[0], m[1]] for m in models_for(pid) if m and m[0]]
+
+
+def new_models() -> dict:
+    """Models an app offers now that you haven't been told about yet, per app.
+    The first time an app is seen, its whole list is recorded silently."""
+    try:
+        seen = json.loads(SEEN_MODELS.read_text("utf-8"))
+    except (OSError, ValueError):
+        seen = {}
+    out, changed = {}, False
+    for pid in PROVIDERS:
+        if pid == "cursor" and not any(shutil.which(c) for c in PROVIDERS[pid]["commands"]):
+            continue
+        cur = _model_ids(pid)
+        if pid not in seen:
+            seen[pid] = [m[0] for m in cur]
+            changed = True
+            continue
+        fresh = [m for m in cur if m[0] not in set(seen[pid])]
+        if fresh:
+            out[pid] = {"name": PROVIDERS[pid]["name"], "models": fresh, "default": provider_defaults().get(pid, "")}
+    if changed:
+        _write_json(SEEN_MODELS, seen)
+    return out
+
+
+def mark_models_seen(pid: str) -> None:
+    if pid not in PROVIDERS:
+        raise ValueError("unknown app")
+    try:
+        seen = json.loads(SEEN_MODELS.read_text("utf-8"))
+    except (OSError, ValueError):
+        seen = {}
+    seen[pid] = sorted(set(seen.get(pid, [])) | {m[0] for m in _model_ids(pid)})
+    _write_json(SEEN_MODELS, seen)
+
+
+def _write_json(path: Path, data) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), "utf-8")
+    os.replace(tmp, path)
+
+
 def provider_defaults() -> dict:
     d = load_overrides().get("_defaults")
     return d if isinstance(d, dict) else {}

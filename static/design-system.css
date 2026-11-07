@@ -293,3 +293,6 @@ body.sc-inbox-visible #sc-empty-room { display: none; }
 .sc-wl-hide:hover { background: var(--ds-hover); color: var(--ds-text); }
 body.sc-welcome-open #sc-empty-room { display: none; }
 #sc-start-row .sc-start-count { margin-left: auto; color: var(--ds-text-3); font-size: var(--ds-fs-xs); }
+/* sidebar cards (update, resume, new model): filled, no outline */
+.sc-card { border: 0 !important; background: var(--ds-overlay) !important; border-radius: var(--ds-r-card) !important; }
+.sc-card-btn { border-radius: var(--ds-r-control) !important; }
