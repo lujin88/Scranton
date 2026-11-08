@@ -128,7 +128,8 @@
         const id = Number(msg.id);
         byId.set(id, msg);
         const el = findEl(id, container);
-        if (el && (msg.type || 'chat') === 'chat') {
+        if (el && String(msg.sender) === 'system') { try { paintPause(el, msg); } catch (_) {} }
+        if (el && (msg.type || 'chat') === 'chat' && String(msg.sender) !== 'system') {
             el.classList.add('sc-msg');
             addToolbar(el, id);
             relabel(el, msg);
@@ -224,10 +225,8 @@
         const bar = document.createElement('div');
         bar.className = 'sc-tools';
         bar.innerHTML = `<button type="button" data-act="react" title="Add reaction (E)">${ICONS.react}</button>`
-            + `<button type="button" data-act="reply" title="Reply here (R)">${ICONS.reply}</button>`
+            + `<button type="button" data-act="reply" title="Quote in your reply (R)">${ICONS.reply}</button>`
             + `<button type="button" data-act="thread" title="Reply in thread (T)">${ICONS.thread}</button>`
-            + `<button type="button" data-act="link" title="Copy link">${ICONS.link}</button>`
-            + `<button type="button" data-act="forward" title="Forward message">${ICONS.forward}</button>`
             + `<button type="button" data-act="more" title="More">${ICONS.more}</button>`;
         bar.querySelectorAll('button').forEach((b) => b.setAttribute('aria-label', b.title.replace(/ \(.\)$/, '')));
         bar.dataset.mid = id;
@@ -336,12 +335,9 @@
         const m = byId.get(id);
         if (!m) return;
         const items = [
+            ['copy', 'Copy text'],
+            ['forward', 'Forward to another channel'],
             ['unread', 'Mark unread'],
-            ['copy', 'Copy message'],
-            ['link', 'Copy link'],
-            ['forward', 'Forward message'],
-            ['reply', 'Reply here'],
-            ['thread', 'Reply in thread'],
             ['delete', 'Delete message', 'danger'],
         ];
         const pop = popAt(anchor, items.map(([k, label, cls]) =>
@@ -578,6 +574,74 @@
         });
         col.querySelector('.msg-text')?.after(wrap);
     }
+
+    // Loop guard: "The agents passed this back and forth N times, so I paused them…" becomes a
+    // card that says what happened and offers the two answers as buttons. It turns into a
+    // one-line note once someone lets them continue (a later "… let the agents continue.").
+    const PAUSE_RE = /passed this back and forth (\d+) times, so I paused them/i;
+    const pausedAt = new Map();   // channel -> id of the latest unanswered pause
+    function paintPause(el, msg) {
+        const text = String(msg.text || '');
+        const ch = msg.channel || 'general';
+        if (/let the agents continue\.$/.test(text)) {
+            for (const [c, pid] of pausedAt) if (c === ch && pid < Number(msg.id)) { pausedAt.delete(c); resolvePause(pid, 'continued'); }
+            updateComposerHint();
+            return;
+        }
+        const m = PAUSE_RE.exec(text);
+        if (!m || el.querySelector('.sc-pause')) return;
+        const id = Number(msg.id);
+        let kept = false;
+        try { kept = (JSON.parse(localStorage.getItem('scranton-pause-kept') || '[]')).includes(id); } catch (_) {}
+        el.classList.add('sc-pause-msg');
+        el.innerHTML = `<div class="sc-pause" data-pause="${id}">
+            <div class="sc-pause-h">${window.scIcon ? window.scIcon('hourglass', 18) : ''}<b>Agents paused</b></div>
+            <p>They handed this back and forth ${Number(m[1])} times without you, so I stopped them before they use up your plan on a loop. Read the last few messages, then choose.</p>
+            <div class="sc-pause-act"><button type="button" class="sc-btn primary sm" data-pa="go">Let them continue</button><button type="button" class="sc-btn sm" data-pa="keep">Keep paused</button></div>
+            <p class="sc-pause-done" hidden></p></div>`;
+        el.querySelector('.sc-pause').addEventListener('click', (e) => {
+            const a = e.target.closest('[data-pa]')?.dataset.pa;
+            if (!a) return;
+            if (a === 'go' && window.ws && window.ws.readyState === WebSocket.OPEN) {
+                window.ws.send(JSON.stringify({ type: 'message', text: '/continue', sender: me(), channel: ch, attachments: [] }));
+            }
+            if (a === 'keep') {
+                try { const k = JSON.parse(localStorage.getItem('scranton-pause-kept') || '[]'); k.push(id); localStorage.setItem('scranton-pause-kept', JSON.stringify(k.slice(-50))); } catch (_) {}
+                pausedAt.delete(ch); resolvePause(id, 'kept'); updateComposerHint();
+            }
+        });
+        if (kept) { resolvePause(id, 'kept'); return; }
+        if (!pausedAt.has(ch) || pausedAt.get(ch) < id) pausedAt.set(ch, id);
+        updateComposerHint();
+    }
+    function resolvePause(id, how) {
+        const card = document.querySelector(`.sc-pause[data-pause="${id}"]`);
+        if (!card) return;
+        card.classList.add('done');
+        card.querySelector('.sc-pause-act')?.setAttribute('hidden', '');
+        const done = card.querySelector('.sc-pause-done');
+        done.hidden = false;
+        done.textContent = how === 'continued' ? 'Resumed.' : 'Kept paused. Type /continue whenever you want them to go on.';
+    }
+    // The likely next step goes in the empty message box as a hint; Tab types it (like ChatGPT).
+    function updateComposerHint() {
+        const input = document.getElementById('input');
+        if (!input) return;
+        if (!input.placeholder.startsWith('/continue')) input.dataset.scBasePh = input.placeholder;
+        const paused = pausedAt.has(window.activeChannel || 'general');
+        input.dataset.scSuggest = paused ? '/continue' : '';
+        input.placeholder = paused ? '/continue   (Tab) let the agents go on' : input.dataset.scBasePh;
+        input.classList.toggle('sc-has-suggest', paused);
+    }
+    window.scUpdateComposerHint = updateComposerHint;
+    document.addEventListener('keydown', (e) => {
+        const input = document.getElementById('input');
+        if (e.key !== 'Tab' || e.shiftKey || document.activeElement !== input) return;
+        if (input.value || !input.dataset.scSuggest) return;
+        e.preventDefault();
+        input.value = input.dataset.scSuggest;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    }, true);
 
     function paintStuck(el, msg) {
         // Every "I stopped…" post from a teammate gets a way to look at its terminal.

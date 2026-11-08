@@ -371,6 +371,7 @@
             composer.placeholder = isDm(ch)
                 ? `Message ${window.scLabelOf ? window.scLabelOf(ch.slice(3)) : ch.slice(3)} directly`
                 : `Message #${ch} · @ to assign`;
+            if (window.scUpdateComposerHint) window.scUpdateComposerHint();
         }
     }
 

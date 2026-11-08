@@ -836,3 +836,21 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 .sc-dm-empty { color: var(--ds-text-2) !important; }
 .sc-dm-empty .sc-dm-avatar { display: grid; place-items: center; border-radius: 50%; background: var(--ds-hover); color: var(--ds-text-2); }
 #sc-dm-pop { max-height: min(420px, 70vh); overflow-y: auto; }
+
+/* Loop-guard pause: a card with the two answers, not a sentence with a command in it */
+.message.sc-pause-msg { display: flex; justify-content: center; background: none !important; }
+.sc-pause { max-width: 520px; width: 100%; padding: var(--ds-4); border-radius: var(--ds-r-card); background: var(--ds-raised);
+    box-shadow: 0 0 0 1px rgba(var(--ink), 0.06); color: var(--ds-text); font-size: var(--ds-fs-md); }
+.sc-pause-h { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; color: var(--ds-warn-text); }
+.sc-pause-h b { color: var(--ds-text); font-weight: 600; }
+.sc-pause p { margin: 0; color: var(--ds-text-2); line-height: 1.5; }
+.sc-pause-act { display: flex; gap: 8px; margin-top: var(--ds-3); }
+.sc-pause.done { padding: var(--ds-2) var(--ds-4); }
+.sc-pause.done > p:not(.sc-pause-done) { display: none; }
+.sc-pause.done .sc-pause-done { margin-top: 2px; }
+#input.sc-has-suggest::placeholder { color: var(--ds-text-2); }
+.sc-pause, .sc-pause p { text-align: left; }
+#channel-sidebar-top { padding: 0 10px !important; }
+#channel-sidebar-top > * { margin: 6px 0; }
+/* Grok Bot: the tool icons sit close to the first row */
+#sc-side-tools { padding-bottom: 6px !important; }
