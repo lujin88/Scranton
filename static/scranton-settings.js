@@ -34,7 +34,7 @@
     const stText = (h) => ({ working: 'Working', available: 'Online' }[state(h)] || 'Not running');
 
     const NAV = [
-        ['Account', [['profile', 'Profile', 'user']]],
+        ['Account', [['profile', 'Profile', 'user'], ['appearance', 'Appearance', 'sun']]],
         ['Workspace', [['agents', 'Agents', 'robot'], ['connections', 'Connections', 'plug'], ['shortcuts', 'Shortcuts', 'flashlight'], ['history', 'Chat history', 'time']]],
     ];
 
@@ -103,6 +103,7 @@
         }
         if (section === 'connections') { body.innerHTML = '<div class="sc-st-loading">Checking sign-ins…</div>'; body.innerHTML = connectionsView(await api('/api/scranton/connections')); }
         if (section === 'updates') body.innerHTML = updatesView();
+        if (section === 'appearance') body.innerHTML = appearanceView();
         if (section === 'shortcuts') { body.innerHTML = shortcutsView(null); scItems = await api('/api/scranton/shortcuts'); if (root && section === 'shortcuts') body.innerHTML = shortcutsView(scItems); }
         if (section === 'history') { body.innerHTML = historyView(null); const b = await api('/api/scranton/backup'); if (root && section === 'history') body.innerHTML = historyView(b); }
         if (section === 'agents' && agentOpen) {
@@ -112,6 +113,15 @@
     }
 
     // ---------------------------------------------------------------- Profile
+    // ---------------------------------------------------------------- Appearance
+    function appearanceView() {
+        const cur = window.scTheme ? window.scTheme.get() : 'system';
+        const opt = (id, name, note) => `<button type="button" class="sc-theme-opt${cur === id ? ' on' : ''}" data-theme-pick="${id}" aria-pressed="${cur === id}">
+            <span class="sc-theme-pv ${id}"><i></i><b></b><b></b></span><span class="sc-theme-name">${name}</span><span class="sc-theme-note">${note}</span></button>`;
+        return `<header class="sc-st-head"><h2>Appearance</h2><p>Saved on this browser, so your phone can look different from your Mac.</p></header>
+            <div class="sc-theme-opts" role="group" aria-label="Theme">${opt('system', 'System', 'Follows your Mac')}${opt('light', 'Light', '')}${opt('dark', 'Dark', '')}</div>`;
+    }
+
     function profileView() {
         const pic = window.scMyAvatarHtml ? window.scMyAvatarHtml() : '';
         let hasPic = false;
@@ -443,6 +453,8 @@
         if (e.target === root) { close(); return; }
         const t = e.target;
         if (t.closest('.sc-st-x')) { close(); return; }
+        const th = t.closest('[data-theme-pick]');
+        if (th && window.scTheme) { window.scTheme.set(th.dataset.themePick); root.querySelector('.sc-st-body').innerHTML = appearanceView(); return; }
         const nav = t.closest('[data-nav]');
         if (nav) { section = nav.dataset.nav; agentOpen = null; renderNav(); render(); return; }
         const a = t.closest('[data-a]')?.dataset.a;

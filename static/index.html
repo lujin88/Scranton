@@ -1,6 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>
+    /* Theme before first paint, so a light page never flashes dark. */
+    (function () {
+        var KEY = 'scranton-theme', mq = window.matchMedia('(prefers-color-scheme: light)');
+        function get() { try { return localStorage.getItem(KEY) || 'system'; } catch (e) { return 'system'; } }
+        function apply() { var v = get(); document.documentElement.dataset.theme = v === 'system' ? (mq.matches ? 'light' : 'dark') : v; }
+        apply();
+        if (mq.addEventListener) mq.addEventListener('change', apply);
+        window.scTheme = { get: get, set: function (v) { try { localStorage.setItem(KEY, v); } catch (e) {} apply(); } };
+    })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scranton</title>
@@ -411,7 +422,7 @@
             </aside>
         </div>
 
-        <div id="scroll-anchor" class="hidden" onclick="scrollToBottom()"><span class="unread-badge">0</span><span class="ri-wrap" data-ri="chevron-down" data-size="18"></span></div>
+        <div id="scroll-anchor" class="hidden" onclick="scrollToBottom()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();scrollToBottom()}" role="button" tabindex="0" aria-label="Jump to latest"><span class="unread-badge">0</span><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 16.17L18.36 10.81L19.78 12.22L12 20L4.22 12.22L5.64 10.81L11 16.17V4H13V16.17Z"/></svg></div>
 
     </div>
 
@@ -432,6 +443,7 @@
     <script src="/static/scranton.js?v=99"></script>
     <script src="/static/scranton-nav.js?v=9121"></script>
     <script src="/static/scranton-chat.js?v=20"></script>
+    <script src="/static/scranton-mention-hl.js"></script>
     <script src="/static/scranton-channel-order.js?v=2"></script>
     <script src="/static/scranton-members.js?v=63"></script>
     <script src="/static/scranton-settings.js?v=25"></script>

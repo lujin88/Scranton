@@ -761,6 +761,8 @@ function connectWebSocket() {
 
     ws.onopen = () => {
         console.log('WebSocket connected');
+        // Scranton: after a server restart (e.g. an update), reload if the page is out of date.
+        if (window.scCheckBuild) window.scCheckBuild();
         if (reconnectTimer) {
             clearTimeout(reconnectTimer);
             reconnectTimer = null;
@@ -1179,7 +1181,7 @@ function repositionScrollAnchor() {
     if (!anchor) return;
     const footer = document.querySelector('footer');
     if (footer) {
-        anchor.style.bottom = (footer.offsetHeight + 12) + 'px';
+        anchor.style.bottom = (footer.offsetHeight + 16) + 'px';
     }
     const timeline = document.getElementById('timeline');
     if (timeline) {

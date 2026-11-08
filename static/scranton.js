@@ -347,6 +347,9 @@
         const chips = document.getElementById('mention-toggles-row');
         const row = document.getElementById('input-row');
         if (chips && row && chips.parentElement !== row) row.appendChild(chips);
+        // Files waiting to be sent sit inside the composer card, above the text (as in Grok Bot).
+        const atts = document.getElementById('attachments');
+        if (atts && row && atts.parentElement !== row) row.prepend(atts);
         addAttachButton(chips);
         addShortcutButton(chips);
         renderTeam();
@@ -363,6 +366,34 @@
             closeDrawers();
         });
     }
+
+    // A tab left open across an update keeps running the old code in memory; the server
+    // reconnects quietly, so nothing tells you. Compare builds and reload when they differ:
+    // right away if you're not in the middle of something, else ask with a toast.
+    let buildAsked = false;
+    async function checkBuild() {
+        const mine = window.__SC_BUILD__;
+        if (!mine) return;
+        let now = null;
+        try {
+            const r = await fetch('/api/scranton/build', { headers: { 'X-Session-Token': SESSION_TOKEN }, cache: 'no-store' });
+            if (r.ok) now = (await r.json()).build;
+        } catch (_) { return; }
+        if (!now || now === mine) return;
+        const typing = ['input', 'sc-thread-input'].some((id) => { const el = document.getElementById(id); return el && el.value.trim(); });
+        const busy = typing || document.querySelector('#sc-settings, .sc-modal-open, [aria-modal="true"]:not([hidden])');
+        if (!busy) { location.reload(); return; }
+        if (buildAsked) return;
+        buildAsked = true;
+        const t = document.createElement('div');
+        t.className = 'sc-update-toast'; t.setAttribute('role', 'status');
+        t.innerHTML = '<span>Scranton was updated.</span><button type="button" class="sc-btn primary sm">Reload</button>';
+        t.querySelector('button').onclick = () => location.reload();
+        document.body.appendChild(t);
+    }
+    window.scCheckBuild = checkBuild;
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkBuild(); });
+    setInterval(checkBuild, 120000);
 
     // Shared with scranton-nav.js
     window.scGetTeam = () => scTeam;

@@ -96,7 +96,29 @@ def main():
     from fastapi.staticfiles import StaticFiles
     from fastapi.responses import HTMLResponse
 
+    from fastapi.responses import JSONResponse
     static_dir = ROOT / "static"
+
+    def _build_id():
+        # Changes whenever any page file or the server code changes: the open page compares
+        # it on reconnect and reloads, so a tab left open across an update never runs old code.
+        newest = 0
+        for pat in ("*.js", "*.css", "*.html"):
+            for f in static_dir.glob(pat):
+                try:
+                    newest = max(newest, int(f.stat().st_mtime))
+                except OSError:
+                    pass
+        for f in ROOT.glob("*.py"):
+            try:
+                newest = max(newest, int(f.stat().st_mtime))
+            except OSError:
+                pass
+        return str(newest)
+
+    @app.get("/api/scranton/build")
+    async def build_id():
+        return JSONResponse({"build": _build_id()}, headers={"Cache-Control": "no-store"})
 
     @app.get("/")
     async def index():
@@ -117,7 +139,7 @@ def main():
         html = _re2.sub(r'((?:src|href)="/static/)([^"?]+\.(?:js|css))(?:\?v=[^"]*)?(")', _stamp, html)
         injected = html.replace(
             "</head>",
-            f'<script>window.__SESSION_TOKEN__="{session_token}";</script>\n</head>',
+            f'<script>window.__SESSION_TOKEN__="{session_token}";window.__SC_BUILD__="{_build_id()}";</script>\n</head>',
         )
         return HTMLResponse(injected, headers={"Cache-Control": "no-store"})
 

@@ -3,33 +3,86 @@
    Spacing, radius and components follow Claude's restrained system.
    Documentation: docs/design-system.md. Icons: Remix Icon only (static/scranton-icons.js). */
 
+/* theme-tokens:start
+   Every grey in our CSS is var(--tone-XX), XX = its dark hex byte. Dark values
+   are the originals; light values are set by hand (Grok Bot light as reference),
+   not inverted, so surfaces stay white and text stays near-black. */
+:root, :root[data-theme="dark"] {
+    color-scheme: dark;
+    --tone-0e: #0e0e0e; --tone-10: #101010; --tone-12: #121212; --tone-1a: #1a1a1a;
+    --tone-1c: #1c1c1c; --tone-1f: #1f1f1f; --tone-20: #202020; --tone-21: #212121;
+    --tone-22: #222222; --tone-23: #232323; --tone-24: #242424; --tone-26: #262626;
+    --tone-2a: #2a2a2a; --tone-2c: #2c2c2c; --tone-2e: #2e2e2e; --tone-33: #333333;
+    --tone-3a: #3a3a3a; --tone-3c: #3c3c3c; --tone-40: #404040; --tone-4a: #4a4a4a;
+    --tone-55: #555555; --tone-5a: #5a5a5a; --tone-6e: #6e6e6e; --tone-70: #707070;
+    --tone-8a: #8a8a8a; --tone-8c: #8c8c8c; --tone-a4: #a4a4a4; --tone-a7: #a7a7a7;
+    --tone-c7: #c7c7c7; --tone-f5: #f5f5f5;
+    --ink: 255, 255, 255;         /* hover tints and hairlines: white on dark */
+    --float: 38, 38, 38;          /* translucent floating pills */
+    --ds-ok-text: #8ce99a; --ds-err-text: #f8a39d; --ds-warn-text: #f0cb6b;
+    --ds-link-text: #9cc0fa; --ds-pic-bg: #3a3f22;
+    --ds-mention-bg: rgba(76, 141, 246, 0.18);
+    --ds-scroll: rgba(255, 255, 255, 0.22);
+    --ds-scroll-hover: rgba(255, 255, 255, 0.38);
+}
+:root[data-theme="light"] {
+    color-scheme: light;
+    --tone-0e: #f7f7f7; --tone-10: #f5f5f5; --tone-12: #ffffff; --tone-1a: #ffffff;
+    --tone-1c: #f4f4f4; --tone-1f: #f1f1f1; --tone-20: #ebebeb; --tone-21: #f1f1f1;
+    --tone-22: #ededed; --tone-23: #ececec; --tone-24: #eaeaea; --tone-26: #e8e8e8;
+    --tone-2a: #e4e4e4; --tone-2c: #ffffff; --tone-2e: #e0e0e0; --tone-33: #dcdcdc;
+    --tone-3a: #d4d4d4; --tone-3c: #e9e9e9; --tone-40: #cccccc; --tone-4a: #d6d6d6;
+    --tone-55: #a3a3a3; --tone-5a: #9c9c9c; --tone-6e: #8a8a8a; --tone-70: #808080;
+    --tone-8a: #6f6f6f; --tone-8c: #6b6b6b; --tone-a4: #5e5e5e; --tone-a7: #5c5c5c;
+    --tone-c7: #3d3d3d; --tone-f5: #141414;
+    --ink: 0, 0, 0;
+    --float: 255, 255, 255;
+    --ds-ok-text: #1a7f37; --ds-err-text: #c4382e; --ds-warn-text: #9a6700;
+    --ds-link-text: #1f5fc9; --ds-pic-bg: #eef1dc;
+    --ds-mention-bg: rgba(76, 141, 246, 0.14);
+    --ds-scroll: rgba(0, 0, 0, 0.18);
+    --ds-scroll-hover: rgba(0, 0, 0, 0.32);
+    --ds-shadow: 0 8px 28px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.06);
+    --ds-accent-hover: #2f6fde;
+    --ds-online: #1f9d3a; --ds-away: #b98900; --ds-danger: #d1453b;
+    /* upstream style.css names that design-system.css doesn't remap */
+    --bg-header: #f7f7f7; --bg-msg: #ffffff; --bg-msg-hover: #f6f6f6; --bg-elevated: #ffffff;
+    --bg-subtle: rgba(0, 0, 0, 0.03); --bg-overlay: rgba(0, 0, 0, 0.35);
+    --border-subtle: rgba(0, 0, 0, 0.07);
+    --text-system: #6b6b6b; --text-muted: #3d3d3d; --system-color: #6b6b6b;
+    --white-02: rgba(0, 0, 0, 0.02); --white-03: rgba(0, 0, 0, 0.03); --white-06: rgba(0, 0, 0, 0.05);
+    --white-08: rgba(0, 0, 0, 0.06); --white-10: rgba(0, 0, 0, 0.08); --white-12: rgba(0, 0, 0, 0.09);
+    --white-15: rgba(0, 0, 0, 0.11);
+}
+/* theme-tokens:end */
+
 :root {
     /* ---- Surfaces: separate areas by tone, not by lines ---- */
-    --ds-canvas: #0e0e0e;        /* sidebar (darkest) */
-    --ds-surface: #121212;       /* conversation, details panel */
-    --ds-raised: #1f1f1f;        /* cards, grouped lists, composer */
-    --ds-bubble: #212121;        /* agent bubbles */
-    --ds-selected: #202020;      /* selected sidebar row */
-    --ds-field: #1f1f1f;         /* composer, inputs, selects */
-    --ds-overlay: #2c2c2c;       /* menus, popovers, floating pills */
-    --ds-hover: rgba(255, 255, 255, 0.05);
-    --ds-active: rgba(255, 255, 255, 0.08);
+    --ds-canvas: var(--tone-0e);        /* sidebar (darkest) */
+    --ds-surface: var(--tone-12);       /* conversation, details panel */
+    --ds-raised: var(--tone-1f);        /* cards, grouped lists, composer */
+    --ds-bubble: var(--tone-21);        /* agent bubbles */
+    --ds-selected: var(--tone-20);      /* selected sidebar row */
+    --ds-field: var(--tone-1f);         /* composer, inputs, selects */
+    --ds-overlay: var(--tone-2c);       /* menus, popovers, floating pills */
+    --ds-hover: rgba(var(--ink), 0.05);
+    --ds-active: rgba(var(--ink), 0.08);
 
     /* ---- Lines: hairlines only, and only when two equal tones touch ---- */
-    --ds-line: #1f1f1f;          /* = raised tone: reads as a seam, not a line */
-    --ds-line-strong: rgba(255, 255, 255, 0.10);   /* focus rings on fields */
+    --ds-line: var(--tone-1f);          /* = raised tone: reads as a seam, not a line */
+    --ds-line-strong: rgba(var(--ink), 0.10);   /* focus rings on fields */
 
     /* ---- Text ---- */
-    --ds-text: #f5f5f5;
-    --ds-text-2: #a7a7a7;        /* secondary: meta, handles, hints */
-    --ds-text-3: #707070;        /* tertiary: timestamps, disabled */
+    --ds-text: var(--tone-f5);
+    --ds-text-2: var(--tone-a7);        /* secondary: meta, handles, hints */
+    --ds-text-3: var(--tone-70);        /* tertiary: timestamps, disabled */
 
     /* ---- Accent (Grok blue): actions, unread, on-states, your messages ---- */
     --ds-accent: #4c8df6;
     --ds-accent-hover: #6aa1f8;
     --ds-on-accent: #ffffff;
-    --ds-accent-soft: #3c3c3c;   /* your bubble: lightest grey, as in Grok Bot */
-    --ds-accent-chip: #4a4a4a;   /* @chips inside your bubble */
+    --ds-accent-soft: var(--tone-3c);   /* your bubble: lightest grey, as in Grok Bot */
+    --ds-accent-chip: var(--tone-4a);   /* @chips inside your bubble */
 
     /* ---- Status ---- */
     --ds-online: #3fb950;
@@ -106,13 +159,13 @@ body.sc-info-open #sc-info { border-left: 1px solid var(--ds-line); }
 #input-row { background: var(--ds-field) !important; border: 1px solid transparent !important; border-radius: var(--ds-r-card) !important; }
 #input-row:focus-within { border-color: transparent !important; }
 .mention-toggle { background: var(--ds-overlay) !important; border: 0 !important; border-radius: var(--ds-r-control) !important; color: var(--ds-text-2) !important; font-size: var(--ds-fs-xs) !important; }
-.mention-toggle:hover { color: var(--ds-text) !important; background: #2e2e2e !important; }
+.mention-toggle:hover { color: var(--ds-text) !important; background: var(--tone-2e) !important; }
 
 /* ================================================================ buttons */
 .sc-btn, .sc-set-actions-btn, .sc-inbox-btn, .sc-mp-btn {
     border-radius: var(--ds-r-control) !important; border: 0 !important; background: var(--ds-overlay) !important; color: var(--ds-text) !important;
 }
-.sc-btn:hover, .sc-set-actions-btn:hover, .sc-inbox-btn:hover { background: #2e2e2e !important; }
+.sc-btn:hover, .sc-set-actions-btn:hover, .sc-inbox-btn:hover { background: var(--tone-2e) !important; }
 .sc-btn.primary, .sc-set-primary, .sc-mp-btn.add, .sc-card-btn {
     background: var(--ds-accent) !important; color: var(--ds-on-accent) !important; border: 0 !important;
 }
@@ -137,9 +190,9 @@ select, input[type="text"], input[type="search"], textarea { border-color: trans
 
 /* ================================================================ pills and status */
 .sc-pill { border: 0 !important; }
-.sc-pill.ok { background: rgba(63, 185, 80, 0.12) !important; color: #7ee08f !important; }
+.sc-pill.ok { background: rgba(63, 185, 80, 0.12) !important; color: var(--ds-ok-text) !important; }
 .sc-info-st.available span, .sc-am-dot::before { background: var(--ds-online); }
-#sc-pane-pill, #sc-pane-head #sc-members-btn, #sc-float-tools .sc-tool { background: rgba(44, 44, 44, 0.85) !important; }
+#sc-pane-pill, #sc-pane-head #sc-members-btn, #sc-float-tools .sc-tool { background: rgba(var(--float), 0.85) !important; }
 .sc-info-tabs button[aria-selected="true"] { background: var(--ds-raised) !important; }
 
 /* ================================================================ thread reply (under the bubble, hooked to it) */
@@ -172,7 +225,7 @@ select, input[type="text"], input[type="search"], textarea { border-color: trans
 .sc-quote-x:hover { background: var(--ds-hover); color: var(--ds-text); }
 .sc-quoted {
     max-width: 100%; margin: 0 0 4px; padding: 6px 10px; border-left: 2px solid var(--ds-accent); border-radius: 6px;
-    background: rgba(255, 255, 255, 0.03); color: var(--ds-text-2); font-size: var(--ds-fs-sm);
+    background: rgba(var(--ink), 0.03); color: var(--ds-text-2); font-size: var(--ds-fs-sm);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .sc-quoted b { color: var(--ds-text); font-weight: 600; margin-right: 4px; }
@@ -195,7 +248,7 @@ select, input[type="text"], input[type="search"], textarea { border-color: trans
 #messages > .message { padding-left: 0 !important; padding-right: 0 !important; }
 #messages { width: calc(100% - 2 * var(--ds-5)) !important; max-width: var(--ds-read-w) !important; }
 .message.self .msg-text { border-radius: var(--ds-r-bubble) !important; border-top-right-radius: 6px !important; }
-.sc-self-avatar .avatar { background: #2c2c2c !important; color: var(--ds-text) !important; }
+.sc-self-avatar .avatar { background: var(--tone-2c) !important; color: var(--ds-text) !important; }
 
 /* details panel: calm — no tabs, actions under ⋯ */
 .sc-info-more { position: absolute; top: 12px; right: 56px; }
@@ -306,20 +359,20 @@ body.sc-welcome-open #sc-empty-room { display: none; }
 .sc-quiet { display: flex; align-items: flex-end; gap: var(--ds-4); flex-wrap: wrap; }
 .sc-switch-row { display: inline-flex; align-items: center; gap: 10px; height: 36px; cursor: pointer; color: var(--ds-text); font-size: var(--ds-fs-md); }
 .sc-switch-row input { position: absolute; opacity: 0; pointer-events: none; }
-.sc-switch-row .sc-switch { width: 34px; height: 20px; border-radius: 999px; background: #3a3a3a; position: relative; transition: background .15s; }
+.sc-switch-row .sc-switch { width: 34px; height: 20px; border-radius: 999px; background: var(--tone-3a); position: relative; transition: background .15s; }
 .sc-switch-row .sc-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
 .sc-switch-row input:checked + .sc-switch { background: var(--ds-accent); }
 .sc-switch-row input:checked + .sc-switch::after { transform: translateX(14px); }
 .sc-switch-row input:focus-visible + .sc-switch { outline: 2px solid var(--ds-accent); outline-offset: 2px; }
 .sc-time { width: 130px; margin: 0 !important; }
-.sc-time input { color-scheme: dark; }
+.sc-time input { color-scheme: inherit; }
 /* "Also by Lu" */
 .sc-am-label { padding: 8px 10px 4px; font-size: var(--ds-fs-xs); color: var(--ds-text-3); border-top: 1px solid var(--ds-line); margin-top: 6px; }
 #sc-account-menu button[aria-disabled="true"] { color: var(--ds-text-3); cursor: default; }
 #sc-account-menu button[aria-disabled="true"]:hover { background: none; }
 .sc-wl-also { width: 100%; display: flex; gap: var(--ds-2); margin-top: var(--ds-5); }
 .sc-wl-also > a, .sc-wl-also > span { flex: 1; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: var(--ds-r-row); background: var(--ds-raised); color: var(--ds-text-2); font-size: var(--ds-fs-xs); text-decoration: none; text-align: left; }
-.sc-wl-also > a:hover { background: #262626; color: var(--ds-text); }
+.sc-wl-also > a:hover { background: var(--tone-26); color: var(--ds-text); }
 .sc-wl-also b { color: var(--ds-text); font-weight: 500; }
 .sc-wl-also .soon { opacity: .6; }
 .sc-time input { background: var(--ds-field) !important; border: 0 !important; border-radius: var(--ds-r-control); height: 36px; padding: 0 10px; color: var(--ds-text); font: inherit; }
@@ -340,7 +393,7 @@ body.sc-welcome-open #sc-empty-room { display: none; }
 #sc-track button.x { background: none; color: var(--ds-text-2); width: 30px; padding: 0; display: grid; place-items: center; }
 #sc-track button.x:hover { background: var(--ds-hover); }
 #sc-unsent { display: flex; align-items: center; gap: 10px; max-width: var(--ds-read-w); margin: 0 auto 6px !important; padding: 6px 6px 6px 14px;
-    background: rgba(244, 112, 103, 0.12); border-radius: var(--ds-r-card); color: #f8a39d; font-size: var(--ds-fs-sm); }
+    background: rgba(244, 112, 103, 0.12); border-radius: var(--ds-r-card); color: var(--ds-err-text); font-size: var(--ds-fs-sm); }
 #sc-unsent span { flex: 1; }
 #sc-unsent button { border: 0; background: var(--ds-overlay); color: var(--ds-text); font: inherit; font-size: var(--ds-fs-sm); height: 30px; padding: 0 12px; border-radius: var(--ds-r-control); cursor: pointer; }
 #sc-noreply { display: flex; flex-direction: column; gap: 4px; padding: 6px 0 10px; color: var(--ds-text-3); font-size: var(--ds-fs-sm); }
@@ -374,7 +427,7 @@ body.sc-report-open #sc-empty-room { display: none; }
 .sc-rp-t b { font-weight: 500; font-size: var(--ds-fs-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sc-rp-t small { color: var(--ds-text-2); font-size: var(--ds-fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sc-rp-tag { font-size: var(--ds-fs-xs); padding: 2px 8px; border-radius: var(--ds-r-pill); background: var(--ds-overlay); color: var(--ds-text-2); flex-shrink: 0; }
-.sc-rp-tag.ok { background: rgba(63, 185, 80, 0.12); color: #7ee08f; }
+.sc-rp-tag.ok { background: rgba(63, 185, 80, 0.12); color: var(--ds-ok-text); }
 .sc-rp-bar { width: 160px; height: 6px; border-radius: 3px; background: var(--ds-overlay); overflow: hidden; flex-shrink: 0; }
 .sc-rp-bar i { display: block; height: 100%; background: var(--ds-accent); border-radius: 3px; }
 .sc-rp-num { width: 56px; text-align: right; color: var(--ds-text-2); font-size: var(--ds-fs-sm); flex-shrink: 0; }
@@ -390,13 +443,13 @@ body.sc-report-open #sc-empty-room { display: none; }
 .sc-hist .sc-field input { font-family: inherit; font-size: 13px; }
 .sc-hist-row { display: flex; align-items: center; gap: var(--ds-4); }
 .sc-hist-row .sc-tbl-dim { flex: 1; }
-.sc-hist-note { margin: 0 0 var(--ds-5); padding: var(--ds-3) var(--ds-4); border-radius: 10px; background: #1f1f1f; color: #f5f5f5; font-size: 13px; }
-.sc-hist-err { color: #f28b82; font-size: 13px; }
+.sc-hist-note { margin: 0 0 var(--ds-5); padding: var(--ds-3) var(--ds-4); border-radius: 10px; background: var(--tone-1f); color: var(--tone-f5); font-size: 13px; }
+.sc-hist-err { color: var(--ds-err-text); font-size: 13px; }
 
 /* ================================================================ design review fixes (v2.1) */
 /* Contrast (WCAG AA): tertiary text 5:1 on the surface; filled buttons use a deeper blue so
    white text passes. The lighter blue stays for links, icons and on-states. */
-:root { --ds-text-3: #8a8a8a; --ds-accent-fill: #2f6fde; --ds-accent-fill-hover: #3b7ae8; }
+:root { --ds-text-3: var(--tone-8a); --ds-accent-fill: #2f6fde; --ds-accent-fill-hover: #3b7ae8; }
 .sc-btn.primary, .sc-mp-btn.primary { background: var(--ds-accent-fill) !important; color: #fff !important; }
 .sc-btn.primary:hover, .sc-mp-btn.primary:hover { background: var(--ds-accent-fill-hover) !important; }
 
@@ -423,7 +476,7 @@ body.sc-report-open #sc-empty-room { display: none; }
 .sc-ch-pick { border: 0 !important; background: var(--ds-overlay); }
 .sc-ch-pick input { position: absolute; opacity: 0; pointer-events: none; }
 .sc-ch-pick { position: relative; color: var(--ds-text-2); }
-.sc-ch-pick:has(input:checked) { background: rgba(76, 141, 246, 0.16) !important; color: #9cc0fa; }
+.sc-ch-pick:has(input:checked) { background: rgba(76, 141, 246, 0.16) !important; color: var(--ds-link-text); }
 .sc-ch-pick:has(input:focus-visible) { outline: 2px solid var(--ds-accent); outline-offset: 2px; }
 .sc-pick, .sc-id-input { border: 0 !important; background: var(--ds-overlay) !important; border-radius: var(--ds-r-control) !important; }
 .sc-id-input, .sc-id-input:focus { text-align: left !important; }
@@ -470,7 +523,7 @@ body.sc-report-open #sc-empty-room { display: none; }
 .sc-hist .sc-btn, .sc-hist-row .sc-btn { height: 32px; }
 
 /* Mentions inside a teammate's bubble */
-.message:not(.self) .msg-text .mention { background: rgba(76, 141, 246, 0.16) !important; color: #9cc0fa !important; }
+.message:not(.self) .msg-text .mention { background: rgba(76, 141, 246, 0.16) !important; color: var(--ds-link-text) !important; }
 
 /* Account menu: one label, no extra dividers */
 #sc-account-menu hr { display: none; }
@@ -547,7 +600,7 @@ body.sc-in-dm #mention-toggles-row > #sc-shortcut-btn { display: grid !important
 .message.sc-msg:focus-visible { outline: 2px solid var(--ds-accent); outline-offset: -2px; border-radius: 14px; }
 /* White text on a fill passes AA only on the deeper blue */
 .sc-badge, .sc-card-btn, #sc-inbox-badge { background: var(--ds-accent-fill) !important; color: #fff !important; }
-.sc-me-initial, .sc-mp-av.me .sc-me-initial { color: #8ab4f8 !important; }
+.sc-me-initial, .sc-mp-av.me .sc-me-initial { color: var(--ds-link-text) !important; }
 /* Touch: 44 px targets for the composer and card close buttons */
 @media (pointer: coarse) {
     #send, #sc-attach-btn, #sc-shortcut-btn, .sc-card-x { min-width: 44px !important; min-height: 44px !important; }
@@ -649,12 +702,109 @@ button.sc-mv-row:hover { background: var(--ds-hover); }
 .sc-mv-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sc-mv-name em { font-style: normal; color: var(--ds-text-3); margin-left: 4px; font-size: 13px; }
 .sc-mv-st { flex-shrink: 0; font-size: 13px; color: var(--ds-text-3); }
-.sc-mv-st.available { color: #7ee2a8; }
-.sc-mv-st.working { color: #8ab4f8; }
+.sc-mv-st.available { color: var(--ds-ok-text); }
+.sc-mv-st.working { color: var(--ds-link-text); }
 
 /* Account menu: a value sits right next to its chevron ("Online ›"). The flex gap (12px) plus the
    glyph's own 4px side bearing made it ~20px; -10px leaves a 2px box gap = ~6px visible. */
 #sc-account-menu button em + .sc-am-chev, .sc-am-sub button em + .sc-am-chev { margin-left: -10px !important; }
 #sc-account-menu button em, .sc-am-sub button em { color: var(--ds-text-2); font-style: normal; }
 #sc-pane-pill .sc-pill-chev { margin-left: -4px; }   /* glyph has 4px side bearing: keeps the visible gap at ~8px */
-.sc-grok-av { width: 100%; height: 100%; display: grid; place-items: center; border-radius: 50%; background: #f5f5f5; color: #0e0e0e; font-weight: 700; font-size: 14px; }
+.sc-grok-av { width: 100%; height: 100%; display: grid; place-items: center; border-radius: 50%; background: var(--tone-f5); color: var(--tone-0e); font-weight: 700; font-size: 14px; }
+
+/* Scrollbars: a thin pill like Grok Bot. Hidden until you hover the area that
+   scrolls, no track. Chrome/Safari use the ::-webkit pseudo-elements (setting
+   the standard scrollbar-width would make Chrome ignore them), Firefox the
+   standard properties. */
+::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb {
+    background: transparent; border-radius: 10px;
+    border: 3px solid transparent; background-clip: padding-box; min-height: 36px;
+}
+*:hover::-webkit-scrollbar-thumb { background-color: var(--ds-scroll); }
+::-webkit-scrollbar-thumb:hover { background-color: var(--ds-scroll-hover) !important; }
+@supports (-moz-appearance: none) {
+    * { scrollbar-width: thin; scrollbar-color: var(--ds-scroll) transparent; }
+}
+
+/* Settings → Appearance: three picks with a tiny preview of each theme */
+.sc-theme-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--ds-3); max-width: 520px; }
+.sc-theme-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 8px 10px;
+    border: 0; border-radius: var(--ds-r-card); background: transparent; color: var(--ds-text); font: inherit; text-align: left; cursor: pointer; }
+.sc-theme-opt:hover { background: var(--ds-hover); }
+.sc-theme-pv { position: relative; width: 100%; aspect-ratio: 16 / 10; border-radius: 10px; overflow: hidden; margin-bottom: 6px;
+    box-shadow: 0 0 0 1px rgba(var(--ink), 0.10); }
+.sc-theme-opt.on .sc-theme-pv { box-shadow: 0 0 0 2px var(--ds-accent); }
+.sc-theme-pv i { position: absolute; inset: 0 auto 0 0; width: 28%; }
+.sc-theme-pv b { position: absolute; left: 36%; height: 14%; border-radius: 6px; }
+.sc-theme-pv b:nth-of-type(1) { top: 22%; width: 46%; }
+.sc-theme-pv b:nth-of-type(2) { top: 50%; width: 34%; left: 52%; }
+.sc-theme-pv.dark { background: #121212; } .sc-theme-pv.dark i { background: #0e0e0e; } .sc-theme-pv.dark b { background: #2a2a2a; }
+.sc-theme-pv.light { background: #fff; } .sc-theme-pv.light i { background: #f4f4f4; } .sc-theme-pv.light b { background: #e6e6e6; }
+.sc-theme-pv.system { background: linear-gradient(110deg, #fff 50%, #121212 50%); }
+.sc-theme-pv.system i { background: #f4f4f4; } .sc-theme-pv.system b { background: #8a8a8a66; }
+.sc-theme-name { font-size: var(--ds-fs-md); font-weight: 500; }
+.sc-theme-note { font-size: var(--ds-fs-xs); color: var(--ds-text-2); min-height: 16px; }
+
+/* Light-mode fixes found in screenshots */
+.sc-rp-head, #sc-report > header { box-shadow: none !important; }
+.sc-st .sc-st-head.sc-st-head-row { padding-right: 48px !important; }
+/* White avatar art vanishes on white: a hairline ring keeps the circle visible */
+:root[data-theme="light"] img.avatar, :root[data-theme="light"] .sc-av img,
+:root[data-theme="light"] .avatar img, :root[data-theme="light"] .sc-dm-av img { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08); border-radius: 50%; }
+/* Provider logos are drawn white (chat.js BRAND_AVATARS): draw them dark on light */
+:root[data-theme="light"] [class*="av"] svg[fill="white"], :root[data-theme="light"] .avatar svg[fill="white"] { fill: #3d3d3d; }
+
+/* Jump to latest: a round ↓ above the composer, like Grok Bot */
+#scroll-anchor { width: 40px !important; height: 40px !important; border: 0 !important;
+    background: var(--tone-2c) !important; color: var(--ds-text) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(var(--ink), 0.08) !important; }
+#scroll-anchor:hover { transform: translateX(-50%) !important; background: var(--tone-33) !important; }
+:root[data-theme="light"] #scroll-anchor:hover { background: #f4f4f4 !important; }
+#scroll-anchor .unread-badge { top: -4px; right: -4px; }
+
+/* Files waiting to be sent: Grok Bot cards. × shows on hover (always on touch screens). */
+#attachments .attachment-preview { max-width: min(360px, 100%) !important; }
+#attachments .sc-pend { position: relative; gap: 12px; width: 340px; max-width: 100%; padding: 10px 44px 10px 10px;
+    border: 0; border-radius: var(--ds-r-card); background: var(--tone-2c); box-shadow: 0 0 0 1px rgba(var(--ink), 0.10); }
+.sc-pend-ic { flex: none; width: 40px; height: 44px; border-radius: 8px; background: var(--tone-12);
+    box-shadow: 0 0 0 1px rgba(var(--ink), 0.10); display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 0 8px; }
+.sc-pend-ic i { display: block; height: 3px; border-radius: 2px; background: rgba(var(--ink), 0.18); }
+.sc-pend-ic i:nth-child(1) { width: 60%; } .sc-pend-ic i:nth-child(3) { width: 45%; }
+#attachments .sc-pend .file-attachment-name { font-size: var(--ds-fs-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#attachments .sc-pend .file-attachment-detail { font-size: var(--ds-fs-sm); color: var(--ds-text-2); }
+#attachments .attachment-preview > .attachment-remove {
+    top: 50% !important; right: 10px !important; left: auto !important; transform: translateY(-50%);
+    width: 28px !important; height: 28px !important; display: grid; place-items: center;
+    border-radius: 8px !important; background: transparent !important; color: var(--ds-text-2) !important;
+    opacity: 0; transition: opacity .12s; }
+#attachments .attachment-preview:has(img) > .attachment-remove {
+    top: 4px !important; right: 4px !important; transform: none; width: 22px !important; height: 22px !important;
+    border-radius: 50% !important; background: rgba(0, 0, 0, 0.6) !important; color: #fff !important; }
+#attachments .attachment-preview:has(img) > .attachment-remove svg { width: 14px; height: 14px; }
+#attachments .attachment-preview:hover > .attachment-remove,
+#attachments .attachment-preview:focus-within > .attachment-remove { opacity: 1; }
+#attachments .attachment-preview > .attachment-remove:hover { color: var(--ds-text) !important; background: var(--ds-hover) !important; }
+#attachments .attachment-preview:has(img) > .attachment-remove:hover { background: rgba(0, 0, 0, 0.8) !important; color: #fff !important; }
+#attachments .attachment-preview img { width: 64px !important; height: 64px !important; border: 0 !important; border-radius: 12px !important; }
+@media (hover: none) { #attachments .attachment-preview > .attachment-remove { opacity: 1; } }
+#input-row { flex-wrap: wrap; }
+#input-row > #attachments { order: -1; flex-basis: 100%; margin: 0 0 6px !important; padding: 0; }
+#input-row > #attachments:empty { display: none; }
+#attachments .sc-pend { box-shadow: 0 0 0 1px rgba(var(--ink), 0.10); }
+:root[data-theme="dark"] #attachments .sc-pend { background: var(--tone-2c); }
+#attachments .sc-pend .sc-pend-name { display: flex; min-width: 0; overflow: visible; }
+#attachments .sc-pend .sc-pend-name > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#attachments .sc-pend .sc-pend-name > span:last-child { flex: none; white-space: nowrap; }
+#attachments .sc-pend .file-attachment-info { flex: 1; }
+
+/* "Scranton was updated" when you were mid-message, so we didn't reload for you */
+.sc-update-toast { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); z-index: 1000; display: flex; align-items: center; gap: 12px;
+    padding: 8px 8px 8px 16px; border-radius: var(--ds-r-card); background: var(--ds-overlay); color: var(--ds-text); box-shadow: var(--ds-shadow); font-size: var(--ds-fs-md); }
+
+/* @names that will reach someone get a background in the message box (mirror behind the textarea) */
+.sc-mention-hl { position: absolute; z-index: 0; pointer-events: none; overflow: hidden; color: transparent;
+    white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; border-style: solid; border-color: transparent; margin: 0; }
+.sc-mention-hl mark { color: transparent; background: var(--ds-mention-bg); border-radius: 4px; box-shadow: 0 0 0 2px var(--ds-mention-bg); }
+textarea.sc-mention-hl-input { position: relative; z-index: 1; background: transparent !important; }

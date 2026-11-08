@@ -29,7 +29,16 @@ function attachmentMarkup(att, pending = false) {
             <span class="file-attachment-name">${name}</span>
             <span class="file-attachment-detail">${escapeHtml(detail)}</span>
         </span>`;
-    if (pending) return `<div class="file-attachment">${info}</div>`;
+    if (pending) {
+        // Grok-style card: page icon, name cut in the middle so the extension stays, size.
+        const raw = filename || 'Attachment';
+        const dot = raw.lastIndexOf('.');
+        const ext = dot > 0 ? raw.slice(dot) : '';
+        const base = ext ? raw.slice(0, -ext.length) : raw;
+        return `<div class="file-attachment sc-pend" title="${name}"><span class="sc-pend-ic" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="file-attachment-info"><span class="file-attachment-name sc-pend-name"><span>${escapeHtml(base)}</span><span>${escapeHtml(ext)}</span></span>
+            <span class="file-attachment-detail">${escapeHtml(attachmentSize(att.size) || type)}</span></span></div>`;
+    }
     return `<a class="file-attachment" href="${url}" data-name="${name}" title="Download ${name}" aria-label="Download ${name}" onclick="downloadAttachment(event, this)">
         ${info}
         <svg class="file-download-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -46,7 +55,7 @@ function createAttachmentPreview(att, onRemove) {
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'attachment-remove';
-    remove.textContent = 'x';
+    remove.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 10.59L16.95 5.64L18.36 7.05L13.41 12L18.36 16.95L16.95 18.36L12 13.41L7.05 18.36L5.64 16.95L10.59 12L5.64 7.05L7.05 5.64L12 10.59Z"/></svg>';
     remove.title = `Remove ${att.name || 'attachment'}`;
     remove.setAttribute('aria-label', remove.title);
     remove.addEventListener('click', onRemove);
