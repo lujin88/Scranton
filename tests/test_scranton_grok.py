@@ -42,6 +42,27 @@ class GrokTest(unittest.TestCase):
                 r = asyncio.run(app.scranton_grok_say(Req({"channel": "general", "text": "see /tmp/x for the log"})))
             self.assertEqual(json.loads(r.body)["id"], 5)
 
+    def test_grok_only_talks_to_the_project_manager(self):
+        import asyncio
+        from unittest.mock import patch, MagicMock
+        import app
+
+        class Req:
+            def __init__(self, body): self._b = body
+            async def json(self): return self._b
+
+        store = MagicMock(); store.add.return_value = {"id": 9}
+        agents = {"pm": {"label": "项目经理"}, "dev": {"label": "开发工程师"}}
+        with patch.object(app, "room_settings", {"channels": ["general"]}), patch.object(app, "store", store), \
+                patch.object(app, "config", {"agents": agents}):
+            for text in ("@dev fix it", "@项目经理 @开发工程师 both of you"):
+                r = asyncio.run(app.scranton_grok_say(Req({"channel": "general", "text": text})))
+                self.assertEqual(r.status_code, 400, text)
+            store.add.assert_not_called()
+            for text in ("@项目经理 Lu asks for status", "@pm and @lu"):
+                r = asyncio.run(app.scranton_grok_say(Req({"channel": "general", "text": text})))
+                self.assertEqual(r.status_code, 200, text)
+
     def test_line_format(self):
         s = g.line({"id": 7, "channel": "lu-portfolio", "time": "08:42:10", "sender": "pm", "text": "ok", "reply_to": 3}, {"pm": "项目经理"})
         self.assertEqual(s, "[7] #lu-portfolio 08:42 项目经理 ↳3: ok")

@@ -2815,8 +2815,27 @@ async def scranton_grok_say(request: Request):
         # /continue, /clear, /roastreview… are yours: Grok relays words, it doesn't run commands.
         return JSONResponse({"ok": False, "error": "Grok can't send commands (text starting with /). Ask Lu."}, status_code=400)
     text = _grok_handles(text)
+    # Grok talks to the project manager only (Lu, 2026-11-08): two people giving the team
+    # orders would clash. @Lu is fine; any other teammate is refused.
+    lead = _grok_lead()
+    others = sorted({m.lower() for m in _re.findall(r"@([\w-]+)", text)}
+                    & {h.lower() for h in ((config or {}).get("agents") or {})} - {lead})
+    if others:
+        return JSONResponse({"ok": False, "error": f"Grok only @s the project manager (@{_grok_labels().get(lead, lead)}). "
+                             f"Not: {', '.join('@' + o for o in others)}. Ask the project manager to pass it on."}, status_code=400)
     msg = store.add(_sc_grok.HANDLE, text, channel=channel, reply_to=reply_to)
     return JSONResponse({"ok": True, "id": msg["id"]})
+
+
+def _grok_lead() -> str:
+    """The one teammate Grok may @: the project manager (handle pm, else the first agent whose label says so)."""
+    agents = (config or {}).get("agents") or {}
+    if "pm" in agents:
+        return "pm"
+    for h, a in agents.items():
+        if "项目经理" in str(a.get("label") or "") or "project manager" in str(a.get("label") or "").lower():
+            return h
+    return "pm"
 
 
 def _grok_handles(text: str) -> str:

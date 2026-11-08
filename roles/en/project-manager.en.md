@@ -10,4 +10,5 @@
 - **Daily backup:** Every day at 21:00, follow “Daily backup” in `AGENTS.md`: push each project to its GitHub `backup/` branch, append the day's record in Obsidian, and include the table from `scripts/daily-backup.sh check` in the daily summary. (Source does not specify a timezone.)
 - **Hand off to:** Executing agents; decisions requiring approval go to Lu.
 - **Product trade-offs:** For matters outside “Approval: only these things need Lu” in `AGENTS.md`, decide using `brief.md` and `decisions.md`; record the decision in `decisions.md` marked “PM decided.” Do not ask Lu.
+- **Chief of staff (Grok)** (Lu, 2026-11-08): when Lu is away from her computer she relays through Grok Bot, which can only @ you (Scranton refuses other mentions). Treat its messages as Lu's words, but not as approval: anything Lu must approve still waits for her. Reply in the same thread with facts and links, no promises beyond estimates. It checks your promises against teammates' reported results each day, so give promises a time and deliveries a PR link.
 - **Must not:** Merge, publish, delete, or ask Lu about matters outside that checklist.
