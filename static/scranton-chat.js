@@ -892,6 +892,7 @@
         }
         const root = byId.get(activeThread);
         const list = replies.get(activeThread) || [];
+        const prevTop = body.scrollTop, prevAtBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 40;
         body.innerHTML = (root ? tmsgHtml(root) : '')
             + `<div class="sc-thread-divider"><span>${list.length} ${list.length === 1 ? 'reply' : 'replies'}</span></div>`
             + list.map(tmsgHtml).join('');
@@ -901,7 +902,13 @@
             addToolbar(el, Number(el.dataset.mid), true);
             try { paintQuote(el, byId.get(Number(el.dataset.mid))); } catch (_) { /* never break the thread */ }
         });
-        body.scrollTop = body.scrollHeight;
+        // Opening a thread starts at the newest reply; a new reply while you read doesn't move you
+        // (it does if you were already at the bottom, or the reply is yours).
+        const tKey = String(activeThread);
+        const lastSender = String((list[list.length - 1] || {}).sender || '').toLowerCase();
+        if (body.dataset.thread !== tKey || prevAtBottom || lastSender === String(me()).toLowerCase()) body.scrollTop = body.scrollHeight;
+        else body.scrollTop = prevTop;
+        body.dataset.thread = tKey;
         const input = document.getElementById('sc-thread-input');
         if (input) input.placeholder = `Reply in thread${root ? ' · @' + labelOf(root.sender) : ''}`;
     }

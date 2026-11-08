@@ -1097,11 +1097,22 @@ function appendMessage(msg, options = {}) {
 
     if (options.history || msgChannel !== activeChannel) return;  // history scrolls once per batch
 
-    if (autoScroll) {
+    // Scranton (Lu, 2026-11-08): a new message never moves what you're reading. Only your own
+    // message takes you to the bottom; anything else adds to the count on the ↓ button.
+    const mine = String(msg.sender || '').toLowerCase() === String(username || '').toLowerCase();
+    if (mine) {
         scrollToBottom();
     } else {
-        unreadCount++;
-        updateScrollAnchor();
+        // Hidden replies (threads) and system notes don't add to the count
+        const el = document.querySelector(`.message[data-id="${msg.id}"]`);
+        const timeline = document.getElementById('timeline');
+        const visibleNow = el && el.offsetParent !== null && timeline &&
+            el.getBoundingClientRect().bottom <= timeline.getBoundingClientRect().bottom;
+        if (el && el.offsetParent !== null && !visibleNow) {
+            autoScroll = false;   // stop the resize observer from following the new content
+            unreadCount++;
+            updateScrollAnchor();
+        }
     }
 }
 
@@ -1975,7 +1986,6 @@ function updateTyping(agent, active) {
     if (active) {
         indicator.querySelector('.typing-name').textContent = agent;
         indicator.classList.remove('hidden');
-        if (autoScroll) scrollToBottom();
     } else {
         indicator.classList.add('hidden');
     }
