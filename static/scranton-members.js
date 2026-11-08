@@ -238,32 +238,89 @@
 
     // "项目经理 is working…" above the composer while a teammate in this channel is busy
     // "项目经理 is working…" sits at the end of the conversation, like a reply on its way.
+    // Claude's spinner words ("Scampering", "Moseying") say nothing; real actions have an object.
+    const doingText = (h) => {
+        const d = String((window.scDoing || {})[h] || '').trim();
+        return /^[A-Z][a-z]+ing$/.test(d) ? '' : d;
+    };
+
+    // Which of your messages an agent is working on: your latest message here that @s them
+    // (in their DM: your latest message). null = it's working on something from elsewhere.
+    function targetOf(h, ch) {
+        const msgs = window.scMsgs;
+        if (!msgs) return null;
+        const me = String((window.scMe && window.scMe()) || window.username || '').toLowerCase();
+        const tag = new RegExp('@' + h.replace(/[-]/g, '\\-') + '(?![\\w-])', 'i');
+        let best = null;
+        for (const m of msgs.values()) {
+            if ((m.channel || 'general') !== ch || String(m.sender || '').toLowerCase() !== me) continue;
+            if (!isDm(ch) && !tag.test(String(m.text || ''))) continue;
+            if (!best || m.id > best.id) best = m;
+        }
+        // Only if nothing from them came after it (otherwise they've answered that one).
+        if (best) for (const m of msgs.values()) {
+            if ((m.channel || 'general') === ch && m.id > best.id && String(m.sender || '').split('-')[0] === h) return null;
+        }
+        return best;
+    }
+
     function renderWorking() {
         const ch = current();
         const list = document.getElementById('messages');
         if (!list) return;
         const who = isDm(ch) ? [ch.slice(3)] : (members[ch] || []);
         const busy = who.filter((h) => team()[h] && state(h) === 'working');
-        const key = busy.join(',');
+        const scroller = list.parentElement;
+        const atBottom = scroller ? (scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80) : false;
+
+        // Group busy agents by the message of yours they're answering.
+        const byMsg = new Map(), loose = [];
+        for (const h of busy) {
+            const t = targetOf(h, ch);
+            const el = t && document.getElementById(`message-${t.id}`);
+            if (el) { if (!byMsg.has(t.id)) byMsg.set(t.id, []); byMsg.get(t.id).push(h); } else loose.push(h);
+        }
+        const line = (hs) => {
+            const d = hs.length === 1 ? doingText(hs[0]) : '';
+            return `${hs.map((h) => label(h)).join('、')} ${hs.length > 1 ? 'are' : 'is'} working` + (d ? ` · ${d}` : '');
+        };
+
+        // Under your message, on your side: "项目经理 is working · Reading page.tsx"
+        const seen = new Set();
+        for (const [id, hs] of byMsg) {
+            const key = `sc-receipt-${id}`;
+            seen.add(key);
+            let r = document.getElementById(key);
+            const msgEl = document.getElementById(`message-${id}`);
+            if (!r) {
+                r = document.createElement('div');
+                r.id = key; r.className = 'sc-receipt'; r.setAttribute('aria-live', 'polite');
+            }
+            r.dataset.channel = ch;
+            const k = hs.join(',') + '|' + line(hs);
+            if (r.dataset.k !== k) {
+                r.dataset.k = k;
+                r.innerHTML = `<span class="sc-dots"><i></i><i></i><i></i></span><span>${esc(line(hs))}</span>`
+                    + `<span class="sc-working-av">${hs.slice(0, 3).map((h) => `<span>${avatar(h)}</span>`).join('')}</span>`;
+            }
+            if (msgEl && msgEl.nextElementSibling !== r) msgEl.after(r);
+        }
+        document.querySelectorAll('.sc-receipt').forEach((r) => { if (!seen.has(r.id)) r.remove(); });
+
+        // Working on something that isn't one of your messages here: the row at the bottom.
         let row = document.getElementById('sc-working');
-        if (!busy.length) { row?.remove(); return; }
-        const atBottom = list.parentElement ? (list.parentElement.scrollHeight - list.parentElement.scrollTop - list.parentElement.clientHeight < 80) : false;
-        if (!row) {
-            row = document.createElement('div');
-            row.id = 'sc-working';
-            row.setAttribute('aria-live', 'polite');
+        if (!loose.length) { row?.remove(); }
+        else {
+            if (!row) { row = document.createElement('div'); row.id = 'sc-working'; row.setAttribute('aria-live', 'polite'); }
+            const k = loose.join(',') + '|' + line(loose);
+            if (row.dataset.k !== k) {
+                row.dataset.k = k;
+                row.innerHTML = `<span class="sc-working-av">${loose.slice(0, 3).map((h) => `<span>${avatar(h)}</span>`).join('')}</span>
+                    <span class="sc-working-bubble"><span class="sc-dots"><i></i><i></i><i></i></span><span>${esc(line(loose))}…</span></span>`;
+            }
+            if (list.lastElementChild !== row) list.appendChild(row);
         }
-        const doing = busy.length === 1 ? ((window.scDoing || {})[busy[0]] || '') : '';
-        if (row.dataset.k !== key + '|' + doing) {
-            row.dataset.k = key + '|' + doing;
-            const text = `${busy.map((h) => label(h)).join('、')} ${busy.length > 1 ? 'are' : 'is'} working` + (doing ? ` · ${doing}` : '');
-            row.innerHTML = `<span class="sc-working-av">${busy.slice(0, 3).map((h) => `<span>${avatar(h)}</span>`).join('')}</span>
-                <span class="sc-working-bubble"><span class="sc-dots"><i></i><i></i><i></i></span><span>${esc(text)}…</span></span>`;
-        }
-        if (list.lastElementChild !== row) {
-            list.appendChild(row);
-            if (atBottom && list.parentElement) list.parentElement.scrollTop = list.parentElement.scrollHeight;
-        }
+        if (atBottom && scroller && (byMsg.size || loose.length)) scroller.scrollTop = scroller.scrollHeight;
     }
 
     window.scRenderWorking = () => renderWorking();
