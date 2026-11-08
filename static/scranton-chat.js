@@ -132,10 +132,12 @@
             el.classList.add('sc-msg');
             addToolbar(el, id);
             relabel(el, msg);
-            try { paintQuote(el, msg); paintStuck(el, msg); } catch (_) { /* never break rendering */ }
+            try { paintQuote(el, msg); paintStuck(el, msg); paintChoices(el, msg); } catch (_) { /* never break rendering */ }
         }
         if (msg.reactions && Object.keys(msg.reactions).length) paintReactions(msg, container);
         if (msg.reply_to != null) {
+            // an answer to an option card: show it as picked
+            try { const c = findEl(Number(msg.reply_to), container)?.querySelector('.sc-choices'); if (c && c._paint) c._paint(); } catch (_) {}
             const root = rootOf(msg);
             if (root != null && root !== id) {
                 if (el) el.classList.add('sc-in-thread');
@@ -281,7 +283,14 @@
     {
         let t = null;
         document.addEventListener('input', (e) => {
-            if (e.target && e.target.id === 'input') { clearTimeout(t); t = setTimeout(() => window.scDraft.save(window.activeChannel), 400); }
+            if (!e.target || e.target.id !== 'input') return;
+            clearTimeout(t); t = setTimeout(() => window.scDraft.save(window.activeChannel), 400);
+            // the quick @ chips light up for whoever is @'d in the box
+            const v = e.target.value;
+            document.querySelectorAll('#mention-toggles .mention-toggle').forEach((b) => {
+                const words = [b.dataset.agent, b.textContent.replace(/^@/, '')].map((x) => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+                b.classList.toggle('active', new RegExp('(^|\\s)@(' + words.join('|') + ')(?![\\w-])').test(v));
+            });
         });
         setTimeout(() => { const i = document.getElementById('input'); if (i && !i.value) window.scDraft.load(window.activeChannel); }, 1500);
     }
@@ -466,6 +475,110 @@
     window.scPaintQuote = paintQuote;
 
     // "my terminal is waiting on a question" → a button straight to that agent's terminal
+    // Options typed by an agent ("A. 就这 6 人" / "B) …" on their own lines) become a card you
+    // click, like Grok's. Each question in a message gets its own card. A click answers in the
+    // thread: "@pm 1A：就这 6 人，建一个群".
+    const OPT_RE = /^\s*(?:[-*•]\s*)?([A-H])\s*[.)、:：]\s*(.+?)\s*$/;
+    const chosenStore = {
+        all() { try { return JSON.parse(localStorage.getItem('scranton-chosen') || '{}'); } catch (_) { return {}; } },
+        get(id, q) { return (this.all()[id] || {})[q]; },
+        set(id, q, v) { const a = this.all(); (a[id] = a[id] || {})[q] = v; try { localStorage.setItem('scranton-chosen', JSON.stringify(a)); } catch (_) {} },
+    };
+    function parseChoices(text) {
+        const lines = String(text || '').split('\n');
+        const blocks = [];
+        let cur = null;
+        lines.forEach((line, i) => {
+            const m = OPT_RE.exec(line);
+            const expect = cur ? String.fromCharCode(65 + cur.options.length) : 'A';
+            if (m && m[1] === expect) {
+                if (!cur) {
+                    // the question: the nearest non-empty line above, without list markers
+                    let q = '';
+                    for (let j = i - 1; j >= 0 && !q; j--) q = lines[j].trim();
+                    const num = /^(\d+)[.)、]/.exec(q);
+                    cur = { question: q.replace(/^\d+[.)、]\s*/, '').replace(/[*_`]/g, ''), num: num ? num[1] : '', options: [] };
+                }
+                cur.options.push({ key: m[1], text: m[2].replace(/[*_`]/g, '') });
+            } else if (cur && line.trim()) {
+                if (cur.options.length >= 2) blocks.push(cur);
+                cur = null;
+                const m2 = OPT_RE.exec(line);
+                if (m2 && m2[1] === 'A') {   // a new question's A right after the last option
+                    let q = lines[i - 1] ? lines[i - 1].trim() : '';
+                    cur = { question: q, num: '', options: [{ key: 'A', text: m2[2] }] };
+                }
+            }
+        });
+        if (cur && cur.options.length >= 2) blocks.push(cur);
+        return blocks;
+    }
+    function paintChoices(el, msg) {
+        const sender = String(msg.sender || '').split('-')[0];
+        const team = (window.scGetTeam && window.scGetTeam()) || {};
+        if (!team[sender] || el.querySelector('.sc-choices')) return;
+        const blocks = parseChoices(msg.text);
+        if (!blocks.length) return;
+        const col = el.querySelector('.chat-bubble');
+        if (!col) return;
+        const wrap = document.createElement('div');
+        wrap.className = 'sc-choices';
+        // What you already answered, from your replies in its thread (so the phone shows it too)
+        const fromReplies = (qi) => {
+            const mine = String(me()).toLowerCase();
+            for (const r of byId.values()) {
+                if (!r || Number(r.reply_to) !== Number(msg.id) || String(r.sender || '').toLowerCase() !== mine) continue;
+                const m = /^@\S+\s+(\d*)([A-H])：/.exec(String(r.text || ''));
+                if (m && (blocks.length === 1 ? true : Number(m[1]) === Number(blocks[qi].num || qi + 1))) return m[2];
+            }
+            return null;
+        };
+        const paint = () => {
+            wrap.innerHTML = blocks.map((b, qi) => {
+                const picked = chosenStore.get(msg.id, qi) || fromReplies(qi);
+                return `<div class="sc-choice-card${picked ? ' done' : ''}" data-q="${qi}">
+                    ${b.question ? `<div class="sc-choice-q">${b.num ? esc(b.num) + '. ' : ''}${esc(b.question)}</div>` : ''}
+                    ${b.options.map((o) => `<button type="button" class="sc-choice${picked === o.key ? ' on' : ''}" data-k="${esc(o.key)}"${picked ? ' disabled' : ''}>
+                        <span class="sc-choice-key">${esc(o.key)}</span><span>${esc(o.text)}</span></button>`).join('')}
+                </div>`;
+            }).join('');
+        };
+        paint();
+        wrap._paint = paint;
+        wrap.addEventListener('click', (e) => {
+            const b = e.target.closest('.sc-choice');
+            if (!b || b.disabled) return;
+            e.stopPropagation();
+            const qi = Number(b.closest('[data-q]').dataset.q);
+            const block = blocks[qi];
+            const opt = block.options.find((o) => o.key === b.dataset.k);
+            if (!opt || !window.ws || window.ws.readyState !== WebSocket.OPEN) return;
+            const tag = blocks.length > 1 || block.num ? `${block.num || qi + 1}${opt.key}` : opt.key;
+            const root = rootOf(msg) ?? Number(msg.id);
+            window.ws.send(JSON.stringify({ type: 'message', text: `@${sender} ${tag}：${opt.text}`, sender: me(),
+                channel: msg.channel || 'general', reply_to: Number(root), attachments: [] }));
+            chosenStore.set(msg.id, qi, opt.key);
+            paint();
+            toast(`Answered ${tag}`);
+        });
+        // The questions and options are in the cards now: hide those lines in the text so
+        // nothing shows twice. Anything else in the message stays.
+        const norm = (t) => String(t || '').replace(/[*_`]/g, '').replace(/^\s*(?:\d+|[A-H])\s*[.)、:：]\s*/, '').replace(/\s+/g, ' ').trim();
+        const known = new Set();
+        blocks.forEach((b) => { if (b.question) known.add(norm(b.question)); b.options.forEach((o) => known.add(norm(o.text))); });
+        const ownText = (n) => {
+            const c = n.cloneNode(true);
+            c.querySelectorAll('ul, ol').forEach((x) => x.remove());
+            c.querySelectorAll('br').forEach((x) => x.replaceWith('\n'));   // a detached copy has no layout, so no innerText lines
+            return c.textContent;
+        };
+        el.querySelectorAll('.msg-text li, .msg-text p').forEach((n) => {
+            const lines = ownText(n).split('\n').map(norm).filter(Boolean);
+            if (lines.length && lines.every((l) => known.has(l))) n.classList.add('sc-opt-line');
+        });
+        col.querySelector('.msg-text')?.after(wrap);
+    }
+
     function paintStuck(el, msg) {
         // Every "I stopped…" post from a teammate gets a way to look at its terminal.
         if (!/^(I stopped|I hit an error|I can't read this yet)/i.test(String(msg.text || '').trim())) return;
@@ -519,6 +632,8 @@
             + `<span class="sc-tmsg-av">${avatarOf(m.sender)}</span>`
             + `<div class="sc-tmsg-body"><div class="sc-tmsg-head"><b>${esc(labelOf(m.sender))}</b><span>${esc(m.time || '')}</span></div>`
             + `<div class="sc-tmsg-text">${textHtml(m)}</div>`
+            + (Array.isArray(m.attachments) && m.attachments.length && typeof attachmentMarkup === 'function'
+                ? `<div class="msg-attachments sc-tmsg-att">${m.attachments.map((a) => attachmentMarkup(a)).join('')}</div>` : '')
             + (m.reactions && Object.keys(m.reactions).length ? `<div class="sc-reactions" data-mid="${esc(m.id)}">${reactionsHtml(m)}</div>` : '')
             + '</div></div>';
     }
@@ -577,6 +692,77 @@
         }
     }
 
+    // @ list for any message box (used by the thread reply box; the main box has chat.js's own).
+    function attachMentions(box) {
+        if (!box || box._scMentions) return;
+        box._scMentions = true;
+        let menu = null, items = [], index = 0, start = -1;
+        const close = () => { menu?.remove(); menu = null; start = -1; };
+        const usage = () => { try { return JSON.parse(localStorage.getItem('scranton-at-count') || '{}')._all || {}; } catch (_) { return {}; } };
+        function pick(i) {
+            const it = items[i];
+            if (!it || start < 0) return;
+            const cur = box.selectionStart;
+            box.value = box.value.slice(0, start) + `@${it.label} ` + box.value.slice(cur);
+            const pos = start + it.label.length + 2;
+            box.setSelectionRange(pos, pos);
+            close();
+            box.dispatchEvent(new Event('input', { bubbles: true }));
+            box.focus();
+        }
+        function update() {
+            const cur = box.selectionStart, text = box.value.slice(0, cur);
+            const m = /(^|\s)@([^\s@]{0,20})$/.exec(text);
+            if (!m) { close(); return; }
+            start = cur - m[2].length - 1;
+            const q = m[2].toLowerCase();
+            const team = (window.scGetTeam && window.scGetTeam()) || {};
+            const used = usage();
+            items = Object.keys(team).map((h) => ({ h, label: labelOf(h) }))
+                .filter((x) => !q || x.h.includes(q) || String(x.label).toLowerCase().includes(q))
+                .sort((a, b) => {
+                    const sa = a.h.startsWith(q) || String(a.label).toLowerCase().startsWith(q) ? 1 : 0;
+                    const sb = b.h.startsWith(q) || String(b.label).toLowerCase().startsWith(q) ? 1 : 0;
+                    return (sb - sa) || ((used[b.h] || 0) - (used[a.h] || 0));
+                }).slice(0, 8);
+            if (!items.length) { close(); return; }
+            index = 0;
+            if (!menu) {
+                menu = document.createElement('div');
+                menu.className = 'sc-pop sc-tmention';
+                menu.setAttribute('role', 'listbox');
+                document.body.appendChild(menu);
+                menu.addEventListener('mousedown', (e) => {
+                    const b = e.target.closest('[data-i]');
+                    if (b) { e.preventDefault(); pick(+b.dataset.i); }
+                });
+            }
+            paint();
+            const r = box.getBoundingClientRect();
+            menu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - 268))}px`;
+            menu.style.bottom = `${window.innerHeight - r.top + 8}px`;
+        }
+        function paint() {
+            menu.innerHTML = items.map((x, i) => `<button type="button" role="option" aria-selected="${i === index}" class="sc-menu-item${i === index ? ' active' : ''}" data-i="${i}">
+                <span class="sc-tm-av">${avatarOf(x.h)}</span><span>${esc(x.label)}</span></button>`).join('');
+        }
+        box.addEventListener('keydown', (e) => {
+            if (!menu) return;
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault(); e.stopImmediatePropagation();
+                index = (index + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length; paint();
+            } else if ((e.key === 'Enter' || e.key === 'Tab') && !e.isComposing) {
+                e.preventDefault(); e.stopImmediatePropagation(); pick(index);
+            } else if (e.key === 'Escape') {
+                e.preventDefault(); e.stopImmediatePropagation(); close();
+            }
+        });
+        box.addEventListener('input', update);
+        box.addEventListener('click', update);
+        box.addEventListener('blur', () => setTimeout(close, 150));
+    }
+    window.scAttachMentions = attachMentions;
+
     function initThreadPanel() {
         const panel = document.getElementById('sc-thread');
         if (!panel) return;
@@ -591,9 +777,15 @@
             document.body.classList.remove('sc-thread-open'); renderThread();
         });
         const input = document.getElementById('sc-thread-input');
+        attachMentions(input);   // first, so Enter/Tab pick a name while the list is open
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendThreadReply(); }
         });
+        // ⚡ shortcuts, same as under the main message box
+        const send = document.getElementById('sc-thread-send');
+        if (send && window.scMakeShortcutButton && !panel.querySelector('.sc-shortcut-btn')) {
+            send.before(window.scMakeShortcutButton(() => document.getElementById('sc-thread-input')));
+        }
         input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 160) + 'px'; });
         document.getElementById('sc-thread-send').addEventListener('click', sendThreadReply);
     }

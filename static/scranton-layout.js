@@ -220,4 +220,44 @@
     document.addEventListener('visibilitychange', ping);
     ['pointerdown', 'keydown'].forEach((ev) => document.addEventListener(ev, ping, { passive: true }));
     setTimeout(ping, 3000);
+
+    // ---------------------------------------------------------------- resizable side panels
+    // Drag the left edge of the thread or details panel. The width is remembered.
+    function makeResizable(panel, key, cssVar) {
+        if (!panel || panel.querySelector(':scope > .sc-resize')) return;
+        const saved = Number(LS.get(key, '0'));
+        if (saved) document.documentElement.style.setProperty(cssVar, saved + 'px');
+        const h = document.createElement('div');
+        h.className = 'sc-resize';
+        h.setAttribute('role', 'separator');
+        h.setAttribute('aria-orientation', 'vertical');
+        h.setAttribute('aria-label', 'Resize panel');
+        h.tabIndex = 0;
+        panel.prepend(h);
+        const clamp = (w) => Math.round(Math.max(300, Math.min(w, Math.min(900, window.innerWidth * 0.6))));
+        const set = (w) => { w = clamp(w); document.documentElement.style.setProperty(cssVar, w + 'px'); LS.set(key, String(w)); };
+        h.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            h.setPointerCapture(e.pointerId);
+            document.body.classList.add('sc-resizing');
+            const right = panel.getBoundingClientRect().right;
+            const move = (ev) => set(right - ev.clientX);
+            const up = () => { h.removeEventListener('pointermove', move); document.body.classList.remove('sc-resizing'); };
+            h.addEventListener('pointermove', move);
+            h.addEventListener('pointerup', up, { once: true });
+            h.addEventListener('pointercancel', up, { once: true });
+        });
+        h.addEventListener('dblclick', () => { document.documentElement.style.removeProperty(cssVar); LS.set(key, '0'); });
+        h.addEventListener('keydown', (e) => {
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            e.preventDefault();
+            set(panel.getBoundingClientRect().width + (e.key === 'ArrowLeft' ? 24 : -24));
+        });
+    }
+    function initResize() {
+        makeResizable(document.getElementById('sc-thread'), 'scranton-thread-w', '--sc-thread-w');
+        makeResizable(panel(), 'scranton-info-w', '--sc-info-w');
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(initResize, 500));
+    else setTimeout(initResize, 500);
 })();

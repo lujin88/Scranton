@@ -62,6 +62,6 @@ def seen(now: float | None = None) -> float | None:
 def catch_up_text(owner: str, away: float) -> str:
     hours = int(away // 3600)
     gone = f"离开了 {hours} 小时" if hours < 48 else f"离开了 {hours // 24} 天"
-    return (f"@pm {owner} 回来了（{gone}）。把待问清单一次发给 @{owner}：编号列表，每条一行"
-            f"（问题｜选项 A/B/C｜团队建议），让她能一句话回答；再用一行说这段时间做完了什么（附 PR 链接）。"
+    return (f"@pm {owner} 回来了（{gone}）。把待问清单一次发给 @{owner}：每个问题一行，"
+            f"下面每个选项单独一行写成「A. …」「B. …」（团队建议放第一个并标推荐），她点按钮就能回答；再用一行说这段时间做完了什么（附 PR 链接）。"
             f"清单是空的就只说一句「没有要你定的事」。")

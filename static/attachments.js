@@ -16,7 +16,11 @@ function attachmentMarkup(att, pending = false) {
     const name = escapeHtml(att.name || 'Attachment').replace(/"/g, '&quot;');
     const url = escapeHtml(att.url);
     if (attachmentIsImage(att)) {
-        return `<img src="${url}" alt="${name}" onclick="openImageModal('${url}')" title="${name}">`;
+        // Scranton: click the picture or the expand button to see it full size.
+        return `<span class="sc-img"><img src="${url}" alt="${name}" onclick="openImageModal('${url}')" title="${name}">`
+            + (pending ? '' : `<button type="button" class="sc-img-x" aria-label="Expand ${name}" title="Expand" onclick="event.stopPropagation(); openImageModal('${url}')">`
+            + '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 3H22V9H20V5H16V3ZM2 3H8V5H4V9H2V3ZM20 19V15H22V21H16V19H20ZM4 19H8V21H2V15H4V19Z"/></svg></button>')
+            + '</span>';
     }
     const filename = att.name || '';
     const type = filename.lastIndexOf('.') > 0 ? filename.split('.').pop().toUpperCase() : 'FILE';

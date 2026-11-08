@@ -279,39 +279,52 @@
     // Picking one puts it in the box so she can check or edit it, then Enter sends.
     function addShortcutButton(chips) {
         if (!chips || document.getElementById('sc-shortcut-btn')) return;
-        const btn = document.createElement('button');
+        const btn = makeShortcutButton(() => document.getElementById('input'));
         btn.id = 'sc-shortcut-btn';
+        const attach = document.getElementById('sc-attach-btn');
+        if (attach) attach.after(btn); else chips.insertBefore(btn, chips.firstChild);
+    }
+
+    // A ⚡ button that fills `getInput()` with a saved message. Used by the main box and threads.
+    let shortcutPop = null;
+    const closeShortcuts = () => { if (shortcutPop) { shortcutPop._btn?.setAttribute('aria-expanded', 'false'); shortcutPop.remove(); shortcutPop = null; } };
+    document.addEventListener('click', (e) => { if (shortcutPop && !shortcutPop.contains(e.target)) closeShortcuts(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeShortcuts(); });
+    function makeShortcutButton(getInput) {
+        const btn = document.createElement('button');
         btn.type = 'button';
+        btn.className = 'sc-shortcut-btn';
         btn.title = 'Shortcuts';
         btn.setAttribute('aria-label', 'Shortcuts');
         btn.setAttribute('aria-haspopup', 'menu');
         btn.innerHTML = window.scIcon ? window.scIcon('flashlight', 18) : '⚡';
-        let pop = null;
-        const close = () => { if (pop) { pop.remove(); pop = null; btn.setAttribute('aria-expanded', 'false'); } };
         btn.addEventListener('click', async (e) => {
             e.stopPropagation();
-            if (pop) { close(); return; }
+            if (shortcutPop && shortcutPop._btn === btn) { closeShortcuts(); return; }
+            closeShortcuts();
             const items = await fetch('/api/scranton/shortcuts', { headers: { 'X-Session-Token': window.SESSION_TOKEN } })
                 .then((r) => r.json()).catch(() => []);
-            pop = document.createElement('div');
+            const pop = document.createElement('div');
             pop.id = 'sc-shortcut-menu';
             pop.setAttribute('role', 'menu');
+            pop._btn = btn;
             const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
             pop.innerHTML = (Array.isArray(items) ? items : []).map((it, i) =>
                 `<button type="button" role="menuitem" data-i="${i}"><span>${esc(it.label)}</span></button>`).join('')
                 + `<button type="button" role="menuitem" data-edit="1" class="sc-sc-edit">${window.scIcon ? window.scIcon('edit', 16) : ''}<span>Edit shortcuts</span></button>`;
             document.body.appendChild(pop);
+            shortcutPop = pop;
             const r = btn.getBoundingClientRect();
-            pop.style.left = `${r.left}px`;
+            pop.style.left = `${Math.min(r.left, window.innerWidth - pop.offsetWidth - 8)}px`;
             pop.style.bottom = `${window.innerHeight - r.top + 8}px`;
             btn.setAttribute('aria-expanded', 'true');
             pop.addEventListener('click', (ev) => {
                 const b = ev.target.closest('button');
                 if (!b) return;
-                close();
+                closeShortcuts();
                 if (b.dataset.edit) { window.scOpenSettings && window.scOpenSettings('shortcuts'); return; }
                 const it = items[+b.dataset.i];
-                const input = document.getElementById('input');
+                const input = getInput();
                 if (!it || !input) return;
                 input.value = input.value.trim() ? `${input.value.trim()}\n${it.text}` : it.text;
                 input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -319,11 +332,9 @@
                 input.setSelectionRange(input.value.length, input.value.length);
             });
         });
-        document.addEventListener('click', (e) => { if (pop && !pop.contains(e.target)) close(); });
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
-        const attach = document.getElementById('sc-attach-btn');
-        if (attach) attach.after(btn); else chips.insertBefore(btn, chips.firstChild);
+        return btn;
     }
+    window.scMakeShortcutButton = makeShortcutButton;
 
     function init() {
         // Channels always live in the sidebar.

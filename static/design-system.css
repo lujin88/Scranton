@@ -505,11 +505,11 @@ body.sc-report-open #sc-empty-room { display: none; }
 .sc-st-foot .sc-btn { order: -1; }
 
 /* ---------- Shortcuts (composer ⚡ and Settings) ---------- */
-#sc-shortcut-btn {
+#sc-shortcut-btn, .sc-shortcut-btn {
     width: 32px; height: 32px; padding: 0; flex-shrink: 0; display: grid; place-items: center;
     border: 0; border-radius: var(--ds-r-control); background: transparent; color: var(--ds-text-2);
 }
-#sc-shortcut-btn:hover, #sc-shortcut-btn[aria-expanded="true"] { background: var(--ds-hover); color: var(--ds-text); }
+#sc-shortcut-btn:hover, #sc-shortcut-btn[aria-expanded="true"], .sc-shortcut-btn:hover, .sc-shortcut-btn[aria-expanded="true"] { background: var(--ds-hover); color: var(--ds-text); }
 body.sc-in-dm #mention-toggles-row > #sc-shortcut-btn { display: grid !important; }
 #sc-shortcut-menu {
     position: fixed; z-index: 90; min-width: 220px; max-width: 320px; padding: 6px;
@@ -574,3 +574,56 @@ body.sc-in-dm #mention-toggles-row > #sc-shortcut-btn { display: grid !important
     max-width: var(--ds-read-w); margin-left: auto; margin-right: auto; box-sizing: border-box; font-size: 12.5px; color: var(--ds-text-2); }
 .sc-receipt .sc-working-av > span { width: 20px !important; height: 20px !important; box-shadow: 0 0 0 2px var(--ds-surface); }
 .sc-receipt .sc-dots i { background: var(--ds-text-3); }
+
+/* @ list in the thread reply box (same look as the main one) */
+.sc-tmention { position: fixed; z-index: 95; width: 260px; padding: 6px; }
+.sc-tmention .sc-menu-item { display: flex; align-items: center; gap: 10px; width: 100%; height: 36px; padding: 0 10px; border: 0; border-radius: var(--ds-r-row); background: none; color: var(--ds-text); font: inherit; font-size: 14px; text-align: left; white-space: nowrap; }
+.sc-tmention .sc-menu-item.active, .sc-tmention .sc-menu-item:hover { background: var(--ds-hover); }
+.sc-tm-av { width: 22px; height: 22px; border-radius: 50%; overflow: hidden; flex-shrink: 0; display: grid; place-items: center; }
+.sc-tm-av img, .sc-tm-av svg { width: 100%; height: 100%; object-fit: cover; }
+.sc-thread-compose { display: flex; align-items: flex-end; gap: 4px; }
+.sc-thread-compose .sc-shortcut-btn { flex-shrink: 0; }
+
+/* Side panels can be dragged wider or narrower (double-click the edge to reset) */
+@media (min-width: 1081px) {
+    #sc-thread { position: relative; width: var(--sc-thread-w, var(--ds-panel-w)) !important; }
+    #sc-info { position: relative; width: var(--sc-info-w, var(--ds-panel-w)) !important; }
+}
+.sc-resize { position: absolute; top: 0; bottom: 0; left: -4px; width: 8px; z-index: 5; cursor: col-resize; }
+.sc-resize::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: transparent; transition: background .15s; }
+.sc-resize:hover::after, .sc-resize:focus-visible::after, body.sc-resizing .sc-resize::after { background: var(--ds-accent); }
+.sc-resize:focus-visible { outline: none; }
+body.sc-resizing { cursor: col-resize; user-select: none; }
+@media (max-width: 1080px) { .sc-resize { display: none; } }
+
+/* Pictures: an expand button on hover; click opens them full size */
+.sc-img { position: relative; display: inline-block; max-width: 100%; }
+.sc-img img { cursor: zoom-in; display: block; }
+.sc-img-x { position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: var(--ds-r-control);
+    background: rgba(0, 0, 0, 0.6); color: #fff; opacity: 0; transition: opacity .12s; cursor: pointer; }
+.sc-img:hover .sc-img-x, .sc-img-x:focus-visible { opacity: 1; }
+@media (hover: none) { .sc-img-x { opacity: 1; } }
+.msg-text img, .sc-tmsg-text img { cursor: zoom-in; }
+.sc-tmsg-att { margin-top: 6px; }
+.sc-tmsg-att img { max-width: 100%; border-radius: 10px; }
+#image-modal img { max-width: 92vw; max-height: 88vh; object-fit: contain; border-radius: 10px; }
+
+/* Option cards (Grok-style): agents' choices and typed "A. … B. …" options */
+.decision-choices, .sc-choices { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.sc-choice-card, .decision-choices { padding: 14px 14px 10px; border-radius: var(--ds-r-card); background: var(--ds-raised); }
+.message.self .sc-choice-card { background: rgba(0, 0, 0, 0.15); }
+.sc-choice-q { font-weight: 600; color: var(--ds-text); margin: 0 4px 8px; line-height: 1.45; }
+.sc-choice, .decision-choice { display: flex !important; align-items: center; gap: 12px; width: 100%; min-height: 40px; padding: 6px 4px !important; margin: 0 !important;
+    border: 0 !important; border-radius: var(--ds-r-row) !important; background: transparent !important; color: var(--ds-text-2) !important;
+    font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.sc-choice:hover:not(:disabled), .decision-choice:hover { background: var(--ds-hover) !important; color: var(--ds-text) !important; }
+.sc-choice-key { flex-shrink: 0; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: var(--ds-overlay); color: var(--ds-text-2); font-size: 13px; font-weight: 600; }
+.sc-choice.on { color: var(--ds-text) !important; }
+.sc-choice.on .sc-choice-key { background: var(--ds-accent-fill); color: #fff; }
+.sc-choice-card.done .sc-choice:not(.on) { opacity: .45; cursor: default; }
+.decision-choices { counter-reset: opt; }
+.decision-choice::before { counter-increment: opt; content: counter(opt, upper-alpha); flex-shrink: 0; width: 28px; height: 28px; display: grid; place-items: center;
+    border-radius: 8px; background: var(--ds-overlay); color: var(--ds-text-2); font-size: 13px; font-weight: 600; }
+.decision-resolved { color: var(--ds-text-2); padding: 4px; }
+.msg-text .sc-opt-line { display: none; }
+.msg-text ul:has(> li.sc-opt-line):not(:has(> li:not(.sc-opt-line))), .msg-text ol:has(> li.sc-opt-line):not(:has(> li:not(.sc-opt-line))) { display: none; }

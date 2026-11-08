@@ -28,6 +28,7 @@ class PresenceTest(unittest.TestCase):
     def test_text_names_owner_and_hours(self):
         t = pr.catch_up_text("Lu", 5 * 3600 + 100)
         self.assertTrue(t.startswith("@pm Lu 回来了（离开了 5 小时）"))
+        self.assertIn("A. …", t)
         self.assertIn("@Lu", t)
         self.assertIn("离开了 3 天", pr.catch_up_text("Lu", 3 * 86400))
 

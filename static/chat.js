@@ -3265,14 +3265,24 @@ function buildMentionToggles() {
         if (activeMentions.has(name)) {
             btn.classList.add('active');
         }
+        // Scranton: the chip writes "@项目经理 " into the box (or takes it out again), so you
+        // see who the message goes to. It used to switch on a hidden tag added at send time.
         btn.onclick = () => {
-            if (activeMentions.has(name)) {
-                activeMentions.delete(name);
-                btn.classList.remove('active');
+            activeMentions.delete(name);
+            const input = document.getElementById('input');
+            if (!input) return;
+            const tag = `@${cfg.label || name}`;
+            const re = new RegExp('(^|\\s)@(' + [name, cfg.label || name].map((x) => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')(?![\\w-])\\s?');
+            if (re.test(input.value)) {
+                input.value = input.value.replace(re, '$1').replace(/^\s+/, '');
             } else {
-                activeMentions.add(name);
-                btn.classList.add('active');
+                const v = input.value;
+                input.value = v.trim() ? `${tag} ${v.replace(/^\s+/, '')}` : `${tag} `;
             }
+            btn.classList.toggle('active', re.test(input.value));
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.focus();
+            input.setSelectionRange(input.value.length, input.value.length);
             updateSchedulePopoverState();
         };
         container.appendChild(btn);
@@ -3417,7 +3427,7 @@ let modalImages = [];  // all image URLs in chat
 let modalIndex = 0;    // current image index
 
 function getAllChatImages() {
-    const imgs = document.querySelectorAll('.msg-attachments img, .job-msg-attachments img');
+    const imgs = document.querySelectorAll('.msg-attachments img, .job-msg-attachments img, .msg-text img, .sc-tmsg-text img');
     return [...imgs].map(img => img.src);
 }
 

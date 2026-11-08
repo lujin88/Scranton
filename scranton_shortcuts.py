@@ -14,8 +14,8 @@ _path = Path(__file__).resolve().parent / "data" / "shortcuts.json"
 
 DEFAULTS = [
     {"label": "What needs me",
-     "text": "@pm 现在有哪些事要我定？把待问清单一次发我：编号列表，每条一行（问题｜选项 A/B/C｜团队建议），"
-             "我一句话回答。没有就说没有。"},
+     "text": "@pm 现在有哪些事要我定？把待问清单一次发我：每个问题一行，下面每个选项单独一行写成「A. …」「B. …」"
+             "（团队建议放第一个并标推荐），我点按钮回答。没有就说没有。"},
     {"label": "Clean up my Mac",
      "text": "@ops 清理这台 Mac，再整理移动硬盘。\n"
              "1. 先列出能清的：缓存、下载文件夹、旧的 node_modules 和构建产物、重复文件、废纸篓。每类写大小和路径。\n"
