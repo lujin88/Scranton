@@ -510,3 +510,21 @@ def profile(name: str, config: dict, members: dict, recent: list[dict]) -> dict 
         "effort": str(a.get("effort", "") or ""),
         "efforts": list(EFFORTS) if pid == "codex" else [],
     }
+
+
+def team_permissions(current: str = "ask") -> dict:
+    """The team-wide permission level and whether Lu has been asked yet (first launch).
+    `current` is what config.toml says, shown until a choice is saved."""
+    data = load_overrides()
+    team = data.get("_team") or {}
+    return {"permissions": team.get("permissions", current if current in ("full", "ask") else "ask"),
+            "asked": bool(team.get("asked"))}
+
+
+def set_team_permissions(level: str) -> dict:
+    if level not in ("full", "ask"):
+        raise ValueError("permissions is full or ask")
+    data = load_overrides()
+    data["_team"] = {**(data.get("_team") or {}), "permissions": level, "asked": True}
+    _write(data)
+    return team_permissions()

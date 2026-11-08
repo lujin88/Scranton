@@ -177,6 +177,11 @@ def load_config(root: Path | None = None) -> dict:
                     if key in vals:
                         config["agents"][name][key] = vals[key]
 
+        # Scranton: the team-wide permission level chosen on first launch (a teammate's own wins)
+        tp = ((ui or {}).get("_team") or {}).get("permissions")
+        if tp in ("full", "ask"):
+            config.setdefault("team", {})["permissions"] = tp
+
         # an app's default model, for agents that didn't pick their own
         defaults = (ui or {}).get("_defaults") or {}
         if isinstance(defaults, dict):

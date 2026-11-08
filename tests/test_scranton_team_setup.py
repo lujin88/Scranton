@@ -78,3 +78,19 @@ class WorktreeConfigTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TeamPermissionsTest(unittest.TestCase):
+    def test_first_launch_choice_is_saved_and_applied(self):
+        import tempfile, json
+        from pathlib import Path
+        from unittest.mock import patch
+        import scranton_team as t
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "teammates.json"
+            with patch.object(t, "OVERRIDES", p):
+                self.assertEqual(t.team_permissions("full"), {"permissions": "full", "asked": False})
+                self.assertEqual(t.set_team_permissions("ask"), {"permissions": "ask", "asked": True})
+                self.assertEqual(json.loads(p.read_text())["_team"]["permissions"], "ask")
+                with self.assertRaises(ValueError):
+                    t.set_team_permissions("root")

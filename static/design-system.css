@@ -965,3 +965,18 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 :root[data-theme="light"] .sc-tmsg.self .sc-tmsg-head span { color: rgba(255, 255, 255, 0.6) !important; }
 :root[data-theme="light"] .sc-tmsg.self .sc-tmsg-text .mention { background: rgba(255, 255, 255, 0.16) !important; color: #fff !important; }
 :root[data-theme="light"] .sc-tmsg.self .sc-tmsg-text a { color: #9cc0fa !important; }
+
+/* First launch: how much agents may do on their own */
+#sc-perm-ask { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; background: rgba(0, 0, 0, 0.45); }
+.sc-perm-dlg { width: min(480px, calc(100vw - 32px)); padding: 24px; border-radius: var(--ds-r-dialog); background: var(--ds-overlay); color: var(--ds-text); box-shadow: var(--ds-shadow); }
+.sc-perm-dlg h2 { margin: 0 0 6px; font-size: var(--ds-fs-xl); font-weight: 600; }
+.sc-perm-sub { margin: 0 0 16px; color: var(--ds-text-2); font-size: var(--ds-fs-md); }
+.sc-perm-opts { display: flex; flex-direction: column; gap: 8px; }
+.sc-perm-opt { display: flex; gap: 12px; align-items: flex-start; width: 100%; padding: 12px 14px; border: 0; border-radius: var(--ds-r-card); text-align: left;
+    background: var(--ds-raised); color: var(--ds-text); font: inherit; cursor: pointer; box-shadow: 0 0 0 1px rgba(var(--ink), 0.08); }
+.sc-perm-opt[aria-checked="true"] { box-shadow: 0 0 0 2px var(--ds-accent); }
+.sc-perm-opt b { display: block; font-weight: 600; font-size: var(--ds-fs-md); margin-bottom: 2px; }
+.sc-perm-opt small { display: block; color: var(--ds-text-2); font-size: var(--ds-fs-sm); line-height: 1.45; }
+.sc-perm-dot { flex: none; width: 16px; height: 16px; margin-top: 2px; border-radius: 50%; box-shadow: inset 0 0 0 2px rgba(var(--ink), 0.3); }
+.sc-perm-opt[aria-checked="true"] .sc-perm-dot { box-shadow: inset 0 0 0 5px var(--ds-accent); }
+.sc-perm-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; color: var(--ds-text-3); font-size: var(--ds-fs-sm); }

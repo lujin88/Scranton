@@ -2658,6 +2658,20 @@ async def scranton_channel_about_set(name: str, request: Request):
     return JSONResponse({"ok": True, "topic": meta.get("topic", ""), "description": meta.get("description", "")})
 
 
+@app.get("/api/scranton/team-permissions")
+async def scranton_team_permissions():
+    return JSONResponse(_sc_team.team_permissions(str((config or {}).get("team", {}).get("permissions", "ask"))))
+
+
+@app.post("/api/scranton/team-permissions")
+async def scranton_team_permissions_set(request: Request):
+    try:
+        body = await request.json()
+        return JSONResponse(_sc_team.set_team_permissions(str((body or {}).get("permissions", ""))))
+    except (ValueError, AttributeError) as e:
+        return JSONResponse({"error": str(e) or "permissions is full or ask"}, status_code=400)
+
+
 @app.get("/api/scranton/dm-activity")
 async def scranton_dm_activity():
     """Latest message time per direct-message channel that has real messages (not join/leave
