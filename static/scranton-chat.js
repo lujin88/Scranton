@@ -665,11 +665,10 @@
     // ------------------------------------------------------------------
     function openThread(rootId) {
         if (rootId == null || !byId.has(rootId)) return;
-        const i = openThreads.indexOf(rootId);
-        if (i >= 0) openThreads.splice(i, 1);
-        openThreads.push(rootId);
-        while (openThreads.length > 4) openThreads.shift();
+        // The right panel shows one thing: this thread replaces details or another thread.
+        openThreads.splice(0, openThreads.length, rootId);
         activeThread = rootId;
+        if (infoTab != null && window.scToggleInfo) { infoTab = null; window.scToggleInfo(false); }
         infoActive = false;
         document.body.classList.add('sc-thread-open');
         renderThread();
@@ -678,6 +677,12 @@
         setTimeout(() => document.getElementById('sc-thread-input')?.focus(), 30);
     }
     window.scOpenThread = openThread;
+    // Close whatever the right panel shows (also when you leave the channel for Activity or Report).
+    window.scCloseRightPanel = () => {
+        openThreads.splice(0); activeThread = null;
+        if (infoTab != null && window.scToggleInfo) window.scToggleInfo(false);
+        document.body.classList.remove('sc-thread-open'); renderThread();
+    };
 
     function closeThread(rootId) {
         const i = openThreads.indexOf(rootId);
@@ -705,7 +710,8 @@
     let infoActive = false;
     window.scRightPanel = {
         info(on, label) {
-            if (on) { if (infoTab == null) infoActive = true; infoTab = label; } else { infoTab = null; infoActive = false; }
+            if (on) { infoTab = label; infoActive = true; openThreads.splice(0); activeThread = null; }
+            else { infoTab = null; infoActive = false; }
             document.body.classList.toggle('sc-thread-open', activeThread != null || infoTab != null);
             renderThread();
         },
@@ -722,22 +728,20 @@
         panel.classList.toggle('sc-info-active', infoActive);
         renderThreadChips();
         renderThreadAtts();
-        const infoBtn = infoTab != null
-            ? `<button type="button" class="sc-ttab${infoActive ? ' active' : ''}" data-info="1" title="Details"><span class="sc-ttab-label">${esc(infoTab)}</span><span class="sc-ttab-x" data-close-info="1" title="Close">✕</span></button>`
-            : '';
-        if (activeThread == null) { tabs.innerHTML = infoBtn; body.innerHTML = ''; return; }
-        tabs.innerHTML = infoBtn + openThreads.map((rid) => {
-            const r = byId.get(rid) || {};
-            const mine = String(r.sender || '').toLowerCase() === me().toLowerCase();
-            const snippet = String(r.text || '').replace(/@[\w-]+/g, '').replace(/\s+/g, ' ').trim();
-            const label = mine ? (snippet.slice(0, 18) || 'Your thread') : `@${labelOf(r.sender || '?')}`;
-            return `<button type="button" class="sc-ttab${rid === activeThread && !infoActive ? ' active' : ''}" data-root="${rid}" title="${esc(String(r.text || '').slice(0, 120))}">`
-                + `<span class="sc-ttab-label">${esc(label)}</span><span class="sc-ttab-x" data-close="${rid}" title="Close">✕</span></button>`;
-        }).join('');
+        // A title for what's showing (no tabs): "# channel" for details, "Thread" + where for a thread.
+        if (activeThread == null) {
+            tabs.innerHTML = infoTab != null ? `<div class="sc-rp-title"><b>${esc(infoTab)}</b></div>` : '';
+            body.innerHTML = '';
+            return;
+        }
+        {
+            const r = byId.get(activeThread) || {};
+            const w = r.channel && r.channel.startsWith('dm-') ? `with ${labelOf(r.channel.slice(3))}` : `#${r.channel || 'general'}`;
+            tabs.innerHTML = `<div class="sc-rp-title"><b>Thread</b><span>${esc(w)}</span></div>`;
+        }
         const root = byId.get(activeThread);
         const list = replies.get(activeThread) || [];
-        const where = root && root.channel && root.channel.startsWith('dm-') ? `Direct message with ${labelOf(root.channel.slice(3))}` : `#${(root && root.channel) || 'general'}`;
-        body.innerHTML = (root ? `<div class="sc-thread-where">${esc(where)}</div>${tmsgHtml(root)}` : '')
+        body.innerHTML = (root ? tmsgHtml(root) : '')
             + `<div class="sc-thread-divider"><span>${list.length} ${list.length === 1 ? 'reply' : 'replies'}</span></div>`
             + list.map(tmsgHtml).join('');
         polishText(body, '.sc-tmsg-text .mention');
@@ -924,11 +928,7 @@
             const t = e.target.closest('[data-root]');
             if (t) { activeThread = Number(t.dataset.root); infoActive = false; renderThread(); }
         });
-        panel.querySelector('.sc-thread-close').addEventListener('click', () => {
-            openThreads.splice(0); activeThread = null;
-            if (infoTab != null && window.scToggleInfo) window.scToggleInfo(false);
-            document.body.classList.remove('sc-thread-open'); renderThread();
-        });
+        panel.querySelector('.sc-thread-close').addEventListener('click', () => window.scCloseRightPanel());
         const input = document.getElementById('sc-thread-input');
         attachMentions(input);   // first, so Enter/Tab pick a name while the list is open
         input.addEventListener('keydown', (e) => {

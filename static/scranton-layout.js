@@ -65,10 +65,11 @@
         h.insertBefore(pill, h.firstChild);
         h.insertBefore(float, pill);
         // Details open behind a thread tab: bring them to the front instead of closing them.
+        // The pill toggles this channel's details in the right panel (replacing a thread).
         pill.addEventListener('click', () => {
             const rp = window.scRightPanel;
             infoTab = 'about';
-            if (isOpen() && rp && !rp.isShowingInfo()) rp.showInfo(); else toggleInfo();
+            if (isOpen() && rp && !rp.isShowingInfo()) toggleInfo(true); else toggleInfo();
         });
     }
 
@@ -123,12 +124,8 @@
         } else {
             // Slack's channel details: About (name, topic, description, started, files) | Members
             const members = (((window.scChannelMembers && window.scChannelMembers()) || {})[ch] || []).filter((m) => team()[m]);
-            const tab = infoTab === 'members' ? 'members' : 'about';
+            const tab = 'about';
             p.innerHTML = `${close}
-                <div class="sc-ch-tabs" role="tablist">
-                    <button type="button" role="tab" data-i="tab-about" aria-selected="${tab === 'about'}">About</button>
-                    <button type="button" role="tab" data-i="tab-members" aria-selected="${tab === 'members'}">Members <span>${members.length + 1}</span></button>
-                </div>
                 <div class="sc-info-body" id="sc-ch-body"></div>`;
             const body = p.querySelector('#sc-ch-body');
             if (tab === 'members') {
@@ -171,6 +168,9 @@
                 ${row('topic', 'Topic', d.topic || '', 'Add a topic: what this channel is for right now')}
                 ${row('description', 'Description', d.description || '', 'Add a description')}
                 ${d.started ? `<div class="sc-ch-row"><div class="sc-ch-rt">Started</div><div class="sc-ch-rv">${esc(fmtDate(d.started))}</div></div>` : ''}
+                ${(() => { const ms = (((window.scChannelMembers && window.scChannelMembers()) || {})[ch] || []).filter((m) => team()[m]);
+                    return `<button type="button" class="sc-ch-row sc-ch-members" data-i="members"><div class="sc-ch-rt">Members<span class="sc-ch-edit">View</span></div>
+                        <div class="sc-ch-avs">${ms.slice(0, 6).map((m) => `<span class="sc-ch-av">${window.scAvatarHtml ? window.scAvatarHtml(m) : ''}</span>`).join('')}<em>${ms.length + 1} with you</em></div></button>`; })()}
             </div>
             <h3 class="sc-ch-sub">Files</h3>
             ${files.length ? `<div class="sc-ch-card sc-ch-files">${files.map((f) => `<a class="sc-ch-file" href="${esc(f.url)}" target="_blank" rel="noopener">
@@ -208,7 +208,7 @@
         const i = t.closest('[data-i]')?.dataset.i;
         const ch = window.activeChannel || 'general';
         if (i === 'close') return toggleInfo(false);
-        if (i === 'tab-about' || i === 'tab-members') { infoTab = i.slice(4); return render(); }
+        if (i === 'members') return document.getElementById('sc-members-btn')?.click();
         if (i === 'edit') return fillAbout(ch, t.closest('[data-key]').dataset.key);
         if (i === 'edit-cancel') return fillAbout(ch);
         if (i === 'edit-save') {

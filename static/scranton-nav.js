@@ -186,6 +186,7 @@
     }
 
     window.scOpenInbox = function () {
+        if (window.scCloseRightPanel) window.scCloseRightPanel();
         document.getElementById('sc-inbox')?.classList.remove('hidden');
         document.getElementById('sc-inbox-row')?.classList.add('active');
         document.querySelectorAll('#channel-sidebar-list .channel-sidebar-row.active, #sc-dm-list .sc-side-row.active')

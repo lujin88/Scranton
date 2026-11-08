@@ -932,3 +932,36 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 /* Messages fade out as they scroll under the floating header (Grok Bot), both themes */
 #timeline { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 88px); mask-image: linear-gradient(to bottom, transparent 0, #000 88px); }
 :root[data-theme="light"] .sc-btn:not(.primary):not(.danger) { background: #fff !important; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12) !important; }
+
+/* ================================================================ design review, 2026-11-08 */
+/* Right panel: one thing at a time, with a title (no tabs mixing threads and details) */
+.sc-thread-tabs { overflow: visible !important; }
+.sc-rp-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; padding: 4px 4px 0; }
+.sc-rp-title b { font-size: var(--ds-fs-lg); font-weight: 600; color: var(--ds-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-rp-title span { font-size: var(--ds-fs-sm); color: var(--ds-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-thread-where { display: none !important; }
+
+/* Channel pill: a toggle. Its state shows as a fill, not a flipping arrow or a lingering focus ring */
+#sc-pane-pill[aria-expanded="true"] .sc-pill-chev { transform: none !important; }
+#sc-pane-pill[aria-expanded="true"] { background: var(--ds-active) !important; }
+:root[data-theme="light"] #sc-pane-pill[aria-expanded="true"] { background: #ececec !important; }
+#sc-pane-pill:focus:not(:focus-visible) { outline: none !important; box-shadow: none !important; }
+
+/* Details: members as one row that opens the members list (one home for members) */
+.sc-ch-members { display: block; width: 100%; border: 0; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.sc-ch-members:hover { background: var(--ds-hover); }
+.sc-ch-avs { display: flex; align-items: center; margin-top: 4px; }
+.sc-ch-av { width: 24px; height: 24px; border-radius: 50%; overflow: hidden; margin-right: -6px; box-shadow: 0 0 0 2px var(--ds-raised); }
+.sc-ch-av img, .sc-ch-av svg { width: 100%; height: 100%; object-fit: cover; }
+.sc-ch-avs em { font-style: normal; margin-left: 14px; font-size: var(--ds-fs-sm); color: var(--ds-text-2); }
+
+/* System notes ("Starting 项目经理…") are the least important thing on screen: small, no pill */
+.message.system-msg .msg-text, .message.system-msg .chat-bubble { background: transparent !important; padding: 2px 0 !important;
+    font-size: var(--ds-fs-xs) !important; color: var(--ds-text-3) !important; box-shadow: none !important; }
+.message.system-msg { margin: 2px 0 !important; }
+
+/* Your replies in a thread: no avatar (same as the main conversation), readable on the dark light-mode bubble */
+.sc-tmsg.self .sc-tmsg-av { display: none !important; }
+:root[data-theme="light"] .sc-tmsg.self .sc-tmsg-head span { color: rgba(255, 255, 255, 0.6) !important; }
+:root[data-theme="light"] .sc-tmsg.self .sc-tmsg-text .mention { background: rgba(255, 255, 255, 0.16) !important; color: #fff !important; }
+:root[data-theme="light"] .sc-tmsg.self .sc-tmsg-text a { color: #9cc0fa !important; }

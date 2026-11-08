@@ -97,6 +97,7 @@
 
     function open() {
         if (window.scCloseInbox) window.scCloseInbox();
+        if (window.scCloseRightPanel) window.scCloseRightPanel();
         document.getElementById('sc-welcome')?.classList.add('hidden');
         section().classList.remove('hidden');
         document.getElementById('sc-report-row')?.classList.add('active');
