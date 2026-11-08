@@ -905,12 +905,55 @@
         // Opening a thread starts at the newest reply; a new reply while you read doesn't move you
         // (it does if you were already at the bottom, or the reply is yours).
         const tKey = String(activeThread);
-        const lastSender = String((list[list.length - 1] || {}).sender || '').toLowerCase();
-        if (body.dataset.thread !== tKey || prevAtBottom || lastSender === String(me()).toLowerCase()) body.scrollTop = body.scrollHeight;
-        else body.scrollTop = prevTop;
+        const last = list[list.length - 1] || {};
+        const lastSender = String(last.sender || '').toLowerCase();
+        const lastIsAnswer = /^@\S+\s+\d*[A-H]：/.test(String(last.text || ''));   // an option you clicked
+        const sameThread = body.dataset.thread === tKey;
+        const prevCount = sameThread ? Number(body.dataset.count || 0) : list.length;
+        if (!sameThread || (prevAtBottom && !lastIsAnswer) || (lastSender === String(me()).toLowerCase() && !lastIsAnswer)) {
+            body.scrollTop = body.scrollHeight;
+            threadUnread = 0;
+        } else {
+            body.scrollTop = prevTop;
+            // New replies landed below where you're reading: count them on the ↓ button instead of moving you.
+            const fresh = list.slice(prevCount).filter((m) => String(m.sender || '').toLowerCase() !== String(me()).toLowerCase()).length;
+            threadUnread += fresh;
+        }
         body.dataset.thread = tKey;
+        body.dataset.count = String(list.length);
+        paintThreadDown(panel, body);
         const input = document.getElementById('sc-thread-input');
         if (input) input.placeholder = `Reply in thread${root ? ' · @' + labelOf(root.sender) : ''}`;
+    }
+
+    // ↓ button in the thread: same look as the main one, shows how many replies are below you.
+    var threadUnread = 0;
+    function paintThreadDown(panel, body) {
+        let btn = panel.querySelector('.sc-tdown');
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'sc-tdown';
+            btn.setAttribute('aria-label', 'Jump to latest reply');
+            btn.innerHTML = '<span class="sc-tdown-n"></span><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 16.17L18.36 10.81L19.78 12.22L12 20L4.22 12.22L5.64 10.81L11 16.17V4H13V16.17Z"/></svg>';
+            btn.addEventListener('click', () => { body.scrollTo({ top: body.scrollHeight, behavior: 'smooth' }); });
+            panel.appendChild(btn);
+        }
+        if (!body.dataset.tdownBound) {
+            body.dataset.tdownBound = '1';
+            body.addEventListener('scroll', () => {
+                if (body.scrollHeight - body.scrollTop - body.clientHeight < 40) { threadUnread = 0; }
+                paintThreadDown(panel, body);
+            }, { passive: true });
+        }
+        const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 40;
+        const show = activeThread != null && !infoActive && !atBottom && threadUnread > 0;
+        btn.classList.toggle('sc-on', show);
+        btn.querySelector('.sc-tdown-n').textContent = threadUnread > 0 ? String(threadUnread) : '';
+        const compose = panel.querySelector('.sc-thread-compose, #sc-thread-compose');
+        const br = body.getBoundingClientRect(), pr = panel.getBoundingClientRect();
+        btn.style.bottom = Math.max(16, pr.bottom - br.bottom + 16) + 'px';
+        void compose;
     }
 
     // Files waiting to go with the thread reply (same cards as the main box).

@@ -1100,8 +1100,14 @@ function appendMessage(msg, options = {}) {
     // Scranton (Lu, 2026-11-08): a new message never moves what you're reading. Only your own
     // message takes you to the bottom; anything else adds to the count on the ↓ button.
     const mine = String(msg.sender || '').toLowerCase() === String(username || '').toLowerCase();
-    if (mine) {
+    // Clicking an option card sends "@agent 2A：…": that's an answer, not you starting to type,
+    // so it doesn't move the page either (there may be more cards above to answer).
+    const isAnswer = /^@\S+\s+\d*[A-H]：/.test(String(msg.text || ''));
+    const shownHere = msg.reply_to == null;
+    if (mine && !isAnswer && shownHere) {
         scrollToBottom();
+    } else if (mine) {
+        // stays where you are
     } else {
         // Hidden replies (threads) and system notes don't add to the count
         const el = document.querySelector(`.message[data-id="${msg.id}"]`);

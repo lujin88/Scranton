@@ -1188,3 +1188,15 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 #dropzone { display: none !important; }
 /* a dropped image waits as a small card in the box, never a full-size picture */
 #attachments img, #sc-thread-atts img { max-width: 120px !important; max-height: 80px !important; object-fit: cover; border-radius: 8px; }
+
+/* Thread ↓ button: same recipe as #scroll-anchor, centred over the thread body. */
+.sc-tdown { position: absolute; left: 50%; transform: translateX(-50%); z-index: 5; display: none;
+    width: 40px; height: 40px; border: 0; border-radius: 50%; place-items: center; cursor: pointer;
+    background: var(--tone-2c); color: var(--ds-text);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(var(--ink), 0.08); }
+.sc-tdown.sc-on { display: grid; }
+.sc-tdown:hover { background: var(--tone-33); }
+:root[data-theme="light"] .sc-tdown:hover { background: #f4f4f4; }
+.sc-tdown-n { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+    font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; background: var(--accent); color: var(--text-on-accent); }
+.sc-tdown-n:empty { display: none; }
