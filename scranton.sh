@@ -130,6 +130,7 @@ start_agent() {
     effort=$(cfg "$name" effort "")
     case "$cmd:$effort" in
         codex:low|codex:medium|codex:high|codex:xhigh) pflags="$pflags -c model_reasoning_effort=$effort" ;;
+        claude:low|claude:medium|claude:high|claude:xhigh|claude:max) pflags="$pflags --effort $effort" ;;
     esac
     # No wrapper is running for this teammate (checked above), so any terminal it left
     # behind (agentchattr-<name> or <name>-2 after a crash/sleep) has nobody reading it:

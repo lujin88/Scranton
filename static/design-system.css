@@ -1102,3 +1102,4 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 /* Sidebar tools on the left, at the same spot as on the collapsed rail: the collapse button
    doesn't move when you collapse or expand. */
 @media (min-width: 761px) { #sc-side-tools { justify-content: flex-start !important; padding: 10px 10px 4px !important; gap: 6px !important; } }
+.sc-ap-eff .sc-ap-svc { font-size: var(--ds-fs-xs); padding: 0 4px; }

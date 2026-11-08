@@ -21,7 +21,9 @@ from safe_io import atomic_write
 ROOT = Path(__file__).parent
 OVERRIDES = ROOT / "data" / "teammates.json"
 EDITABLE = ("model", "permissions", "autostart", "label", "role", "avatar", "provider", "effort")
-EFFORTS = ("low", "medium", "high", "xhigh")
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
+# What each app's CLI accepts: `claude --effort` and Codex's model_reasoning_effort.
+EFFORTS_BY = {"claude": ("low", "medium", "high", "xhigh", "max"), "codex": ("low", "medium", "high", "xhigh")}
 MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:\-]{0,63}$")
 
 # Each provider: CLI names, how to sign in, where its login lives, model hints.
@@ -32,14 +34,13 @@ PROVIDERS = {
         # Claude Code takes an alias (always the latest of that tier) or a full model name.
         # Which ones your plan allows is decided by Anthropic; an unavailable one fails at start.
         "models": [
-            ["", "Default", ""],
-            ["opus", "Opus · latest", "Always the newest"], ["sonnet", "Sonnet · latest", "Always the newest"],
-            ["haiku", "Haiku · latest", "Always the newest"], ["opusplan", "Opus to plan, Sonnet to build", "Always the newest"],
-            ["claude-fable-5-1", "Fable 5.1", "Pinned version"], ["claude-opus-5-5", "Opus 5.5", "Pinned version"],
-            ["claude-opus-5", "Opus 5", "Pinned version"], ["claude-opus-4-8", "Opus 4.8", "Pinned version"],
-            ["claude-opus-4-7", "Opus 4.7", "Pinned version"], ["claude-opus-4-6", "Opus 4.6", "Pinned version"],
-            ["claude-sonnet-5-5", "Sonnet 5.5", "Pinned version"], ["claude-sonnet-5", "Sonnet 5", "Pinned version"],
-            ["claude-haiku-5-5", "Haiku 5.5", "Pinned version"], ["claude-haiku-4-5", "Haiku 4.5", "Pinned version"],
+            ["", "Default", "Claude Code picks"],
+            # Specific versions, newest first (no "latest" aliases: you see exactly what runs).
+            ["claude-fable-5-1", "Fable 5.1", ""], ["claude-opus-5-5", "Opus 5.5", ""],
+            ["claude-sonnet-5-5", "Sonnet 5.5", ""], ["claude-haiku-5-5", "Haiku 5.5", ""],
+            ["claude-opus-5", "Opus 5", "Older"], ["claude-sonnet-5", "Sonnet 5", "Older"],
+            ["claude-opus-4-8", "Opus 4.8", "Older"], ["claude-opus-4-7", "Opus 4.7", "Older"],
+            ["claude-opus-4-6", "Opus 4.6", "Older"], ["claude-haiku-4-5", "Haiku 4.5", "Older"],
         ],
     },
     "codex": {
@@ -96,8 +97,9 @@ def set_override(name: str, key: str, value, config: dict) -> dict:
         key, value = "command", COMMANDS[value]
     if key == "effort":
         value = str(value or "")
-        if value and value not in EFFORTS:
-            raise ValueError("thinking is low, medium, high or xhigh")
+        allowed = EFFORTS_BY.get(provider_of(config["agents"][name].get("command", "")), ())
+        if value and value not in allowed:
+            raise ValueError("thinking is " + (", ".join(allowed) or "not adjustable for this app"))
     if key == "avatar":
         value = str(value or "").strip()
         if value and ("/" in value or "\\" in value or not (ROOT / "static" / "avatars" / value).is_file()):
@@ -508,7 +510,7 @@ def profile(name: str, config: dict, members: dict, recent: list[dict]) -> dict 
         "avatar": str(a.get("avatar", "") or ""),
         "avatars": avatars(),
         "effort": str(a.get("effort", "") or ""),
-        "efforts": list(EFFORTS) if pid == "codex" else [],
+        "efforts": list(EFFORTS_BY.get(pid, ())),
     }
 
 

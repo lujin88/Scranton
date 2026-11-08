@@ -127,6 +127,9 @@
         return conns || [];
     }
     const SHORT = { claude: 'Claude', codex: 'ChatGPT', cursor: 'Cursor' };
+    const EFF = { '': 'Auto', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra', max: 'Max' };
+    const EFF_TIP = { '': "The app's own default", low: 'Fastest, fewest tokens', medium: 'Balanced', high: 'Thinks longer',
+        xhigh: 'Extra high: thinks much longer', max: 'Most thinking, slowest' };
     const svgX = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 10.586l4.95-4.95 1.414 1.414-4.95 4.95 4.95 4.95-1.414 1.414-4.95-4.95-4.95 4.95-1.414-1.414 4.95-4.95-4.95-4.95L7.05 5.636z"/></svg>';
     const svgBack = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.828 12l4.95 4.95-1.414 1.414L8 12l6.364-6.364 1.414 1.414z"/></svg>';
 
@@ -135,7 +138,11 @@
     function render(h, p, changed) {
         const st = (window.scAgentState && window.scAgentState(h)) || 'offline';
         const models = (p.models || []).slice();
-        if (p.model && !models.some(([v]) => v === p.model)) models.push([p.model, p.model]);
+        if (p.model && !models.some(([v]) => v === p.model)) {
+            // set before versions were listed ("opus" = whatever is newest): say so, offer a version
+            const alias = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku', opusplan: 'Opus plan + Sonnet' }[p.model];
+            models.push([p.model, alias ? `${alias}, newest (pick a version)` : p.model]);
+        }
         const efforts = p.efforts || [];
         const svc = (conns || []).map((c) => {
             const usable = c.installed && c.connected !== false;
@@ -152,8 +159,10 @@
             ${svc ? `<div class="sc-ap-field"><span>Service</span><div class="sc-ap-svcs" role="group" aria-label="Service">${svc}</div></div>` : ''}
             <div class="sc-ap-row">
                 <label class="sc-ap-sel"><span>Model</span><select data-k="model">${models.map(([v, l]) => `<option value="${esc(v)}"${v === (p.model || '') ? ' selected' : ''}>${esc(l || v || 'Default')}</option>`).join('')}</select></label>
-                ${efforts.length ? `<label class="sc-ap-sel"><span>Thinking</span><select data-k="effort"><option value="">Automatic</option>${efforts.map((x) => `<option value="${esc(x)}"${x === p.effort ? ' selected' : ''}>${esc(x[0].toUpperCase() + x.slice(1))}</option>`).join('')}</select></label>` : ''}
             </div>
+            ${efforts.length ? `<div class="sc-ap-field"><span>Thinking effort</span><div class="sc-ap-svcs sc-ap-eff" role="radiogroup" aria-label="Thinking effort">${
+                [''].concat(efforts).map((x) => `<button type="button" role="radio" class="sc-ap-svc${x === (p.effort || '') ? ' on' : ''}" data-eff="${esc(x)}" aria-checked="${x === (p.effort || '')}" title="${esc(EFF_TIP[x] || '')}">${esc(EFF[x] || x)}</button>`).join('')
+            }</div></div>` : ''}
             ${changed ? `<div class="sc-ap-note"><span>${st === 'offline' ? 'Used next time it starts.' : changed === 'svc' ? 'Takes effect after a restart. It starts a fresh session.' : 'Takes effect after a restart.'}</span>${st !== 'offline' ? '<button type="button" class="sc-btn primary sm" data-a="restart">Restart now</button>' : ''}</div>`
               : `<div class="sc-ap-foot">${st !== 'offline'
                 ? '<button type="button" class="sc-ap-link" data-a="restart">Restart</button><button type="button" class="sc-ap-link" data-a="stop">Stop</button>'
@@ -172,6 +181,14 @@
             render(h, p, true);
         };
         pop.onclick = async (e) => {
+            const ef = e.target.closest('[data-eff]');
+            if (ef) {
+                e.stopPropagation();
+                if (ef.dataset.eff === (p.effort || '') || !(await save('effort', ef.dataset.eff))) return;
+                p.effort = ef.dataset.eff;
+                render(h, p, true);
+                return;
+            }
             const sv = e.target.closest('[data-svc]');
             if (sv) {
                 e.stopPropagation();

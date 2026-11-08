@@ -340,8 +340,8 @@
                     <span class="sc-pick"><span class="sc-pick-logo ${cur[0]}">${icon(cur[2], 16)}</span><span>${esc(p.model ? modelLabel : 'Default')}</span>${icon('chevron-down', 16)}
                         <select data-set="model" aria-label="Model">${modelOptions(p.models, p.model)}${p.model && !known.includes(p.model) ? `<option value="${esc(p.model)}" selected>${esc(p.model)}</option>` : ''}</select></span></div>
                 ${p.efforts.length ? `<div class="sc-id-row"><span>Thinking</span>
-                    <span class="sc-pick"><span>${esc(p.effort ? p.effort[0].toUpperCase() + p.effort.slice(1) : 'Automatic')}</span>${icon('chevron-down', 16)}
-                        <select data-set="effort" aria-label="Thinking"><option value="">Automatic</option>${p.efforts.map((x) => `<option value="${x}"${x === p.effort ? ' selected' : ''}>${x[0].toUpperCase() + x.slice(1)}</option>`).join('')}</select></span></div>` : ''}
+                    <span class="sc-pick"><span>${esc(p.effort ? (p.effort === 'xhigh' ? 'Extra high' : p.effort[0].toUpperCase() + p.effort.slice(1)) : 'Automatic')}</span>${icon('chevron-down', 16)}
+                        <select data-set="effort" aria-label="Thinking"><option value="">Automatic</option>${p.efforts.map((x) => `<option value="${x}"${x === p.effort ? ' selected' : ''}>${x === 'xhigh' ? 'Extra high' : x[0].toUpperCase() + x.slice(1)}</option>`).join('')}</select></span></div>` : ''}
             </div>
             <div class="sc-st-saved" id="sc-ag-saved"></div>
             <label class="sc-field sc-id-instr"><span>Instructions</span>
