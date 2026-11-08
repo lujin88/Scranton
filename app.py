@@ -1825,6 +1825,9 @@ async def websocket_endpoint(websocket: WebSocket):
                 cm = room_settings.get("channel_members") or {}
                 if old_name in cm:
                     cm[new_name] = cm.pop(old_name)
+                meta = room_settings.get("channel_meta") or {}
+                if old_name in meta:
+                    meta[new_name] = meta.pop(old_name)
                 store.rename_channel(old_name, new_name)
                 import mcp_bridge
                 mcp_bridge.migrate_cursors_rename(old_name, new_name)
@@ -1851,6 +1854,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     continue
                 room_settings["channels"].remove(name)
                 (room_settings.get("channel_members") or {}).pop(name, None)
+                (room_settings.get("channel_meta") or {}).pop(name, None)
                 store.delete_channel(name)
                 import mcp_bridge
                 mcp_bridge.migrate_cursors_delete(name)
@@ -2606,6 +2610,42 @@ async def scranton_daily_set(request: Request):
     for i in _daily_ids(config):
         schedules.set_fields(i, active=on)
     return JSONResponse({"ok": True, "enabled": on})
+
+
+@app.get("/api/scranton/channel/{name}/about")
+async def scranton_channel_about(name: str):
+    """Slack-style channel details: topic, description, when it started, its files."""
+    name = name.strip().lower()
+    if name not in room_settings.get("channels", []):
+        return JSONResponse({"error": "no such channel"}, status_code=404)
+    meta = (room_settings.get("channel_meta") or {}).get(name) or {}
+    first = None
+    files = []
+    for m in store.get_since(-1):
+        if (m.get("channel") or "general") != name:
+            continue
+        if first is None:
+            first = m.get("timestamp")
+        for a in m.get("attachments") or []:
+            if isinstance(a, dict) and str(a.get("url", "")).startswith("/uploads/"):
+                files.append({"name": str(a.get("name") or "file")[:200], "url": a["url"], "size": a.get("size"),
+                              "kind": a.get("kind"), "by": m.get("sender"), "time": m.get("timestamp"), "msg": m.get("id")})
+    return JSONResponse({"name": name, "topic": meta.get("topic", ""), "description": meta.get("description", ""),
+                         "started": first, "files": files[-20:][::-1]})
+
+
+@app.post("/api/scranton/channel/{name}/about")
+async def scranton_channel_about_set(name: str, request: Request):
+    name = name.strip().lower()
+    if name not in room_settings.get("channels", []):
+        return JSONResponse({"error": "no such channel"}, status_code=404)
+    body = await request.json()
+    meta = room_settings.setdefault("channel_meta", {}).setdefault(name, {})
+    for key, limit in (("topic", 250), ("description", 1000)):
+        if key in body:
+            meta[key] = " ".join(str(body.get(key) or "").split())[:limit] if key == "topic" else str(body.get(key) or "").strip()[:limit]
+    _save_settings()
+    return JSONResponse({"ok": True, "topic": meta.get("topic", ""), "description": meta.get("description", "")})
 
 
 @app.get("/api/scranton/dm-activity")

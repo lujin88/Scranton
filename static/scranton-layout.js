@@ -59,6 +59,7 @@
         // Details open behind a thread tab: bring them to the front instead of closing them.
         pill.addEventListener('click', () => {
             const rp = window.scRightPanel;
+            infoTab = 'about';
             if (isOpen() && rp && !rp.isShowingInfo()) rp.showInfo(); else toggleInfo();
         });
     }
@@ -110,19 +111,66 @@
                 <div class="sc-info-body" id="sc-info-body"><p class="sc-info-empty">Loading…</p></div>`;
             fill(h);
         } else {
+            // Slack's channel details: About (name, topic, description, started, files) | Members
             const members = (((window.scChannelMembers && window.scChannelMembers()) || {})[ch] || []).filter((m) => team()[m]);
+            const tab = infoTab === 'members' ? 'members' : 'about';
             p.innerHTML = `${close}
-                <div class="sc-info-hero">
-                    <span class="sc-info-av sc-info-hash">#</span>
-                    <h2>${esc(ch)}</h2>
-                    <p class="sc-info-st">${members.length + 1} member${members.length ? 's' : ''}</p>
-                    <div class="sc-info-actions"><button type="button" class="sc-btn" data-i="add">Add people</button></div>
+                <div class="sc-ch-tabs" role="tablist">
+                    <button type="button" role="tab" data-i="tab-about" aria-selected="${tab === 'about'}">About</button>
+                    <button type="button" role="tab" data-i="tab-members" aria-selected="${tab === 'members'}">Members <span>${members.length + 1}</span></button>
                 </div>
-                <div class="sc-info-body"><div class="sc-info-list">
+                <div class="sc-info-body" id="sc-ch-body"></div>`;
+            const body = p.querySelector('#sc-ch-body');
+            if (tab === 'members') {
+                body.innerHTML = `<button type="button" class="sc-info-row sc-ch-addrow" data-i="add"><span class="sc-info-rav sc-ch-plus">${ic('add', 18)}</span><span>Add people</span></button>
+                    <div class="sc-info-list">
                     ${members.map((m) => `<button type="button" class="sc-info-row" data-dm="${esc(m)}"><span class="sc-info-rav">${window.scAvatarHtml ? window.scAvatarHtml(m) : ''}</span><span>${esc(label(m))}</span><em class="${esc(state(m))}">${STATE[state(m)] || ''}</em></button>`).join('') || '<p class="sc-info-empty">Only you so far.</p>'}
-                </div></div>`;
+                    </div>`;
+            } else {
+                body.innerHTML = '<p class="sc-info-empty">Loading…</p>';
+                fillAbout(ch);
+            }
         }
     }
+
+    let infoTab = 'about';
+    let aboutData = null;
+    function fmtDate(ts) { try { return new Date(ts * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }); } catch (_) { return ''; } }
+    function fmtSize(n) { return !Number.isFinite(n) ? '' : n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`; }
+    async function fillAbout(ch, editing) {
+        const body = document.getElementById('sc-ch-body');
+        if (!body) return;
+        if (!editing) aboutData = await api(`/api/scranton/channel/${encodeURIComponent(ch)}/about`);
+        const d = aboutData || {};
+        if ((window.activeChannel || 'general') !== ch || !document.getElementById('sc-ch-body')) return;
+        const row = (key, title, value, empty, canEdit = true) => editing === key
+            ? `<div class="sc-ch-row editing"><div class="sc-ch-rt">${title}</div>
+                ${key === 'description' ? `<textarea id="sc-ch-edit" rows="4" maxlength="1000">${esc(value)}</textarea>` : `<input id="sc-ch-edit" value="${esc(value)}" maxlength="${key === 'name' ? 20 : 250}">`}
+                <div class="sc-ch-editbar"><button type="button" class="sc-btn sm" data-i="edit-cancel">Cancel</button><button type="button" class="sc-btn primary sm" data-i="edit-save" data-key="${key}">Save</button></div></div>`
+            : `<div class="sc-ch-row"><div class="sc-ch-rt">${title}${canEdit ? `<button type="button" class="sc-ch-edit" data-i="edit" data-key="${key}">Edit</button>` : ''}</div>
+                <div class="sc-ch-rv${value ? '' : ' empty'}">${value ? esc(value) : empty}</div></div>`;
+        const files = (d.files || []).slice(0, 10);
+        body.innerHTML = `<div class="sc-ch-card">
+                ${row('name', 'Channel name', '#' + ch, '', ch !== 'general')}
+                ${row('topic', 'Topic', d.topic || '', 'Add a topic: what this channel is for right now')}
+                ${row('description', 'Description', d.description || '', 'Add a description')}
+                ${d.started ? `<div class="sc-ch-row"><div class="sc-ch-rt">Started</div><div class="sc-ch-rv">${esc(fmtDate(d.started))}</div></div>` : ''}
+            </div>
+            <h3 class="sc-ch-sub">Files</h3>
+            ${files.length ? `<div class="sc-ch-card sc-ch-files">${files.map((f) => `<a class="sc-ch-file" href="${esc(f.url)}" target="_blank" rel="noopener">
+                <span class="sc-pend-ic" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="sc-ch-fi"><b>${esc(f.name)}</b><small>${esc([label(String(f.by || '').toLowerCase()), f.time ? fmtDate(f.time) : '', fmtSize(f.size)].filter(Boolean).join(' · '))}</small></span></a>`).join('')}</div>`
+                : '<p class="sc-info-empty">No files shared here yet.</p>'}`;
+        const ed = document.getElementById('sc-ch-edit');
+        if (ed) { ed.focus(); if (editing === 'name') ed.value = ch; ed.select && ed.select(); }
+    }
+
+    document.addEventListener('keydown', (e) => {
+        const ed = e.target && e.target.id === 'sc-ch-edit' ? e.target : null;
+        if (!ed) return;
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); document.querySelector('#sc-info [data-i="edit-cancel"]')?.click(); }
+        if (e.key === 'Enter' && (ed.tagName === 'INPUT' || e.metaKey || e.ctrlKey)) { e.preventDefault(); document.querySelector('#sc-info [data-i="edit-save"]')?.click(); }
+    }, true);
 
     async function fill(h) {
         const body = document.getElementById('sc-info-body');
@@ -144,6 +192,25 @@
         const i = t.closest('[data-i]')?.dataset.i;
         const ch = window.activeChannel || 'general';
         if (i === 'close') return toggleInfo(false);
+        if (i === 'tab-about' || i === 'tab-members') { infoTab = i.slice(4); return render(); }
+        if (i === 'edit') return fillAbout(ch, t.closest('[data-key]').dataset.key);
+        if (i === 'edit-cancel') return fillAbout(ch);
+        if (i === 'edit-save') {
+            const key = t.closest('[data-key]').dataset.key;
+            const v = (document.getElementById('sc-ch-edit') || {}).value || '';
+            if (key === 'name') {
+                const nn = v.trim().toLowerCase().replace(/^#/, '');
+                if (nn && nn !== ch && window.ws && window.ws.readyState === WebSocket.OPEN) {
+                    window.ws.send(JSON.stringify({ type: 'channel_rename', old_name: ch, new_name: nn }));
+                }
+                return fillAbout(ch);
+            }
+            await fetch(`/api/scranton/channel/${encodeURIComponent(ch)}/about`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-Token': window.SESSION_TOKEN },
+                body: JSON.stringify({ [key]: v }),
+            }).catch(() => {});
+            return fillAbout(ch);
+        }
         if (i === 'more') {
             const b = t.closest('[data-i]');
             let m = p_menu();

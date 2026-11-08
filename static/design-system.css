@@ -854,3 +854,34 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 #channel-sidebar-top > * { margin: 6px 0; }
 /* Grok Bot: the tool icons sit close to the first row */
 #sc-side-tools { padding-bottom: 6px !important; }
+
+/* Channel details, Slack's layout: name, tabs, then About as one grouped card of rows */
+.sc-ch-head { padding: 18px 56px 8px 20px; }
+.sc-ch-head h2 { margin: 0; font-size: var(--ds-fs-xl); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-ch-tabs { display: flex; gap: 4px; padding: 8px 16px 0; border-bottom: 1px solid rgba(var(--ink), 0.08); }
+.sc-ch-tabs button { border: 0; background: none; padding: 10px 8px; color: var(--ds-text-2); font: inherit; font-size: var(--ds-fs-md);
+    border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; }
+.sc-ch-tabs button span { color: var(--ds-text-3); margin-left: 2px; }
+.sc-ch-tabs button[aria-selected="true"] { color: var(--ds-text); border-bottom-color: var(--ds-accent); font-weight: 500; }
+#sc-ch-body { padding: 16px; }
+.sc-ch-card { border-radius: var(--ds-r-card); background: var(--ds-raised); overflow: hidden; }
+.sc-ch-row { padding: 12px 16px; }
+.sc-ch-row + .sc-ch-row { border-top: 1px solid rgba(var(--ink), 0.06); }
+.sc-ch-rt { display: flex; align-items: center; justify-content: space-between; font-size: var(--ds-fs-sm); font-weight: 600; color: var(--ds-text); margin-bottom: 2px; }
+.sc-ch-rv { font-size: var(--ds-fs-md); color: var(--ds-text); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+.sc-ch-rv.empty { color: var(--ds-text-3); }
+.sc-ch-edit { border: 0; background: none; color: var(--ds-accent); font: inherit; font-size: var(--ds-fs-sm); font-weight: 500; cursor: pointer; padding: 2px 4px; border-radius: 6px; }
+.sc-ch-edit:hover { background: var(--ds-hover); }
+.sc-ch-row.editing input, .sc-ch-row.editing textarea { width: 100%; box-sizing: border-box; margin-top: 6px; padding: 8px 10px; border: 0; border-radius: var(--ds-r-control);
+    background: var(--ds-field); color: var(--ds-text); font: inherit; font-size: var(--ds-fs-md); outline: 2px solid var(--ds-accent); resize: vertical; }
+.sc-ch-editbar { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.sc-ch-sub { margin: 20px 4px 8px; font-size: var(--ds-fs-sm); font-weight: 600; color: var(--ds-text-2); }
+.sc-ch-file { display: flex; align-items: center; gap: 12px; padding: 10px 12px; color: var(--ds-text); text-decoration: none; }
+.sc-ch-file + .sc-ch-file { border-top: 1px solid rgba(var(--ink), 0.06); }
+.sc-ch-file:hover { background: var(--ds-hover); }
+.sc-ch-file .sc-pend-ic { width: 32px; height: 36px; padding: 0 6px; }
+.sc-ch-fi { display: flex; flex-direction: column; min-width: 0; }
+.sc-ch-fi b { font-weight: 500; font-size: var(--ds-fs-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-ch-fi small { font-size: var(--ds-fs-xs); color: var(--ds-text-2); }
+.sc-ch-addrow .sc-ch-plus { display: grid; place-items: center; border-radius: 50%; background: var(--ds-hover); color: var(--ds-text-2); }
+.sc-img-gone { display: inline-block; padding: 8px 12px; border-radius: var(--ds-r-control); background: var(--ds-raised); color: var(--ds-text-2); font-size: var(--ds-fs-sm); }
