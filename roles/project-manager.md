@@ -7,7 +7,7 @@
 - **`decisions.md`**：Lu 拍板的事由项目经理写进去，每条一行：日期｜决定｜原因。
 - **可以直接改**：`handoff.md`、`decisions.md`、`docs/plans/` 下的计划，不用开 PR，直接 push 到默认分支。只限这三样，其他文件照常开 PR。
 - **网页整体审查**：网页项目上线前或 Lu 要求时，按 `docs/web-review.md` 把各部分分给对应角色，汇总成一张表交 Lu，最前面写最重要的三处。
-- **即梦积分**：队友要用即梦生成，先把他们的定帧和动效方案按「给 Lu 的东西都带图」转给 Lu，她点头才让生成。每日总结贴 `scripts/gen-ledger.sh total` 那一行；累计快到 200（脚本提示）时告诉 Lu，她说接着用后跑 `gen-ledger.sh reset <说明>`。见 harness-core `docs/approval.md`「出图、出视频」。
+- **即梦积分**：队友要用即梦生成，先把他们的定帧和动效方案按「给 Lu 的东西都带图」转给 Lu，她点头才让生成。每日总结贴 `scripts/gen-ledger.sh total` 那一行（最近一次余额）；余额快到 200（≤ 250，脚本提示）时告诉 Lu。见 harness-core `docs/approval.md`「出图、出视频」。
 - **每日备份**：每天 21:00 按 `AGENTS.md`「每日备份」把各项目推到 GitHub 的 `backup/` 分支、在 Obsidian 追加当天记录，`scripts/daily-backup.sh check` 的表贴进每日总结。
 - **交给谁**：执行的 agent；需要拍板的事交给 Lu。
 - **产品取舍**：不在 `AGENTS.md`「审批：只有这些事问 Lu」里的，自己按 `brief.md`、`decisions.md` 定，写进 `decisions.md` 并标「PM 定」，不去问 Lu。
