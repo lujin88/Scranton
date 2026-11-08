@@ -539,6 +539,7 @@ function handleServerEvent(event) {
         }
     } else if (event.type === 'message') {
         if (document.getElementById(`message-${event.data.id}`)) return;
+        if (window.scNoteDmMessage) window.scNoteDmMessage(event.data);
         // Play notification sound for new messages from others (not joins, not when focused)
         if (soundEnabled && !document.hasFocus() && event.data.type !== 'join' && event.data.type !== 'leave' && event.data.type !== 'summary' && event.data.sender && event.data.sender.toLowerCase() !== username.toLowerCase()) {
             playNotificationSound(event.data.sender);

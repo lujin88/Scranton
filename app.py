@@ -2606,6 +2606,18 @@ async def scranton_daily_set(request: Request):
     return JSONResponse({"ok": True, "enabled": on})
 
 
+@app.get("/api/scranton/dm-activity")
+async def scranton_dm_activity():
+    """Latest message time per direct-message channel that has real messages (not join/leave
+    notices), so the sidebar lists only conversations you've actually had, like Slack."""
+    last = {}
+    for m in store.get_since(-1):
+        ch = str(m.get("channel") or "")
+        if ch.startswith("dm-") and m.get("type", "chat") == "chat":
+            last[ch] = max(last.get(ch, 0), float(m.get("timestamp") or 0))
+    return JSONResponse(last)
+
+
 @app.get("/api/scranton/report")
 async def scranton_report(days: int = 7):
     days = max(1, min(int(days), 31))

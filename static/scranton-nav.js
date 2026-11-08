@@ -260,13 +260,21 @@
         const handles = teamHandles().sort((a, b) => (order[state(a)] - order[state(b)])
             || window.scLabelOf(a).localeCompare(window.scLabelOf(b)));
         const hidden = hiddenDms();
+        // Like Slack: only people you've actually talked to (most recent first), plus the
+        // one open right now. "+" starts a new one; a new message brings someone back.
+        const recent = (h) => dmActivity[`dm-${h}`.slice(0, 20)] || 0;
+        handles.sort((a, b) => recent(b) - recent(a));
+        let shown = 0;
         for (const h of handles) {
             const ch = `dm-${h}`.slice(0, 20);
             const unreadNow = (window.channelUnread && window.channelUnread[ch]) || 0;
-            if (hidden.includes(h) && !unreadNow && ch !== window.activeChannel) continue;   // a new message brings them back
+            if (hidden.includes(h) && !unreadNow && ch !== window.activeChannel) continue;
+            if (!recent(h) && !unreadNow && ch !== window.activeChannel) continue;
+            shown++;
             const row = document.createElement('button');
             row.type = 'button';
             row.className = `sc-side-row sc-dm-row ${state(h)}` + (ch === window.activeChannel && !inboxOpen() ? ' active' : '');
+            row.dataset.h = h;
             row.title = `Direct message @${h}`;
             const unread = (window.channelUnread && window.channelUnread[ch]) || 0;
             row.innerHTML = `<span class="sc-dm-avatar">${window.scAvatarHtml ? window.scAvatarHtml(h) : ''}<span class="team-dot"></span></span>`
@@ -283,7 +291,33 @@
             row.addEventListener('click', () => openDm(h));
             list.appendChild(row);
         }
+        if (!shown) {
+            const hint = document.createElement('button');
+            hint.type = 'button'; hint.className = 'sc-side-row sc-dm-empty';
+            hint.innerHTML = `<span class="sc-dm-avatar">${window.scIcon ? window.scIcon('add', 16) : '+'}</span><span class="sc-side-label">Message a teammate</span>`;
+            hint.addEventListener('click', (e) => { e.stopPropagation(); document.getElementById('sc-dm-add')?.click(); });
+            list.appendChild(hint);
+        }
     }
+
+    // When each DM last had a message (server), kept fresh from live messages.
+    let dmActivity = {};
+    async function loadDmActivity() {
+        try {
+            const r = await fetch('/api/scranton/dm-activity', { headers: { 'X-Session-Token': window.SESSION_TOKEN } });
+            if (r.ok) { dmActivity = await r.json(); renderDms(); }
+        } catch (_) { /* offline: keep what we have */ }
+    }
+    window.scNoteDmMessage = (msg) => {
+        const ch = String(msg && msg.channel || '');
+        if (!ch.startsWith('dm-') || (msg.type && msg.type !== 'chat')) return;
+        const t = Number(msg.timestamp) || Date.now() / 1000;
+        if ((dmActivity[ch] || 0) >= t) return;
+        const isNew = !dmActivity[ch];
+        dmActivity[ch] = t;
+        if (isNew) renderDms();
+    };
+    loadDmActivity();
 
     // Keep dm-* channels out of the Channels list; refresh DMs alongside.
     if (typeof renderChannelSidebar === 'function') {
@@ -483,12 +517,12 @@
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             if (pop) { close(); return; }
-            const hidden = hiddenDms();
             const team = Object.keys((window.scGetTeam && window.scGetTeam()) || {});
-            const list = hidden.length ? hidden : team;
+            const inList = new Set(Array.from(document.querySelectorAll('#sc-dm-list .sc-dm-row')).map((r) => r.dataset.h));
+            const list = team.filter((h) => !inList.has(h)).sort((a, b) => window.scLabelOf(a).localeCompare(window.scLabelOf(b)));
             pop = document.createElement('div');
             pop.id = 'sc-dm-pop';
-            pop.innerHTML = `<div class="sc-dm-pop-h">${hidden.length ? 'Removed from your list' : 'Start a direct message'}</div>`
+            pop.innerHTML = `<div class="sc-dm-pop-h">${list.length ? 'Start a direct message' : 'Everyone is already in your list'}</div>`
                 + list.map((h) => `<button type="button" data-h="${esc(h)}"><span class="sc-dm-avatar">${window.scAvatarHtml ? window.scAvatarHtml(h) : ''}</span><span>${esc(window.scLabelOf(h))}</span></button>`).join('');
             document.body.appendChild(pop);
             const r = btn.getBoundingClientRect();

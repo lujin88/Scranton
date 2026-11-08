@@ -833,3 +833,6 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
     padding: 4px 8px !important; font-size: var(--ds-fs-xs) !important; border-radius: var(--ds-r-control) !important; border: 0 !important; white-space: nowrap; }
 #sc-thread .sc-thread-chips .mention-toggle:hover { background: var(--ds-hover) !important; color: var(--ds-text) !important; }
 #sc-thread .sc-thread-chips .mention-toggle.active { background: var(--ds-mention-bg) !important; color: var(--ds-link-text) !important; }
+.sc-dm-empty { color: var(--ds-text-2) !important; }
+.sc-dm-empty .sc-dm-avatar { display: grid; place-items: center; border-radius: 50%; background: var(--ds-hover); color: var(--ds-text-2); }
+#sc-dm-pop { max-height: min(420px, 70vh); overflow-y: auto; }
