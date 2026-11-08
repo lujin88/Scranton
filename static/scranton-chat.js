@@ -418,17 +418,30 @@
         bar.querySelector('.sc-quote-x').onclick = clearQuote;
         document.getElementById('input')?.focus();
     }
-    // Quote inside a thread: a "> who: text" first line in the thread's reply box.
+    // Quote inside a thread: the same bar above the thread's reply box as in the main box;
+    // the quote goes out as the same "> who: text" first line.
+    let tquoting = null;
     function threadQuote(id) {
-        const m = byId.get(id), t = document.getElementById('sc-thread-input');
-        if (!m || !t) return;
+        const m = byId.get(id);
+        if (!m) return;
         const who = window.scLabelOf ? window.scLabelOf(String(m.sender)) : String(m.sender);
         const snippet = String(m.text || '').replace(/^> .*\n/, '').replace(/\s+/g, ' ').trim().slice(0, 140).replace(/@/g, '@\u200b');
-        t.value = `> ${who}: ${snippet}\n${t.value.replace(/^> .*\n/, '')}`;
-        t.dispatchEvent(new Event('input', { bubbles: true }));
-        t.focus();
-        t.setSelectionRange(t.value.length, t.value.length);
+        tquoting = { id, who, snippet };
+        let bar = document.getElementById('sc-tquote');
+        const compose = document.querySelector('#sc-thread .sc-thread-compose');
+        if (!bar && compose) {
+            bar = document.createElement('div');
+            bar.id = 'sc-tquote';
+            compose.parentElement.insertBefore(bar, compose);
+        }
+        if (bar) {
+            bar.innerHTML = `<span class="sc-quote-ic">${ri('reply')}</span><span class="sc-quote-t"><b>${esc(who)}</b> ${esc(snippet)}</span>`
+                + `<button type="button" class="sc-quote-x" aria-label="Cancel quote">${ri('close')}</button>`;
+            bar.querySelector('.sc-quote-x').onclick = clearThreadQuote;
+        }
+        document.getElementById('sc-thread-input')?.focus();
     }
+    function clearThreadQuote() { tquoting = null; document.getElementById('sc-tquote')?.remove(); }
     function clearQuote() { quoting = null; document.getElementById('sc-quote')?.remove(); }
     window.scQuoteReply = quoteReply;
     window.scClearQuote = clearQuote;
@@ -461,7 +474,7 @@
     function paintQuote(el, msg) {
         const t = String(msg && msg.text || '');
         const mm = t.match(/^> ([^\n]{1,200})\n/);
-        const body = el && el.querySelector('.msg-text');
+        const body = el && el.querySelector('.msg-text, .sc-tmsg-text');
         if (!mm || !body || body.dataset.scQuote) return;
         body.dataset.scQuote = '1';
         const line = mm[1];
@@ -721,6 +734,7 @@
         if (rootId == null || !byId.has(rootId)) return;
         // The right panel shows one thing: this thread replaces details or another thread.
         openThreads.splice(0, openThreads.length, rootId);
+        if (activeThread !== rootId && typeof clearThreadQuote === 'function') clearThreadQuote();
         activeThread = rootId;
         if (infoTab != null && window.scToggleInfo) { infoTab = null; window.scToggleInfo(false); }
         infoActive = false;
@@ -800,7 +814,14 @@
         return `<div class="sc-tmsg${mine ? ' self' : ''}" data-mid="${esc(m.id)}">`
             + `<span class="sc-tmsg-av">${avatarOf(m.sender)}</span>`
             + `<div class="sc-tmsg-body"><div class="sc-tmsg-head"><b>${esc(labelOf(m.sender))}</b><span>${esc(m.time || '')}</span></div>`
-            + `<div class="sc-tmsg-text">${textHtml(m)}</div>`
+            + (() => {
+                // a "> who: text" first line is a quote: show it as a quote block, not as text
+                const q = /^> ([^\n]{1,200})\n/.exec(String(m.text || ''));
+                if (!q) return `<div class="sc-tmsg-text">${textHtml(m)}</div>`;
+                const c = q[1].indexOf(': ');
+                const quoted = c > 0 ? `<b>${esc(q[1].slice(0, c))}</b> ${esc(q[1].slice(c + 2))}` : esc(q[1]);
+                return `<div class="sc-quoted">${quoted}</div><div class="sc-tmsg-text" data-sc-quote="1">${textHtml({ ...m, text: String(m.text).slice(q[0].length) })}</div>`;
+            })()
             + (Array.isArray(m.attachments) && m.attachments.length && typeof attachmentMarkup === 'function'
                 ? `<div class="msg-attachments sc-tmsg-att">${m.attachments.map((a) => attachmentMarkup(a)).join('')}</div>` : '')
             + (m.reactions && Object.keys(m.reactions).length ? `<div class="sc-reactions" data-mid="${esc(m.id)}">${reactionsHtml(m)}</div>` : '')
@@ -849,7 +870,10 @@
             + list.map(tmsgHtml).join('');
         polishText(body, '.sc-tmsg-text .mention');
         body.querySelectorAll('.sc-tmsg-head > span').forEach(shortTime);
-        body.querySelectorAll('.sc-tmsg[data-mid]').forEach((el) => addToolbar(el, Number(el.dataset.mid), true));
+        body.querySelectorAll('.sc-tmsg[data-mid]').forEach((el) => {
+            addToolbar(el, Number(el.dataset.mid), true);
+            try { paintQuote(el, byId.get(Number(el.dataset.mid))); } catch (_) { /* never break the thread */ }
+        });
         body.scrollTop = body.scrollHeight;
         const input = document.getElementById('sc-thread-input');
         if (input) input.placeholder = `Reply in thread${root ? ' · @' + labelOf(root.sender) : ''}`;
@@ -942,8 +966,10 @@
             }
             if (target) text = `@${target} ${text}`;
         }
+        if (tquoting) text = `> ${tquoting.who}: ${tquoting.snippet}\n${text}`;
         if (window.ws && window.ws.readyState === WebSocket.OPEN) {
             window.ws.send(JSON.stringify({ type: 'message', text, sender: me(), channel: root.channel || 'general', reply_to: Number(root.id), attachments: atts.slice() }));
+            clearThreadQuote();
             input.value = '';
             input.style.height = '';
             atts.splice(0); renderThreadAtts();

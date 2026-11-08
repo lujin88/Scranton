@@ -216,7 +216,7 @@ select, input[type="text"], input[type="search"], textarea { border-color: trans
 .sc-bubble-col .sc-unread-dot { background: var(--ds-accent) !important; }
 
 /* ================================================================ reply here (quote) */
-#sc-quote {
+#sc-quote, #sc-tquote {
     display: flex; align-items: center; gap: 8px; max-width: var(--ds-read-w); margin: 0 auto 6px !important; padding: 8px 8px 8px 12px;
     background: var(--ds-raised); border-radius: var(--ds-r-card); color: var(--ds-text-2); font-size: var(--ds-fs-sm);
 }
@@ -1117,3 +1117,9 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 .sc-tmsg-text ul:last-child, .sc-tmsg-text ol:last-child { margin-bottom: 0 !important; }
 .msg-text > :first-child, .sc-tmsg-text > :first-child { margin-top: 0 !important; }
 .sc-tmsg-head { margin-bottom: 2px; }
+
+#sc-tquote { max-width: none; margin: 0 0 6px !important; }
+.sc-tmsg-body .sc-quoted { margin-bottom: 6px; }
+/* a quote inside your own (dark) bubble */
+.sc-tmsg.self .sc-quoted, .message.self .sc-quoted { background: rgba(255, 255, 255, 0.10); color: rgba(255, 255, 255, 0.72); border-left-color: rgba(255, 255, 255, 0.5); }
+.sc-tmsg.self .sc-quoted b, .message.self .sc-quoted b { color: #fff; }
