@@ -281,10 +281,9 @@
             const btn = document.getElementById('sc-search-btn');
             const dlg = d.querySelector('.sc-search-dlg');
             if (!btn || !dlg || window.matchMedia('(max-width: 760px)').matches) return;
-            const r = btn.getBoundingClientRect();
-            const w = Math.min(Math.max(r.width + 120, 640), window.innerWidth - 32);
-            const left = Math.min(Math.max(16, r.left + r.width / 2 - w / 2), window.innerWidth - w - 16);
-            dlg.style.left = `${left}px`; dlg.style.top = `${Math.max(4, r.top - 6)}px`; dlg.style.width = `${w}px`;
+            // Centred over the window, like Grok's search: the search icon now lives in the sidebar corner.
+            const w = Math.min(640, window.innerWidth - 32);
+            dlg.style.left = `${Math.round((window.innerWidth - w) / 2)}px`; dlg.style.top = `${Math.round(window.innerHeight * 0.12)}px`; dlg.style.width = `${w}px`;
         };
         place();
         window.addEventListener('resize', place);

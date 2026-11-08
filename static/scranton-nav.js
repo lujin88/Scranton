@@ -302,6 +302,7 @@
         const origSwitch = switchChannel;
         switchChannel = function (name) {
             window.scCloseInbox();
+            if (name !== window.activeChannel && window.scClearQuote) window.scClearQuote();   // a quote belongs to its conversation
             const r = origSwitch.apply(this, arguments);
             if (typeof renderChannelSidebar === 'function') renderChannelSidebar();
             updateTitle();

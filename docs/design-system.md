@@ -22,8 +22,8 @@ Code: `static/design-system.css` (tokens + components, loaded last). Icons: Remi
 | `--ds-overlay` | `#2c2c2c` | Menus, popovers, floating pills, secondary buttons |
 | `--ds-accent-soft` | `#3c3c3c` | Your message bubbles (lightest grey) |
 
-Text: `#f5f5f5` primary, `#a7a7a7` secondary, `#707070` tertiary (timestamps, section labels).
-Accent: `#4c8df6` (hover `#6aa1f8`), text on accent white. Status: online `#3fb950`, away `#e3b341`, danger `#f47067`.
+Text: `#f5f5f5` primary, `#a7a7a7` secondary, `#8a8a8a` tertiary (timestamps, section labels; 5:1 on the surface, WCAG AA).
+Accent: `#4c8df6` (hover `#6aa1f8`) for links, icons and on-states. Filled buttons use `#2f6fde` (hover `#3b7ae8`) so white text passes AA. Status: online `#3fb950`, away `#e3b341`, danger `#f47067`.
 
 ## Spacing, type, layout
 
@@ -42,3 +42,14 @@ Accent: `#4c8df6` (hover `#6aa1f8`), text on accent white. Status: online `#3fb9
 - **Bubbles:** agents `#212121`, you `#3c3c3c`; no borders. Thread replies ("N replies") sit under the bubble, outside it. "X is working…" is the last item in the conversation.
 - **Date divider:** calendar icon + "Today", no rules.
 - **Details panel:** big avatar, name, status, Start/Restart + Settings, tabs Activity / Terminal. For channels: members and Add people.
+
+## Rules added after the v2.1 review
+
+- People are always circles; only app logos are squares.
+- Offline is shown by the status dot only; avatars keep their colour.
+- No row band on hover: the floating toolbar is the signal.
+- Popovers start at the edge of what opened them (the @ list at the composer's left edge).
+- Pages that read like documents (Activity, Report) use the same centred 820px column.
+- Tabs are pills (`--ds-overlay` when selected), never underlines.
+- Neutral states (not signed in, not installed) are grey; red is only for real failures.
+- Search opens centred, without key hints.

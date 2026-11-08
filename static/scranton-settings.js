@@ -128,7 +128,7 @@
             <footer class="sc-st-foot"><span class="sc-st-saved" id="sc-pf-saved"></span><button type="button" class="sc-btn primary" data-a="save-profile">Save changes</button></footer>
             <header class="sc-st-sub"><h3>Quiet hours</h3><p>Agents keep working but don't @ you, unless something is high-risk or broken. No sounds.</p></header>
             <div class="sc-quiet" id="sc-quiet"></div>
-            <header class="sc-st-sub"><h3>Daily plan and summary</h3><p>Your project manager posts the day's plan in the morning and a summary in the evening.</p></header>
+            <header class="sc-st-sub"><h3>Daily plan and summary</h3><p>Your project manager posts the day's plan in the morning and a summary in the evening, a weekly report on Sundays.</p></header>
             <div class="sc-quiet" id="sc-daily"></div>`;
     }
     function quietView(q) {

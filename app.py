@@ -2547,7 +2547,7 @@ async def scranton_report(days: int = 7):
     days = max(1, min(int(days), 31))
     owner = str(room_settings.get("username") or config.get("team", {}).get("owner", "Lu"))
     team = {n: a for n, a in config.get("agents", {}).items()}
-    return JSONResponse(await asyncio.to_thread(_sc_report.build, store.get_since(0), team, owner, days))
+    return JSONResponse(await asyncio.to_thread(_sc_report.build, store.get_since(-1), team, owner, days))
 
 
 @app.post("/api/scranton/report/settings")
@@ -2646,7 +2646,7 @@ async def scranton_connection_default(provider: str, request: Request):
 @app.get("/api/scranton/teammate/{name}")
 async def scranton_teammate(name: str):
     recent = []
-    for m in reversed(store.get_since(0)):
+    for m in reversed(store.get_since(-1)):
         if str(m.get("sender", "")).lower() == name or str(m.get("sender", "")).lower().startswith(name + "-"):
             recent.append({k: m.get(k) for k in ("id", "text", "channel", "time", "timestamp")})
             if len(recent) >= 20:
@@ -2793,7 +2793,7 @@ async def scranton_search(q: str = "", limit: int = 30):
         return JSONResponse([])
     limit = max(1, min(int(limit or 30), 100))
     hits = []
-    for m in reversed(store.get_since(0)):
+    for m in reversed(store.get_since(-1)):
         if m.get("sender") == "system" or m.get("type") == "system":
             continue
         if needle in str(m.get("text", "")).lower() or needle in str(m.get("sender", "")).lower():

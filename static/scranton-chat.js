@@ -222,6 +222,7 @@
             + `<button type="button" data-act="link" title="Copy link">${ICONS.link}</button>`
             + `<button type="button" data-act="forward" title="Forward message">${ICONS.forward}</button>`
             + `<button type="button" data-act="more" title="More">${ICONS.more}</button>`;
+        bar.querySelectorAll('button').forEach((b) => b.setAttribute('aria-label', b.title.replace(/ \(.\)$/, '')));
         bar.dataset.mid = id;
         el.appendChild(bar);
     }
@@ -387,6 +388,7 @@
     }
     function clearQuote() { quoting = null; document.getElementById('sc-quote')?.remove(); }
     window.scQuoteReply = quoteReply;
+    window.scClearQuote = clearQuote;
     window.scTakeQuote = () => { const q = quoting; clearQuote(); return q; };
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && quoting && document.activeElement?.id === 'input') clearQuote();

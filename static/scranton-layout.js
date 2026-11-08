@@ -120,10 +120,11 @@
         const body = document.getElementById('sc-info-body');
         if (!body) return;
         const r = await api(`/api/scranton/teammate/${encodeURIComponent(h)}`);
-        const recent = (r.recent || []);
+        // Only what they said: no join/leave lines, times as HH:MM
+        const recent = (r.recent || []).filter((m) => m.type !== 'system' && !/^\S+ (?:disconnected|connected|joined|left)\b/i.test(String(m.text || '')));
         body.innerHTML = recent.length ? `<div class="sc-info-feed">${recent.map((m) => `
             <button type="button" class="sc-info-msg" data-ch="${esc(m.channel)}" data-msg="${esc(m.id)}">
-                <span class="sc-info-meta">${m.channel && m.channel.startsWith('dm-') ? 'Direct message' : '#' + esc(m.channel)} · ${esc(m.time || '')}</span>
+                <span class="sc-info-meta">${m.channel && m.channel.startsWith('dm-') ? 'Direct message' : '#' + esc(m.channel)} · ${esc(String(m.time || '').slice(0, 5))}</span>
                 <span class="sc-info-text">${esc(String(m.text || '').slice(0, 220).replace(/@([a-z0-9_-]+)/gi, (all, h) => (team()[h] ? '@' + label(h) : all)))}</span>
             </button>`).join('')}</div>` : '<p class="sc-info-empty">No messages yet.</p>';
     }
