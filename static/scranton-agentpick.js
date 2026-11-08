@@ -115,7 +115,7 @@
         try { const r = await fetch(`/api/scranton/teammate/${encodeURIComponent(h)}`, { headers: H() }); if (r.ok) p = await r.json(); } catch (_) { /* below */ }
         if (!pop || (pop.dataset.pinned || current) !== h) return;
         if (!p || !p.handle) { pop.innerHTML = '<p class="sc-ap-loading">Couldn\'t load this teammate.</p>'; return; }
-        await loadConns();
+        await Promise.all([loadConns(), loadModels()]);
         if (!pop || (pop.dataset.pinned || current) !== h) return;
         render(h, p, false);
     }
@@ -127,27 +127,41 @@
         return conns || [];
     }
     const SHORT = { claude: 'Claude', codex: 'ChatGPT', cursor: 'Cursor' };
-    const EFF = { '': 'Auto', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra', max: 'Max' };
+    const EFF = { '': 'Auto', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Max' };
     const EFF_TIP = { '': "The app's own default", low: 'Fastest, fewest tokens', medium: 'Balanced', high: 'Thinks longer',
         xhigh: 'Extra high: thinks much longer', max: 'Most thinking, slowest' };
     const svgX = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 10.586l4.95-4.95 1.414 1.414-4.95 4.95 4.95 4.95-1.414 1.414-4.95-4.95-4.95 4.95-1.414-1.414 4.95-4.95-4.95-4.95L7.05 5.636z"/></svg>';
     const svgBack = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.828 12l4.95 4.95-1.414 1.414L8 12l6.364-6.364 1.414 1.414z"/></svg>';
 
-    // Service first (Claude / ChatGPT / Cursor), then that service's model: when one plan
-    // runs out, switch the agent to another in two clicks.
+    // Models of every app, grouped (Fabric / Gumloop pattern): one list, an app's logo on each
+    // group, so a fourth app (e.g. Grok Build) is one more group, not a wider control.
+    let allModels = null;
+    async function loadModels() {
+        if (allModels) return allModels;
+        try { const r = await fetch('/api/scranton/agents/new', { headers: H() }); if (r.ok) allModels = (await r.json()).models || {}; } catch (_) { /* below */ }
+        return allModels || {};
+    }
+    const LOGO = { claude: 'claude', codex: 'openai', cursor: 'cursor-ai' };
+    const logo = (pid, s = 16) => (window.scIcon && LOGO[pid] ? window.scIcon(LOGO[pid], s) : `<b class="sc-ap-mono">${esc((SHORT[pid] || pid || '?')[0])}</b>`);
+    const modelName = (pid, v) => { const m = ((allModels || {})[pid] || []).find(([x]) => x === v); return m ? (m[1] || 'Default') : (v || 'Default'); };
+
     function render(h, p, changed) {
         const st = (window.scAgentState && window.scAgentState(h)) || 'offline';
-        const models = (p.models || []).slice();
-        if (p.model && !models.some(([v]) => v === p.model)) {
-            // set before versions were listed ("opus" = whatever is newest): say so, offer a version
-            const alias = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku', opusplan: 'Opus plan + Sonnet' }[p.model];
-            models.push([p.model, alias ? `${alias}, newest (pick a version)` : p.model]);
-        }
         const efforts = p.efforts || [];
-        const svc = (conns || []).map((c) => {
+        const steps = [''].concat(efforts);
+        const ei = Math.max(0, steps.indexOf(p.effort || ''));
+        const alias = { opus: 'Opus, newest', sonnet: 'Sonnet, newest', haiku: 'Haiku, newest', opusplan: 'Opus plan + Sonnet' }[p.model];
+        const curName = alias || modelName(p.provider, p.model || '');
+        const groups = (conns || []).map((c) => {
             const usable = c.installed && c.connected !== false;
-            const why = !c.installed ? 'Not installed on this Mac' : c.connected === false ? 'Not signed in: Settings → Connections' : (c.plan || '');
-            return `<button type="button" class="sc-ap-svc${c.id === p.provider ? ' on' : ''}" data-svc="${esc(c.id)}" title="${esc(why)}"${usable || c.id === p.provider ? '' : ' disabled'} aria-pressed="${c.id === p.provider}">${esc(SHORT[c.id] || c.name)}</button>`;
+            const why = !c.installed ? 'Not installed' : c.connected === false ? 'Not signed in' : '';
+            const list = (allModels || {})[c.id] || c.models || [];
+            return `<div class="sc-ap-group${usable ? '' : ' off'}"><div class="sc-ap-gh">${logo(c.id)}<span>${esc(SHORT[c.id] || c.name)}</span>${why ? `<em>${why}</em>` : ''}</div>${
+                list.map(([v, l, note]) => {
+                    const on = c.id === p.provider && (v || '') === (p.model || '');
+                    return `<button type="button" class="sc-ap-opt${on ? ' on' : ''}" data-pid="${esc(c.id)}" data-model="${esc(v)}"${usable ? '' : ' disabled'}>
+                        <span>${esc(l || 'Default')}</span>${note ? `<small>${esc(note)}</small>` : ''}${on ? `<i>${ic('check', 16)}</i>` : ''}</button>`;
+                }).join('')}</div>`;
         }).join('');
         pop.innerHTML = `
             <div class="sc-ap-head">
@@ -156,14 +170,18 @@
                 <span class="sc-ap-name"><b>${esc(label(h))}</b><small class="${esc(st)}">${STATE[st] || st}</small></span>
                 <button type="button" class="sc-ap-tool" data-a="close" title="Close" aria-label="Close">${svgX}</button>
             </div>
-            ${svc ? `<div class="sc-ap-field"><span>Service</span><div class="sc-ap-svcs" role="group" aria-label="Service">${svc}</div></div>` : ''}
-            <div class="sc-ap-row">
-                <label class="sc-ap-sel"><span>Model</span><select data-k="model">${models.map(([v, l]) => `<option value="${esc(v)}"${v === (p.model || '') ? ' selected' : ''}>${esc(l || v || 'Default')}</option>`).join('')}</select></label>
-            </div>
-            ${efforts.length ? `<div class="sc-ap-field"><span>Thinking effort</span><div class="sc-ap-svcs sc-ap-eff" role="radiogroup" aria-label="Thinking effort">${
-                [''].concat(efforts).map((x) => `<button type="button" role="radio" class="sc-ap-svc${x === (p.effort || '') ? ' on' : ''}" data-eff="${esc(x)}" aria-checked="${x === (p.effort || '')}" title="${esc(EFF_TIP[x] || '')}">${esc(EFF[x] || x)}</button>`).join('')
-            }</div></div>` : ''}
-            ${changed ? `<div class="sc-ap-note"><span>${st === 'offline' ? 'Used next time it starts.' : changed === 'svc' ? 'Takes effect after a restart. It starts a fresh session.' : 'Takes effect after a restart.'}</span>${st !== 'offline' ? '<button type="button" class="sc-btn primary sm" data-a="restart">Restart now</button>' : ''}</div>`
+            <button type="button" class="sc-ap-model" data-a="models" aria-expanded="false">
+                <span class="sc-ap-logo">${logo(p.provider, 18)}</span>
+                <span class="sc-ap-mtext"><b>${esc(curName)}</b><small>${esc(SHORT[p.provider] || p.provider_name || '')}</small></span>
+                <i class="sc-ap-chev">${ic('chevron-down', 16)}</i></button>
+            <div class="sc-ap-models" hidden>${groups}</div>
+            ${efforts.length ? `<div class="sc-ap-effort">
+                <div class="sc-ap-eh"><b data-elabel>${esc(EFF[steps[ei]])}</b><small data-etip>${esc(EFF_TIP[steps[ei]])}</small></div>
+                <div class="sc-ap-slider" style="--n:${steps.length - 1};--i:${ei}">
+                    <span class="sc-ap-dots">${steps.map(() => '<i></i>').join('')}</span>
+                    <input type="range" min="0" max="${steps.length - 1}" step="1" value="${ei}" aria-label="Thinking effort" aria-valuetext="${esc(EFF[steps[ei]])}">
+                </div></div>` : ''}
+            ${changed ? `<div class="sc-ap-note"><span>${st === 'offline' ? 'Used next time it starts.' : changed === 'svc' ? 'Restart to switch. It starts a fresh session.' : 'Takes effect after a restart.'}</span>${st !== 'offline' ? '<button type="button" class="sc-btn primary sm" data-a="restart">Restart now</button>' : ''}</div>`
               : `<div class="sc-ap-foot">${st !== 'offline'
                 ? '<button type="button" class="sc-ap-link" data-a="restart">Restart</button><button type="button" class="sc-ap-link" data-a="stop">Stop</button>'
                 : '<button type="button" class="sc-btn primary sm" data-a="start">Start</button>'}</div>`}`;
@@ -174,37 +192,46 @@
             if (!ok) window.scToast && window.scToast("Couldn't save. Is Scranton running?");
             return ok;
         };
-        pop.onchange = async (e) => {
-            const sel = e.target.closest('[data-k]');
-            if (!sel || !(await save(sel.dataset.k, sel.value))) return;
-            p[sel.dataset.k] = sel.value;
-            render(h, p, true);
+        const reload = async (how) => {
+            let np = null;
+            try { const r = await fetch(`/api/scranton/teammate/${encodeURIComponent(h)}`, { headers: H() }); if (r.ok) np = await r.json(); } catch (_) { /* below */ }
+            if (pop && np && np.handle) render(h, np, how);
         };
+        const range = pop.querySelector('.sc-ap-slider input');
+        if (range) {
+            const show = () => {
+                const v = steps[Number(range.value)];
+                range.parentElement.style.setProperty('--i', range.value);
+                pop.querySelector('[data-elabel]').textContent = EFF[v];
+                pop.querySelector('[data-etip]').textContent = EFF_TIP[v];
+                range.setAttribute('aria-valuetext', EFF[v]);
+            };
+            range.addEventListener('input', show);
+            range.addEventListener('change', async () => {
+                const v = steps[Number(range.value)];
+                if (v === (p.effort || '')) return;
+                if (await save('effort', v)) { p.effort = v; render(h, p, true); }
+            });
+        }
         pop.onclick = async (e) => {
-            const ef = e.target.closest('[data-eff]');
-            if (ef) {
+            const opt = e.target.closest('[data-model]');
+            if (opt) {
                 e.stopPropagation();
-                if (ef.dataset.eff === (p.effort || '') || !(await save('effort', ef.dataset.eff))) return;
-                p.effort = ef.dataset.eff;
-                render(h, p, true);
-                return;
-            }
-            const sv = e.target.closest('[data-svc]');
-            if (sv) {
-                e.stopPropagation();
-                if (sv.disabled || sv.dataset.svc === p.provider) return;
-                sv.disabled = true;
-                if (!(await save('provider', sv.dataset.svc))) { sv.disabled = false; return; }
-                // the new service has its own models: load them
-                let np = null;
-                try { const r = await fetch(`/api/scranton/teammate/${encodeURIComponent(h)}`, { headers: H() }); if (r.ok) np = await r.json(); } catch (_) { /* below */ }
-                if (pop && np && np.handle) render(h, np, 'svc');
+                if (opt.disabled) return;
+                const pid = opt.dataset.pid, v = opt.dataset.model;
+                if (pid === p.provider && v === (p.model || '')) { toggleList(false); return; }
+                opt.disabled = true;
+                if (pid !== p.provider && !(await save('provider', pid))) { opt.disabled = false; return; }
+                if (v && !(await save('model', v))) return;
+                if (!v && pid === p.provider && !(await save('model', ''))) return;
+                await reload(pid !== p.provider ? 'svc' : true);
                 return;
             }
             const el = e.target.closest('[data-a]');
             const a = el?.dataset.a;
             if (!a) return;
             e.stopPropagation();
+            if (a === 'models') { toggleList(); return; }
             if (a === 'back') { openList(); return; }
             if (a === 'close') { closePop(); btn?.focus(); return; }
             el.disabled = true;
@@ -212,6 +239,15 @@
             window.scToast && window.scToast({ restart: `Restarting ${label(h)}…`, stop: `${label(h)} stopped.`, start: `Starting ${label(h)}…` }[a]);
             closePop();
         };
+        function toggleList(force) {
+            const list = pop.querySelector('.sc-ap-models'), b = pop.querySelector('.sc-ap-model');
+            const open = force ?? list.hidden;
+            list.hidden = !open;
+            b.setAttribute('aria-expanded', String(open));
+            if (open) list.querySelector('.sc-ap-opt.on')?.scrollIntoView({ block: 'nearest' });
+            place();
+        }
+        pop.onchange = null;
         place();
     }
 
