@@ -1454,8 +1454,10 @@ async def websocket_endpoint(websocket: WebSocket):
                         await broadcast_clear(channel=channel)
                         continue
                     if cmd == "/continue":
-                        router.continue_routing()
-                        pass  # "/continue" already says who let the agents go on
+                        # Resume the channel it was typed in (no argument resumed #general),
+                        # and say so: the command itself isn't stored as a message.
+                        router.continue_routing(channel)
+                        store.add("system", f"{_label_of(sender)} let the agents continue.", channel=channel)
                         await broadcast_status()
                         continue
                     # Broadcast slash commands — expand without storing the raw command.
@@ -2861,6 +2863,19 @@ async def scranton_teammate(name: str):
     return JSONResponse(p)
 
 
+def _sc_tmux_session(name: str) -> str:
+    """The terminal of the instance that's actually running: 'help', or 'help-2' when the
+    registry gave it a numbered slot. Falls back to the plain name."""
+    try:
+        live = [n for n, d in registry.get_all().items()
+                if d.get("base") == name and d.get("state", "active") == "active"]
+    except Exception:
+        live = []
+    if name in live:
+        return f"agentchattr-{name}"
+    return f"agentchattr-{sorted(live)[0]}" if live else f"agentchattr-{name}"
+
+
 @app.get("/api/scranton/teammate/{name}/screen")
 async def scranton_teammate_screen(name: str):
     """What the agent's terminal shows right now (read-only), so Lu can see a stuck prompt."""
@@ -2868,7 +2883,7 @@ async def scranton_teammate_screen(name: str):
         return JSONResponse({"error": "not found"}, status_code=404)
     import subprocess as _sp
     def grab():
-        r = _sp.run(["tmux", "capture-pane", "-p", "-J", "-t", f"=agentchattr-{name}:", "-S", "-60"],
+        r = _sp.run(["tmux", "capture-pane", "-p", "-J", "-t", f"={_sc_tmux_session(name)}:", "-S", "-60"],
                     capture_output=True, text=True, timeout=5)
         return r.returncode, r.stdout
     try:
@@ -2892,7 +2907,7 @@ async def scranton_teammate_keys(name: str, request: Request):
     if key not in allowed:
         return JSONResponse({"error": "not allowed"}, status_code=400)
     import subprocess as _sp
-    await asyncio.to_thread(_sp.run, ["tmux", "send-keys", "-t", f"=agentchattr-{name}:", allowed[key]], capture_output=True, timeout=5)
+    await asyncio.to_thread(_sp.run, ["tmux", "send-keys", "-t", f"={_sc_tmux_session(name)}:", allowed[key]], capture_output=True, timeout=5)
     return JSONResponse({"ok": True})
 
 

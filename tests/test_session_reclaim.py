@@ -108,6 +108,23 @@ class SessionReclaimTests(unittest.TestCase):
                   if d["base"] == "claude" and d["state"] == "active"]
         self.assertEqual(active, ["claude"], f"exactly one active claude expected, got {active}")
 
+    def test_fresh_register_after_crash_timeout_takes_slot1(self):
+        """Scranton runs one wrapper per agent. When it dies (or the Mac sleeps) the crash
+        timeout reserves 'claude'; a fresh launch of the same agent must get 'claude' back,
+        not 'claude-2' (Lu saw "Scranton 帮手 2" this way)."""
+        self.reg.register("claude")
+        self.reg.deregister("claude", reclaimable=True)     # crash timeout
+        fresh = self.reg.register("claude")
+        self.assertEqual(fresh["name"], "claude")
+
+    def test_reservation_still_holds_while_another_instance_is_live(self):
+        """With a live sibling, a reserved slot is still kept for its owner to reclaim."""
+        self.reg.register("claude")
+        self.reg.register("claude")                         # claude-1 + claude-2
+        self.reg.deregister("claude-1", reclaimable=True)
+        third = self.reg.register("claude")
+        self.assertNotEqual(third["name"], "claude-1")
+
     def test_custom_name_fresh_register_supersedes_old_token(self):
         """Fresh register('claude') must supersede a deregistered custom-name identity.
 

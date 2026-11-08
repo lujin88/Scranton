@@ -203,6 +203,13 @@ class RuntimeRegistry:
                 rb, rs = self._parse_name(rn)
                 if rb == base:
                     reserved.add(rs)
+            # Scranton: one wrapper per agent. With no live instance of this agent, the
+            # reservation belongs to the wrapper being replaced, so the fresh one takes the
+            # name back (else a restart after a crash/sleep shows up as "<name> 2").
+            if not taken and reserved:
+                for rn in [rn for rn in self._reserved if self._parse_name(rn)[0] == base]:
+                    self._reserved.pop(rn, None)
+                reserved = set()
 
             slot = 1
             while slot in taken or slot in reserved:

@@ -131,6 +131,12 @@ start_agent() {
     case "$cmd:$effort" in
         codex:low|codex:medium|codex:high|codex:xhigh) pflags="$pflags -c model_reasoning_effort=$effort" ;;
     esac
+    # No wrapper is running for this teammate (checked above), so any terminal it left
+    # behind (agentchattr-<name> or <name>-2 after a crash/sleep) has nobody reading it:
+    # close those, or the old one keeps waiting on a question next to the new one.
+    for s in $(tmux ls -F '#S' 2>/dev/null | grep -E "^agentchattr-$name(-[0-9]+)?\$" || true); do
+        tmux kill-session -t "=$s" 2>/dev/null || true
+    done
     case "$cmd" in
         agent|cursor-agent)
             # Cursor reads its MCP settings (with a local token) from the project.

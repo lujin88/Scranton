@@ -2657,7 +2657,8 @@ function sendMessage() {
     // if it doesn't within a few seconds (half-dead connection), offer it again.
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(payload));
-        scAwaitEcho(text, activeChannel);
+        // Commands (/continue, /clear…) aren't stored as your message, so there's no echo to wait for.
+        if (!String(text || '').trim().startsWith('/')) scAwaitEcho(text, activeChannel);
     } else {
         scNotSent(text, activeChannel);
         return;
