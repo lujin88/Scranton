@@ -42,10 +42,7 @@ function attachmentMarkup(att, pending = false) {
     }
     return `<a class="file-attachment" href="${url}" data-name="${name}" title="Download ${name}" aria-label="Download ${name}" onclick="downloadAttachment(event, this)">
         ${info}
-        <svg class="file-download-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>
-        </svg>
+        <svg class="file-download-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 19H21V21H3V19ZM13 13.1716L19.0711 7.1005L20.4853 8.51472L12 17L3.51472 8.51472L4.92893 7.1005L11 13.1716V2H13V13.1716Z"/></svg>
     </a>`;
 }
 
