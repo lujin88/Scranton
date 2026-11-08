@@ -2672,6 +2672,16 @@ async def scranton_team_permissions_set(request: Request):
         return JSONResponse({"error": str(e) or "permissions is full or ask"}, status_code=400)
 
 
+@app.get("/api/scranton/older")
+async def scranton_older(channel: str, before: int, limit: int = 100):
+    """Messages in `channel` older than id `before` (the page only gets the last HISTORY_CAP
+    per channel when it opens; scrolling up asks for the rest)."""
+    limit = max(1, min(int(limit), 200))
+    older = [m for m in store.get_since(-1)
+             if (m.get("channel") or "general") == channel and int(m.get("id", 0)) < int(before)]
+    return JSONResponse({"messages": older[-limit:], "more": len(older) > limit})
+
+
 @app.get("/api/scranton/dm-activity")
 async def scranton_dm_activity():
     """Latest message time per direct-message channel that has real messages (not join/leave

@@ -980,3 +980,4 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 .sc-perm-dot { flex: none; width: 16px; height: 16px; margin-top: 2px; border-radius: 50%; box-shadow: inset 0 0 0 2px rgba(var(--ink), 0.3); }
 .sc-perm-opt[aria-checked="true"] .sc-perm-dot { box-shadow: inset 0 0 0 5px var(--ds-accent); }
 .sc-perm-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; color: var(--ds-text-3); font-size: var(--ds-fs-sm); }
+.sc-older-note { text-align: center; padding: 10px 0; font-size: var(--ds-fs-xs); color: var(--ds-text-3); }
