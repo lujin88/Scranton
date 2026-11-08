@@ -2244,7 +2244,10 @@ async def resolve_decision(msg_id: int, request: Request):
         return JSONResponse({"error": error[0]}, status_code=error[1])
     # Post the chosen answer as a regular chat message tagged @sender
     username = room_settings.get("username", "user")
-    reply_text = f"@{sender} {chosen}" if sender else chosen
+    # Same shape as clicking an "A. …" option card: "@pm B：text" (the letter tells which row).
+    _opts = list((msg or {}).get("metadata", {}).get("choices") or [])
+    _letter = chr(65 + (len(_opts) if other or chosen not in _opts else _opts.index(chosen)))
+    reply_text = f"@{sender} {_letter}：{chosen}" if sender else chosen
     try:
         store.add(username, reply_text, reply_to=msg_id, channel=channel)
     except Exception:

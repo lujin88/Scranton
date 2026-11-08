@@ -136,7 +136,7 @@
         if (el && !statusLine && String(msg.sender) !== 'system') {
             el.classList.add('sc-msg');
             addToolbar(el, id);
-            try { relabel(el, msg); paintQuote(el, msg); paintStuck(el, msg); if (kind === 'chat') paintChoices(el, msg); } catch (_) { /* never break rendering */ }
+            try { relabel(el, msg); paintQuote(el, msg); paintStuck(el, msg); if (kind === 'chat' || kind === 'decision') paintChoices(el, msg); } catch (_) { /* never break rendering */ }
         }
         if (msg.reactions && Object.keys(msg.reactions).length) paintReactions(msg, container);
         if (msg.reply_to != null) {
@@ -549,23 +549,53 @@
         const sender = String(msg.sender || '').split('-')[0];
         const team = (window.scGetTeam && window.scGetTeam()) || {};
         if (!team[sender] || el.querySelector('.sc-choices')) return;
-        const blocks = parseChoices(msg.text);
+        // One kind of option card everywhere (Grok Bot): options written as "A. …" lines in the text,
+        // or a decision message's choices (chat_send(choices=[…])). Same card in the channel and in threads.
+        const meta = msg.metadata || {};
+        const isDecision = msg.type === 'decision' && Array.isArray(meta.choices) && meta.choices.length;
+        const blocks = isDecision
+            ? [{ question: '', num: '', options: meta.choices.map((c, i) => ({ key: String.fromCharCode(65 + i), text: String(c) })) }]
+            : parseChoices(msg.text);
         if (!blocks.length) return;
-        const col = el.querySelector('.chat-bubble');
+        const col = el.querySelector('.chat-bubble, .sc-tmsg-body');
         if (!col) return;
+        const textEl = col.querySelector('.msg-text, .sc-tmsg-text');
         const wrap = document.createElement('div');
         wrap.className = 'sc-choices';
         // What you already answered, from your replies in its thread (so the phone shows it too)
         const typedOwn = {};   // question -> what you typed in "Something else"
         const fromReplies = (qi) => {
+            if (isDecision && meta.resolved) {
+                if (meta.other) { typedOwn[qi] = String(meta.chosen || ''); return String.fromCharCode(65 + blocks[0].options.length); }
+                const i = meta.choices.indexOf(meta.chosen);
+                return i >= 0 ? String.fromCharCode(65 + i) : null;
+            }
             const mine = String(me()).toLowerCase();
+            const root = rootOf(msg);
+            const otherKey = String.fromCharCode(65 + blocks[qi].options.length);
             for (const r of byId.values()) {
-                if (!r || Number(r.reply_to) !== Number(msg.id) || String(r.sender || '').toLowerCase() !== mine) continue;
+                if (!r || String(r.sender || '').toLowerCase() !== mine) continue;
+                const direct = Number(r.reply_to) === Number(msg.id);
+                // a card inside a thread is answered in that same thread, after the card
+                const sameThread = root != null && Number(r.reply_to) === Number(root) && Number(r.id) > Number(msg.id);
+                if (!direct && !sameThread) continue;
                 const m = /^@\S+\s+(\d*)([A-H])：(.*)$/s.exec(String(r.text || ''));
-                if (m && (blocks.length === 1 ? true : Number(m[1]) === Number(blocks[qi].num || qi + 1))) { typedOwn[qi] = m[3]; return m[2]; }
+                if (!m || (blocks.length > 1 && Number(m[1]) !== Number(blocks[qi].num || qi + 1))) continue;
+                const opt = blocks[qi].options.find((o) => o.key === m[2]);
+                // in a shared thread, make sure it answers this card: same option text, or the typed row
+                if (!direct && !(opt ? opt.text.trim() === m[3].trim() : m[2] === otherKey)) continue;
+                typedOwn[qi] = m[3];
+                return m[2];
             }
             return null;
         };
+        // A decision is answered through the server, which records it on the card (sessions wait on that)
+        // and posts "@agent B：text" in its thread.
+        const answerDecision = (choice, other) => fetch(`/api/messages/${msg.id}/resolve_decision`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-Token': window.SESSION_TOKEN },
+            body: JSON.stringify(other ? { choice, other: true } : { choice }),
+        }).then((r) => { if (!r.ok) { chosenStore.set(msg.id, 0, null); paint(); toast('Couldn\'t send your answer'); } })
+          .catch(() => { chosenStore.set(msg.id, 0, null); paint(); toast('Couldn\'t send your answer'); });
         const paint = () => {
             wrap.innerHTML = blocks.map((b, qi) => {
                 const picked = chosenStore.get(msg.id, qi) || fromReplies(qi);
@@ -603,9 +633,12 @@
             const qi = Number(inp.closest('[data-q]').dataset.q);
             const block = blocks[qi], k = inp.dataset.other;
             const tag = blocks.length > 1 || block.num ? `${block.num || qi + 1}${k}` : k;
-            const root = rootOf(msg) ?? Number(msg.id);
-            window.ws.send(JSON.stringify({ type: 'message', text: `@${sender} ${tag}：${v}`, sender: me(),
-                channel: msg.channel || 'general', reply_to: Number(root), attachments: [] }));
+            if (isDecision) answerDecision(v, true);
+            else {
+                const root = rootOf(msg) ?? Number(msg.id);
+                window.ws.send(JSON.stringify({ type: 'message', text: `@${sender} ${tag}：${v}`, sender: me(),
+                    channel: msg.channel || 'general', reply_to: Number(root), attachments: [] }));
+            }
             typedOwn[qi] = v;
             chosenStore.set(msg.id, qi, k);
             paint();
@@ -630,9 +663,12 @@
             const opt = block.options.find((o) => o.key === b.dataset.k);
             if (!opt || !window.ws || window.ws.readyState !== WebSocket.OPEN) return;
             const tag = blocks.length > 1 || block.num ? `${block.num || qi + 1}${opt.key}` : opt.key;
-            const root = rootOf(msg) ?? Number(msg.id);
-            window.ws.send(JSON.stringify({ type: 'message', text: `@${sender} ${tag}：${opt.text}`, sender: me(),
-                channel: msg.channel || 'general', reply_to: Number(root), attachments: [] }));
+            if (isDecision) answerDecision(opt.text, false);
+            else {
+                const root = rootOf(msg) ?? Number(msg.id);
+                window.ws.send(JSON.stringify({ type: 'message', text: `@${sender} ${tag}：${opt.text}`, sender: me(),
+                    channel: msg.channel || 'general', reply_to: Number(root), attachments: [] }));
+            }
             chosenStore.set(msg.id, qi, opt.key);
             paint();
             toast(`Answered ${tag}`);
@@ -649,17 +685,26 @@
             return c.textContent;
         };
         // Plain text with line breaks (no paragraphs): hide the whole text when it's only the question and options.
-        const mt = el.querySelector('.msg-text');
+        const mt = textEl;
         if (mt && !mt.querySelector('p, li')) {
             const lines = ownText(mt).split('\n').map(norm).filter(Boolean);
             if (lines.length && lines.every((l) => known.has(l))) mt.classList.add('sc-opt-line');
         }
-        el.querySelectorAll('.msg-text li, .msg-text p').forEach((n) => {
+        el.querySelectorAll('.msg-text li, .msg-text p, .sc-tmsg-text li, .sc-tmsg-text p').forEach((n) => {
             const lines = ownText(n).split('\n').map(norm).filter(Boolean);
             if (lines.length && lines.every((l) => known.has(l))) n.classList.add('sc-opt-line');
         });
-        col.querySelector('.msg-text')?.after(wrap);
+        if (textEl) textEl.after(wrap); else col.appendChild(wrap);
     }
+    window.scPaintChoices = paintChoices;
+    // A card changed on the server (a decision answered elsewhere): draw it again.
+    window.scRepaintChoices = (m) => {
+        if (!m || m.id == null) return;
+        byId.set(Number(m.id), m);
+        const el = findEl(Number(m.id));
+        if (el) { el.querySelector('.sc-choices')?.remove(); try { paintChoices(el, m); } catch (_) { /* never break */ } }
+        if (activeThread != null) renderThread();
+    };
 
     // Loop guard. In the conversation the notice is a one-line note; the decision is a card
     // docked above the message box (Higgsfield / Cofounder pattern), shown only while the
@@ -918,6 +963,7 @@
         body.querySelectorAll('.sc-tmsg[data-mid]').forEach((el) => {
             addToolbar(el, Number(el.dataset.mid), true);
             try { paintQuote(el, byId.get(Number(el.dataset.mid))); } catch (_) { /* never break the thread */ }
+            try { const tm = byId.get(Number(el.dataset.mid)); if (tm) paintChoices(el, tm); } catch (_) { /* never break the thread */ }
         });
         // Opening a thread starts at the newest reply; a new reply while you read doesn't move you
         // (it does if you were already at the bottom, or the reply is yours).
@@ -927,14 +973,15 @@
         const lastIsAnswer = /^@\S+\s+\d*[A-H]：/.test(String(last.text || ''));   // an option you clicked
         const sameThread = body.dataset.thread === tKey;
         const prevCount = sameThread ? Number(body.dataset.count || 0) : list.length;
-        if (!sameThread || (prevAtBottom && !lastIsAnswer) || (lastSender === String(me()).toLowerCase() && !lastIsAnswer)) {
+        // Opening a thread starts at the bottom. After that nothing moves you: if you were at the
+        // bottom you stay there; if you were reading higher up (and replied from there), new replies,
+        // yours included, add to the ↓ count instead. An option you clicked never moves you.
+        if (!sameThread || (prevAtBottom && !lastIsAnswer)) {
             body.scrollTop = body.scrollHeight;
             threadUnread = 0;
         } else {
             body.scrollTop = prevTop;
-            // New replies landed below where you're reading: count them on the ↓ button instead of moving you.
-            const fresh = list.slice(prevCount).filter((m) => String(m.sender || '').toLowerCase() !== String(me()).toLowerCase()).length;
-            threadUnread += fresh;
+            threadUnread += Math.max(0, list.length - prevCount);
         }
         body.dataset.thread = tKey;
         body.dataset.count = String(list.length);

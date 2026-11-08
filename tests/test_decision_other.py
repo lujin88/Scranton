@@ -31,7 +31,7 @@ class DecisionOther(unittest.TestCase):
             self.assertEqual(ok['chosen'], 'smaller title')
             meta = store.get_by_id(q['id'])['metadata']
             self.assertTrue(meta['resolved'] and meta['other'])
-            self.assertIn('@pm smaller title', [m['text'] for m in store.get_recent(10)])
+            self.assertIn('@pm C：smaller title', [m['text'] for m in store.get_recent(10)])
 
 
 if __name__ == '__main__':

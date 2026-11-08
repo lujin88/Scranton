@@ -1219,3 +1219,8 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 #mention-menu .mention-st.working, .sc-tmention .mention-st.working { color: #34c759; }
 #mention-menu .mention-st.offline, .sc-tmention .mention-st.offline { color: var(--ds-text-3); }
 #mention-menu .mention-model, .sc-tmention .mention-model { font-size: 11px; color: var(--ds-text-3); white-space: nowrap; }
+.sc-tmsg-text .sc-opt-line, .sc-tmsg-text.sc-opt-line { display: none !important; }
+.sc-tmsg-body .sc-choices { margin-top: 8px; }
+/* In a thread the reply bubble is already the card: no second box inside it. */
+.sc-tmsg-body .sc-choice-card { background: none !important; box-shadow: none !important; padding: 2px 0 0 !important; }
+.sc-tmsg-body .sc-choice-q { margin-left: 0; }
