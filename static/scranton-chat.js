@@ -129,11 +129,14 @@
         byId.set(id, msg);
         const el = findEl(id, container);
         if (el && String(msg.sender) === 'system') { try { paintPause(el, msg); } catch (_) {} }
-        if (el && (msg.type || 'chat') === 'chat' && String(msg.sender) !== 'system') {
+        const kind = msg.type || 'chat';
+        // Everything someone said can be reacted to, replied to in a thread, copied: chats and every
+        // card (decision, job, rule, summary). Only status lines (joined, left, session phases) can't.
+        const statusLine = kind === 'join' || kind === 'leave' || kind === 'system' || kind.startsWith('session_');
+        if (el && !statusLine && String(msg.sender) !== 'system') {
             el.classList.add('sc-msg');
             addToolbar(el, id);
-            relabel(el, msg);
-            try { paintQuote(el, msg); paintStuck(el, msg); paintChoices(el, msg); } catch (_) { /* never break rendering */ }
+            try { relabel(el, msg); paintQuote(el, msg); paintStuck(el, msg); if (kind === 'chat') paintChoices(el, msg); } catch (_) { /* never break rendering */ }
         }
         if (msg.reactions && Object.keys(msg.reactions).length) paintReactions(msg, container);
         if (msg.reply_to != null) {
@@ -227,9 +230,8 @@
         const bar = document.createElement('div');
         bar.className = 'sc-tools';
         bar.innerHTML = `<button type="button" data-act="react" title="Add reaction (E)">${ICONS.react}</button>`
-            + (inThread ? `<button type="button" data-act="tquote" title="Quote this in your reply">${ICONS.reply}</button>`
-                : `<button type="button" data-act="reply" title="Reply in the channel, quoting this (R)">${ICONS.reply}</button>`
-                + `<button type="button" data-act="thread" title="Reply in thread (T)">${ICONS.thread}</button>`)
+            + (inThread ? `<button type="button" data-act="tquote" title="Quote in your reply">${ICONS.reply}</button>`
+                : `<button type="button" data-act="thread" title="Reply in thread (T)">${ICONS.reply}</button>`)
             + `<button type="button" data-act="more" title="More">${ICONS.more}</button>`;
         if (inThread) bar.dataset.thread = '1';
         bar.querySelectorAll('button').forEach((b) => b.setAttribute('aria-label', b.title.replace(/ \(.\)$/, '')));
@@ -339,6 +341,7 @@
         if (!m) return;
         const items = [
             ['copy', 'Copy text'],
+            ...(inThread ? [] : [['quote', 'Quote in channel']]),   // also R
             ['forward', 'Forward to another channel'],
             ...(inThread ? [] : [['unread', 'Mark unread']]),   // unread is per conversation, not per reply
             ['delete', 'Delete message', 'danger'],
@@ -351,6 +354,7 @@
             const k = b.dataset.k;
             closePops();
             if (k === 'copy') copyText(String(m.text || ''), 'Message');
+            if (k === 'quote') quoteReply(id);
             if (k === 'forward') openForward(anchor, id);
             if (k === 'unread') {
                 const ch = m.channel || 'general';
@@ -565,10 +569,18 @@
         const paint = () => {
             wrap.innerHTML = blocks.map((b, qi) => {
                 const picked = chosenStore.get(msg.id, qi) || fromReplies(qi);
-                return `<div class="sc-choice-card${picked ? ' done' : ''}" data-q="${qi}">
+                if (picked) {
+                    const o = b.options.find((x) => x.key === picked);
+                    const txt = o ? o.text : (typedOwn[qi] || '');
+                    return `<div class="sc-choice-card done" data-q="${qi}">
+                        ${b.question ? `<div class="sc-choice-q">${b.num ? esc(b.num) + '. ' : ''}${esc(b.question)}</div>` : ''}
+                        <div class="sc-choice on" aria-label="Your answer"><span class="sc-choice-key">${esc(picked)}</span><span>${o && window.scOptionHtml ? window.scOptionHtml(txt) : esc(txt)}</span></div>
+                    </div>`;
+                }
+                return `<div class="sc-choice-card" data-q="${qi}">
                     ${b.question ? `<div class="sc-choice-q">${b.num ? esc(b.num) + '. ' : ''}${esc(b.question)}</div>` : ''}
                     ${b.options.map((o) => `<button type="button" class="sc-choice${picked === o.key ? ' on' : ''}" data-k="${esc(o.key)}"${picked ? ' disabled' : ''}>
-                        <span class="sc-choice-key">${esc(o.key)}</span><span>${esc(o.text)}</span></button>`).join('')}
+                        <span class="sc-choice-key">${esc(o.key)}</span><span>${window.scOptionHtml ? window.scOptionHtml(o.text) : esc(o.text)}</span></button>`).join('')}
                     ${(() => {
                         // the last row: your own answer, typed right here (Grok Bot's "Something else")
                         const k = String.fromCharCode(65 + b.options.length);
@@ -577,7 +589,6 @@
                             <input type="text" data-other="${k}" placeholder="Something else" aria-label="Your own answer" maxlength="500"
                                 value="${mine ? esc(typedOwn[qi] || '') : ''}"${picked ? ' disabled' : ''}></label>`;
                     })()}
-                    ${picked ? '<div class="sc-choice-foot"><button type="button" class="sc-choice-own" data-own>Change my answer</button></div>' : ''}
                 </div>`;
             }).join('');
         };
@@ -637,6 +648,12 @@
             c.querySelectorAll('br').forEach((x) => x.replaceWith('\n'));   // a detached copy has no layout, so no innerText lines
             return c.textContent;
         };
+        // Plain text with line breaks (no paragraphs): hide the whole text when it's only the question and options.
+        const mt = el.querySelector('.msg-text');
+        if (mt && !mt.querySelector('p, li')) {
+            const lines = ownText(mt).split('\n').map(norm).filter(Boolean);
+            if (lines.length && lines.every((l) => known.has(l))) mt.classList.add('sc-opt-line');
+        }
         el.querySelectorAll('.msg-text li, .msg-text p').forEach((n) => {
             const lines = ownText(n).split('\n').map(norm).filter(Boolean);
             if (lines.length && lines.every((l) => known.has(l))) n.classList.add('sc-opt-line');

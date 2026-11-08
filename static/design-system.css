@@ -1200,3 +1200,15 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 .sc-tdown-n { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
     font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; background: var(--accent); color: var(--text-on-accent); }
 .sc-tdown-n:empty { display: none; }
+
+/* Answered card (Grok Bot): the question goes quiet, only your pick stays. */
+.sc-choice-card.done .sc-choice-q { color: var(--ds-text-2); font-weight: 500; }
+.sc-choice-card.done .sc-choice, .decision-choices > .sc-choice { cursor: default; }
+.sc-choice-card.done .sc-choice:hover, .decision-choices > .sc-choice:hover { background: none !important; }
+.message .msg-text.sc-opt-line { display: none !important; }
+.sc-rec { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 16px;
+    vertical-align: 1px; background: rgba(76, 141, 246, 0.16); color: var(--ds-accent); }
+/* Decision cards look exactly like option cards: same row height, same text colour. */
+.decision-choices { gap: 0 !important; }
+.decision-choice { color: var(--ds-text) !important; }
+.decision-choice .sc-rec { margin-left: -4px; }

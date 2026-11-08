@@ -1437,7 +1437,12 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             raw = await websocket.receive_text()
-            event = json.loads(raw)
+            try:
+                event = json.loads(raw)
+            except ValueError:
+                continue
+            if not isinstance(event, dict):
+                continue   # a stray "null" must not close the connection (sending would then fail)
 
             if event.get("type") == "message":
                 text = event.get("text", "").strip()
@@ -2200,7 +2205,8 @@ async def demote_proposal(msg_id: int):
 async def resolve_decision(msg_id: int, request: Request):
     """Resolve an inline decision card by recording the chosen option."""
     body = await request.json()
-    chosen = body.get("choice", "")
+    chosen = str(body.get("choice", "") or "").strip()[:500]
+    other = bool(body.get("other"))   # typed in the card's "Something else" row
     if not chosen:
         return JSONResponse({"error": "choice is required"}, status_code=400)
     # Atomic check + resolve under lock to prevent double-click race
@@ -2223,11 +2229,13 @@ async def resolve_decision(msg_id: int, request: Request):
                 error = ("already resolved", 400)
             else:
                 valid_choices = meta.get("choices", [])
-                if valid_choices and chosen not in valid_choices:
+                if valid_choices and not other and chosen not in valid_choices:
                     error = (f"invalid choice. Valid: {valid_choices}", 400)
                 else:
                     meta["resolved"] = True
                     meta["chosen"] = chosen
+                    if other:
+                        meta["other"] = True
                     msg["metadata"] = meta
                     channel = msg.get("channel", "general")
                     sender = msg.get("sender", "")

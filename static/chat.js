@@ -537,7 +537,7 @@ function handleServerEvent(event) {
                 const choicesEl = existing.querySelector('.decision-choices');
                 const meta = updated.metadata || {};
                 if (choicesEl && meta.resolved) {
-                    choicesEl.innerHTML = `<div class="decision-resolved">You chose: <strong>${escapeHtml(meta.chosen || '')}</strong></div><button type="button" class="sc-choice-own" onclick="window.scAnswerOwn && scAnswerOwn(${updated.id}, ''); event.stopPropagation();">Change my answer</button>`;
+                    choicesEl.innerHTML = decisionPickedHtml(meta);
                 }
             }
         }
@@ -1059,11 +1059,11 @@ function appendMessage(msg, options = {}) {
         const choicesList = meta.choices || [];
         if (msg.type === 'decision' && choicesList.length > 0) {
             if (meta.resolved) {
-                choicesHtml = `<div class="decision-choices"><div class="decision-resolved">You chose: <strong>${escapeHtml(meta.chosen || '')}</strong></div><button type="button" class="sc-choice-own" onclick="window.scAnswerOwn && scAnswerOwn(${msg.id}, ''); event.stopPropagation();">Change my answer</button></div>`;
+                choicesHtml = `<div class="decision-choices">${decisionPickedHtml(meta)}</div>`;
             } else {
                 choicesHtml = '<div class="decision-choices">' + choicesList.map(c =>
-                    `<button class="decision-choice" onclick="resolveDecision(${msg.id}, '${escapeHtml(c).replace(/'/g, "\\'")}')">${escapeHtml(c)}</button>`
-                ).join('') + `<button type="button" class="sc-choice-own" onclick="window.scAnswerOwn && scAnswerOwn(${msg.id}, ''); event.stopPropagation();">None of these: write my own</button></div>`;
+                    `<button class="decision-choice" onclick="resolveDecision(${msg.id}, '${escapeHtml(c).replace(/'/g, "\\'")}')">${optionHtml(c)}</button>`
+                ).join('') + decisionOtherHtml(msg.id, choicesList.length) + '</div>';
             }
         }
         el.innerHTML = `<div class="todo-strip"></div>${isSelf ? '' : avatarHtml}<div class="chat-bubble" style="--bubble-color: ${senderColor}">${replyHtml}<div class="bubble-header"><span class="msg-sender" style="color: ${senderColor}">${escapeHtml(msg.sender)}</span>${rolePillHtml}<span class="msg-time">${msg.time || ''}</span><span class="msg-num">#${msg.id}</span></div><div class="msg-text">${textHtml}</div>${choicesHtml}${attachmentsHtml}<button class="convert-job-pill" onclick="startJobFromMessage(${msg.id}); event.stopPropagation();" title="Convert to job">convert to job</button><button class="bubble-copy" onclick="copyMessage(${msg.id}, event)" title="Copy message"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div><div class="msg-actions"><button class="reply-btn" onclick="startReply(${msg.id}, event)">reply</button><button class="todo-hint" onclick="todoCycle(${msg.id}); event.stopPropagation();">${statusLabel}</button><button class="delete-btn" onclick="deleteClick(${msg.id}, event)" title="Delete">del</button></div>`;
@@ -1104,9 +1104,11 @@ function appendMessage(msg, options = {}) {
     // so it doesn't move the page either (there may be more cards above to answer).
     const isAnswer = /^@\S+\s+\d*[A-H]：/.test(String(msg.text || ''));
     const shownHere = msg.reply_to == null;
-    if (mine && !isAnswer && shownHere) {
+    // Your own message follows you down only if you were already at the bottom. Sent while reading
+    // further up (quoting something old, say): you stay put and the ↓ gets +1, like anyone else's.
+    if (mine && !isAnswer && shownHere && autoScroll) {
         scrollToBottom();
-    } else if (mine) {
+    } else if (mine && (isAnswer || !shownHere)) {
         // stays where you are
     } else {
         // Hidden replies (threads) and system notes don't add to the count
@@ -3597,6 +3599,42 @@ function styleHashtags(html) {
 
 // --- Helpers ---
 
+
+// "（推荐）" / "(recommended)" at the end of an option: the agent's pick, shown as a small tag.
+// No tag on any option means the agent has no preference.
+const SC_REC_RE = /\s*[（(]\s*(推荐|recommended)\s*[）)]\s*$/i;
+function optionHtml(text) {
+    const t = String(text || '');
+    const m = SC_REC_RE.exec(t);
+    return m ? `${escapeHtml(t.slice(0, m.index))}<span class="sc-rec">${escapeHtml(m[1])}</span>` : escapeHtml(t);
+}
+window.scOptionHtml = optionHtml;
+
+// A decision you already answered: the option you picked, in the same row style as before you picked.
+function decisionPickedHtml(meta) {
+    const list = meta.choices || [];
+    const i = meta.other ? list.length : list.indexOf(meta.chosen);
+    const key = i >= 0 ? String.fromCharCode(65 + i) : '✓';
+    return `<div class="sc-choice on" aria-label="Your answer"><span class="sc-choice-key">${key}</span><span>${optionHtml(meta.chosen || '')}</span></div>`;
+}
+
+// Last row of a decision card: type your own answer or the reason, Enter sends it (Grok Bot's "Something else").
+function decisionOtherHtml(id, n) {
+    return `<label class="sc-choice sc-choice-other"><span class="sc-choice-key">${String.fromCharCode(65 + n)}</span>`
+        + `<input type="text" data-dec-other="${id}" placeholder="Something else" aria-label="Your own answer" maxlength="500"></label>`;
+}
+document.addEventListener('keydown', (e) => {
+    const inp = e.target && e.target.closest && e.target.closest('[data-dec-other]');
+    if (!inp || e.key !== 'Enter' || e.isComposing || e.shiftKey) return;
+    e.preventDefault(); e.stopPropagation();
+    const v = inp.value.trim();
+    if (!v) return;
+    inp.disabled = true;
+    fetch(`/api/messages/${inp.dataset.decOther}/resolve_decision`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-Token': SESSION_TOKEN },
+        body: JSON.stringify({ choice: v, other: true }),
+    }).then((r) => { if (!r.ok) inp.disabled = false; }).catch(() => { inp.disabled = false; });
+}, true);
 
 function escapeHtml(text) {
     const div = document.createElement('div');

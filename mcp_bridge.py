@@ -207,6 +207,11 @@ def chat_send(
     multiple-choice question, provide the options so the user can respond with
     a single click:
       chat_send(sender="claude", message="Should I merge?", choices=["Yes", "No", "Show diff first"])
+    If you recommend one option, put it first and end it with "（推荐）" (or "(recommended)").
+    Mark nothing when you have no preference: the user reads an unmarked list as "no preference".
+    Don't add an option that needs more words to act on (e.g. "Needs changes"): the card always
+    ends with a "Something else" row where the user types their own answer or reason.
+    Don't repeat the options in the message text; the card shows them.
     For normal messages without choices, pass choices=[]:
       chat_send(sender="claude", message="Done.", choices=[])"""
     sender, err = _resolve_tool_identity(sender, ctx, field_name="sender", required=True)
