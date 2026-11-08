@@ -244,7 +244,7 @@ _NICE = {
 }
 _PROBLEMS = [
     ("limit", re.compile(r"usage limit|limit reached|hit your limit|rate.?limit|quota (?:exceeded|reached)|out of (?:credits|messages)", re.I),
-     "I stopped: my {app} plan has hit its usage limit. @ me again after it resets, or switch me to another app in my profile."),
+     "I stopped: my {app} plan has hit its usage limit. @ me again after it resets, or switch me to another app: Settings → Agents → me → Runs on."),
     ("login", re.compile(r"please (?:run )?/login|not logged in|log ?in again|invalid api key|authentication (?:failed|error)|token (?:has )?expired", re.I),
      "I stopped: {app} needs you to sign in again. Settings → Connections → Switch account."),
     ("question", re.compile(r"(?!x)x"),

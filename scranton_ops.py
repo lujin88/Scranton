@@ -17,6 +17,8 @@ import threading
 import time
 from pathlib import Path
 
+_APP_NAMES = {"claude": "Claude", "codex": "ChatGPT (Codex)", "agent": "Cursor", "cursor-agent": "Cursor", "gemini": "Gemini"}
+
 ROOT = Path(__file__).resolve().parent
 RUN_DIR = ROOT / "data" / "run"
 CHECK_EVERY = 3600  # git fetch once an hour; not the GitHub REST API, so it doesn't touch the bot's rate limit
@@ -90,6 +92,14 @@ def apply_update() -> dict:
         # Dependencies may have changed. If they won't install, go back before restarting.
         py = ROOT / ".venv" / "bin" / "python"
         if py.exists():
+            # Exact packages before the update, so a rollback can put them back.
+            try:
+                frozen = subprocess.run([str(py), "-m", "pip", "freeze"], capture_output=True, text=True, timeout=60)
+                if frozen.returncode == 0 and frozen.stdout.strip():
+                    RUN_DIR.mkdir(parents=True, exist_ok=True)
+                    (RUN_DIR / "prev_requirements.txt").write_text(frozen.stdout)
+            except (OSError, subprocess.TimeoutExpired):
+                pass
             try:
                 pip = subprocess.run([str(py), "-m", "pip", "install", "-q", "-r", str(ROOT / "requirements.txt")],
                                      capture_output=True, text=True, timeout=300)
@@ -215,7 +225,7 @@ def ensure_running(names: list[str], config: dict) -> dict:
                 continue
             cmd = str(a.get("command", n))
             if not shutil.which(cmd):
-                out["failed"][n] = f"'{cmd}' isn't installed on this Mac"
+                out["failed"][n] = f"{_APP_NAMES.get(Path(cmd).name, cmd)} isn't installed on this Mac. See Settings → Connections"
                 continue
             cwd = Path(os.path.expanduser(str(a.get("cwd", "."))))
             known = {os.path.expanduser(k) for k in ((config or {}).get("team", {}).get("projects", {}) or {})}
@@ -247,7 +257,9 @@ def install(app, get_config):
     @app.get("/api/scranton/status")
     async def scranton_status():
         cfg = get_config()
-        return JSONResponse({"update": status(), "stopped": stopped_agents(cfg)})
+        import asyncio
+        stopped = await asyncio.to_thread(stopped_agents, cfg)   # runs ps; keep the server free
+        return JSONResponse({"update": status(), "stopped": stopped})
 
     @app.post("/api/scranton/update/check")
     async def scranton_update_check():

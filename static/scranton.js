@@ -10,8 +10,8 @@
 
     const STATE_TEXT = {
         working: 'Working',
-        available: 'Available',
-        offline: 'Offline',
+        available: 'Online',
+        offline: 'Not running',
         pending: 'Starting',
     };
     let lastStatus = {};
@@ -86,7 +86,7 @@
         if (!names.length) {
             const empty = document.createElement('div');
             empty.className = 'team-empty';
-            empty.textContent = 'No agents online. Start them on your Mac with ./scranton.sh start';
+            empty.textContent = 'No agents running. Start one in Settings → Agents.';
             list.appendChild(empty);
             return;
         }

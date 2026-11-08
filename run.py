@@ -179,7 +179,9 @@ def main():
     for _name in ("uvicorn.access", "uvicorn.error", "uvicorn"):
         _logging.getLogger(_name).addFilter(_RedactToken())
 
-    uvicorn.run(app, host=host, port=port, log_level="info")
+    # Scranton: no access log. Heartbeats alone wrote a line every few seconds per agent,
+    # forever, into a file nothing rotates. Errors still go to the log.
+    uvicorn.run(app, host=host, port=port, log_level="info", access_log=False)
 
 
 if __name__ == "__main__":

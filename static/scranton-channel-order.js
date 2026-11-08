@@ -82,7 +82,7 @@
             e.preventDefault();
             const all = rows(); const i = all.indexOf(row);
             all[Math.max(0, Math.min(all.length - 1, i + (e.key === 'ArrowUp' ? -1 : 1)))]?.focus();
-        } else if ((e.key === 'Delete' || e.key === 'Backspace') && name !== 'general') {
+        } else if (e.key === 'Delete' && name !== 'general') {
             e.preventDefault();
             const label = row.querySelector('.channel-sidebar-row-label');
             if (typeof _sidebarConfirmDelete === 'function' && label) _sidebarConfirmDelete(name, row, label);

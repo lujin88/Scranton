@@ -117,7 +117,7 @@
         return `<header class="sc-st-head"><h2>Profile</h2><p>How you appear to your agents and in the chat.</p></header>
             <div class="sc-pf">
                 <div class="sc-pf-fields">
-                    <label class="sc-field"><span>Full name</span><input id="sc-pf-name" type="text" maxlength="20" value="${esc(me())}">
+                    <label class="sc-field"><span>Name</span><input id="sc-pf-name" type="text" maxlength="20" value="${esc(me())}">
                         <small>Agents address you by this name and @-mention it when they need you.</small></label>
                     <label class="sc-field"><span>Status</span>
                         <span class="sc-select"><select id="sc-pf-status">${STATUSES.map(([v, l]) => `<option value="${v}"${v === myStatus() ? ' selected' : ''}>${l}</option>`).join('')}</select></span>
@@ -345,13 +345,14 @@
                     <input type="text" class="sc-other" data-set-other="model" placeholder="Model name, e.g. gpt-5" value="${custom ? esc(p.model) : ''}"${custom ? '' : ' hidden'}>
                     <small>Default lets ${esc(p.provider_name)} pick. “Latest” follows new releases; a pinned version stays put. Models your plan doesn't include fail when the agent starts.</small></label>
                 <label class="sc-field"><span>Permissions</span>
-                    <span class="sc-select"><select data-set="permissions"><option value="full"${p.permissions === 'full' ? ' selected' : ''}>Full: never stops to ask</option>
-                        <option value="ask"${p.permissions === 'ask' ? ' selected' : ''}>Ask before acting</option></select></span></label>
+                    <span class="sc-select"><select data-set="permissions"><option value="full"${p.permissions === 'full' ? ' selected' : ''}>Full access: never asks</option>
+                        <option value="ask"${p.permissions === 'ask' ? ' selected' : ''}>Ask first</option></select></span>
+                    <small>Full access can change or delete anything your Mac account can, including files outside the project. With Ask first, the agent stops and waits for you in its terminal.</small></label>
                 <label class="sc-toggle"><input type="checkbox" data-set="autostart"${p.autostart ? ' checked' : ''}><span class="sc-switch"></span>
                     <span>Start with Scranton</span></label>
                 <div class="sc-st-saved" id="sc-ag-saved"></div>
             </div>
-            ${p.handle === 'help' ? '' : `<div class="sc-danger"><div><b>Delete agent</b><small>Stops ${esc(p.label)} and removes it from Scranton. Its messages stay in the chat.</small></div>
+            ${p.handle === 'help' ? '' : `<div class="sc-danger"><div><b>Delete agent</b><small>Stops ${esc(p.label)} and removes it from your team. Its messages stay. Built-in roles can be added back from Library.</small></div>
                 <button type="button" class="sc-btn danger" data-a="delete-agent">Delete</button></div>`}`;
         }
         return `<button type="button" class="sc-back" data-a="back">${icon('back', 18)}<span>All agents</span></button>
@@ -405,7 +406,7 @@
 
     // ---------------------------------------------------------------- Connections
     function connectionsView(list) {
-        if (!Array.isArray(list)) return '<p class="sc-st-note">Couldn\'t check. Is Scranton running?</p>';
+        if (!Array.isArray(list)) return '<p class="sc-st-note">Couldn\'t check sign-ins. Reload to try again.</p>';
         // Brand marks from Remix Icon's Logos set, on each brand's own colour
         const badge = { claude: ['claude', '#d97757', '#fff'], codex: ['openai', '#ffffff', '#000'], cursor: ['cursor-ai', '#000000', '#fff'] };
         return `<header class="sc-st-head"><h2>Connections</h2><p>Agents run on the apps you already pay for. Sign in once per app. No API keys.</p></header>
@@ -475,7 +476,7 @@
         if (a === 'add-save') { addAgent(); return; }
         if (a === 'delete-agent') {
             const b = t.closest('[data-a]');
-            if (!b.dataset.sure) { b.dataset.sure = '1'; b.textContent = 'Click again to delete'; setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = 'Delete'; } }, 4000); return; }
+            if (!b.dataset.sure) { b.dataset.sure = '1'; b.textContent = 'Click again to confirm'; setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = 'Delete'; } }, 4000); return; }
             b.disabled = true; b.textContent = 'Deleting…';
             const r = await api('/api/scranton/agents', { action: 'delete', name: agentOpen });
             if (r.error) { b.textContent = 'Delete'; b.disabled = false; flash('sc-ag-saved', r.error); return; }

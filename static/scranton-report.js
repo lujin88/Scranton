@@ -58,12 +58,12 @@
 
             <div class="sc-rp-stats">
                 <div><b>${c.merged ?? 0}</b><span>PRs merged</span></div>
-                <div><b>${c.prs ?? 0}</b><span>PRs opened or mentioned</span></div>
-                <div><b>${c.agent_hours ?? 0} h</b><span>Agents working</span></div>
+                <div><b>${c.prs ?? 0}</b><span>PRs in chat</span></div>
+                <div><b>${c.agent_hours ?? 0} h</b><span>Agent busy time</span></div>
                 <div><b>${w.avg_minutes == null ? '–' : w.avg_minutes < 60 ? w.avg_minutes + ' min' : Math.round(w.avg_minutes / 6) / 10 + ' h'}</b><span>Your average answer time</span></div>
             </div>
 
-            <h2>Done</h2>
+            <h2>Pull requests</h2>
             ${(r.shipped || []).length ? `<div class="sc-rp-list">${r.shipped.map((p) => `<a class="sc-rp-row" href="${esc(p.url)}" target="_blank" rel="noopener">
                 <span class="sc-rp-ic">${ic('git-pr', 18)}</span>
                 <span class="sc-rp-t"><b>${esc(p.title || p.url.replace(/^https:\/\/github\.com\//, ''))}</b><small>${esc(p.url.replace(/^https:\/\/github\.com\//, ''))}${p.by ? ' · ' + esc(label(p.by)) : ''}</small></span>

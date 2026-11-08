@@ -61,7 +61,7 @@
         if (LS.get('scranton-update-later', '') === key) return;
         const b = banner('sc-update',
             `<button type="button" class="sc-card-x" data-a="later" aria-label="Later">✕</button>`
-            + `<div class="sc-card-title">Ready to update!</div>`
+            + `<div class="sc-card-title">Update ready</div>`
             + `<div class="sc-card-sub">${u.behind} change${u.behind > 1 ? 's' : ''}${u.subject ? ' · ' + esc(u.subject) : ''}</div>`
             + `<button type="button" class="sc-card-btn" data-a="update">Update now</button>`, 'info');
         b.onclick = async (e) => {
@@ -106,7 +106,7 @@
         const list = names.map((n) => `<b>${esc(labelOf(n))}</b>`).join(', ');
         const b = banner('sc-resume',
             `<button type="button" class="sc-card-x" data-a="dismiss" aria-label="Not now">✕</button>`
-            + `<div class="sc-card-title">${names.length > 1 ? 'Teammates stopped' : 'A teammate stopped'}</div>`
+            + `<div class="sc-card-title">${names.length > 1 ? 'Agents stopped' : 'An agent stopped'}</div>`
             + `<div class="sc-card-sub">${list}</div>`
             + `<button type="button" class="sc-card-btn" data-a="resume">Resume ${names.length > 1 ? 'all' : ''}</button>`, 'warn');
         b.onclick = async (e) => {
@@ -115,14 +115,14 @@
             try {
                 if (a === 'resume') {
                     await api('/api/scranton/resume', { names });
-                    b.innerHTML = '<div class="sc-card-title">Starting…</div><div class="sc-card-sub">They show as Available in a few seconds.</div>';
+                    b.innerHTML = '<div class="sc-card-title">Starting…</div><div class="sc-card-sub">They show as Online in a few seconds.</div>';
                     setTimeout(() => drop('sc-resume'), 6000);
                 } else {
                     await api('/api/scranton/resume/dismiss', { names });
                     drop('sc-resume');
                 }
             } catch (_) {
-                const sub = b.querySelector('.sc-card-sub'); if (sub) sub.textContent = 'Couldn\'t reach Scranton. Is it running?';
+                const sub = b.querySelector('.sc-card-sub'); if (sub) sub.textContent = 'Lost connection to Scranton. It may be restarting; try again in a moment.';
             }
         };
     }
@@ -151,7 +151,7 @@
                     await api(`/api/scranton/models/${pid}/seen`, {});
                     if (a === 'seen') drop(b.id);
                 } catch (_) {
-                    const sub = b.querySelector('.sc-card-sub'); if (sub) sub.textContent = 'Couldn\'t reach Scranton. Is it running?';
+                    const sub = b.querySelector('.sc-card-sub'); if (sub) sub.textContent = 'Lost connection to Scranton. It may be restarting; try again in a moment.';
                 }
             };
         }

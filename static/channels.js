@@ -243,7 +243,7 @@ function _sidebarConfirmDelete(name, row, label) {
     const originalOnclick = row.onclick;
 
     row.classList.add('confirm-delete');
-    label.textContent = `delete #${name}?`;
+    label.textContent = `Delete #${name} and all its messages?`;
     if (actions) actions.style.display = 'none';
 
     const confirmBar = document.createElement('span');
@@ -488,7 +488,7 @@ function deleteChannel(name) {
 
     tab.classList.add('confirm-delete');
     tab.classList.remove('editing');
-    label.textContent = `delete #${name}?`;
+    label.textContent = `Delete #${name} and all its messages?`;
     if (actions) actions.style.display = 'none';
 
     const confirmBar = document.createElement('span');

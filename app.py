@@ -62,6 +62,8 @@ room_settings: dict = {
     "custom_roles": [],
 }
 
+HISTORY_CAP = 1000  # messages per channel sent when a page opens
+
 # Channel validation
 _CHANNEL_NAME_RE = _re.compile(r'^[a-z0-9][a-z0-9\-]{0,19}$')
 
@@ -207,13 +209,20 @@ def _load_settings():
     room_settings["seeded_members"] = sorted(seeded_m)
 
 
+def _label_of(name: str) -> str:
+    """The name Lu sees for a teammate (its label), not the handle."""
+    base = str(name).split("-")[0]
+    agents_cfg = (config or {}).get("agents", {}) or {}
+    return str((agents_cfg.get(name) or agents_cfg.get(base) or {}).get("label") or name)
+
+
 def _report_start(res: dict, channel: str, why: str):
     """Tell the channel which teammates are starting and which can't."""
     team = (config or {}).get("agents", {})
     label = lambda n: str(team.get(n, {}).get("label", n))
     if res.get("started"):
         names = "、".join(label(n) for n in res["started"])
-        store.add("system", f"Starting {names} ({why}). They'll pick up their messages in a few seconds.",
+        store.add("system", f"Starting {names}. They'll reply in a few seconds.",
                   msg_type="system", channel=channel)
     for n, reason in (res.get("failed") or {}).items():
         store.add("system", f"{label(n)} can't start: {reason}.", msg_type="system", channel=channel)
@@ -522,12 +531,8 @@ def configure(cfg: dict, session_token: str = ""):
 
     _load_settings()
     _seed_team_schedules(cfg)  # after settings load, so "already seeded" is remembered
-    # Started fine: the rollback point from an update is no longer needed. A stale one would
-    # let a later failed restart (e.g. after Import) reset the code to an old version.
-    try:
-        (Path(__file__).parent / "data" / "run" / "prev_head").unlink(missing_ok=True)
-    except OSError:
-        pass
+    # The rollback point (data/run/prev_head) is dropped by scranton.sh only once the new
+    # server has answered twice; see restart-server.
     _load_hats()
 
     # Apply saved loop guard setting
@@ -555,8 +560,8 @@ def configure(cfg: dict, session_token: str = ""):
                     flag.unlink()
                     store.add(
                         "system",
-                        f"Agent routing for {agent_name} interrupted — auto-recovered. "
-                        "If agents aren't responding, try sending your message again."
+                        f"{_label_of(agent_name)} restarted after a problem. "
+                        "If they don't reply, send your message again."
                     )
             except Exception:
                 pass
@@ -951,7 +956,7 @@ async def _handle_new_message(msg: dict):
             store.add("system", f"Loop guard: only humans can /continue. {sender} tried to self-resume.", channel=channel)
             return
         router.continue_routing(channel)
-        store.add("system", f"Routing resumed by {sender}.", channel=channel)
+        store.add("system", f"{sender} let the agents continue.", channel=channel)
         await broadcast_status()
         return
 
@@ -1078,8 +1083,8 @@ async def _handle_new_message(msg: dict):
             router.set_guard_emitted(channel)
             store.add(
                 "system",
-                f"Loop guard: {router.max_hops} agent-to-agent hops reached. "
-                "Type /continue to resume.",
+                f"The agents passed this back and forth {router.max_hops} times, so I paused them. "
+                "Type /continue to let them go on.",
                 channel=channel
             )
         return
@@ -1133,7 +1138,7 @@ async def _handle_new_message(msg: dict):
             store.add("system", f"{target} isn't on the team, so nobody got this.", msg_type="system", channel=channel)
             continue
         elif not mcp_bridge.is_online(target):
-            store.add("system", f"{target} appears offline — message queued. It picks this up when it's back.", msg_type="system", channel=channel)
+            store.add("system", f"{_label_of(target)} isn't running. They'll get this when they start.", msg_type="system", channel=channel)
         if not channel.startswith("dm-") and _add_members(channel, [target]):
             _save_settings()
             await broadcast_settings()
@@ -1370,7 +1375,10 @@ async def websocket_endpoint(websocket: WebSocket):
 
     # Send history (per channel based on history_limit)
     limit_val = room_settings.get("history_limit", "all")
-    count = 10000 if limit_val == "all" else int(limit_val)
+    # Scranton: "all" meant 10,000 per channel, sent and rendered on every page load and
+    # every reconnect (18 MB at 30k messages). The newest 1,000 per channel is plenty to read;
+    # search still covers everything.
+    count = HISTORY_CAP if limit_val == "all" else min(int(limit_val), HISTORY_CAP)
     
     history = []
     for ch in room_settings["channels"]:
@@ -1419,7 +1427,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         continue
                     if cmd == "/continue":
                         router.continue_routing()
-                        store.add("system", "Resuming agent conversation...", msg_type="system", channel=channel)
+                        pass  # "/continue" already says who let the agents go on
                         await broadcast_status()
                         continue
                     # Broadcast slash commands — expand without storing the raw command.

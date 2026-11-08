@@ -186,7 +186,7 @@
     function sendFeedback() {
         const team = window.scGetTeam ? window.scGetTeam() : {};
         if (team.help && window.scOpenDm) { window.scOpenDm('help'); setTimeout(() => document.getElementById('input')?.focus(), 300); }
-        else openDialog('Send feedback', '<p>The Help teammate isn\'t set up, so there\'s nobody to collect feedback yet. Add <code>[agents.help]</code> back to <code>config.toml</code>.</p>');
+        else openDialog('Send feedback', '<p>The Help agent isn\'t set up, so there\'s nobody to collect feedback yet. Add <code>[agents.help]</code> back to <code>config.toml</code>.</p>');
     }
 
     // ------------------------------------------------------------------
@@ -228,7 +228,7 @@
                 <p class="sc-set-note">Adding or importing teammates from here is coming next. For now they live in <code>config.toml</code>.</p>
             </section>
             <section><h3>Feedback</h3>
-                <p class="sc-set-note">Something odd or missing? Tell the Help teammate. It turns your note into a GitHub issue for the Harness manager.</p>
+                <p class="sc-set-note">Something odd or missing? Tell the Help agent. It turns your note into a GitHub issue for the Harness manager.</p>
                 <button type="button" class="sc-set-primary" data-a="feedback">Send feedback</button>
             </section>`, 'sc-settings').addEventListener('click', (e) => {
             const a = e.target.closest('[data-a]')?.dataset.a;

@@ -31,6 +31,8 @@ class MessageStore:
         if not self._path.exists():
             return
         max_id = -1
+        by_id = {}
+        updates = 0
         with open(self._path, "r", encoding="utf-8") as f:
             for i, line in enumerate(f):
                 line = line.strip()
@@ -38,15 +40,24 @@ class MessageStore:
                     continue
                 try:
                     msg = json.loads(line)
+                    if isinstance(msg, dict) and "_update" in msg:
+                        target = by_id.get(msg["_update"])
+                        if target is not None and isinstance(msg.get("fields"), dict):
+                            target.update(msg["fields"])
+                        updates += 1
+                        continue
                     # Preserve persisted ID; fall back to line number for legacy data
                     if "id" not in msg:
                         msg["id"] = i
                     if msg["id"] > max_id:
                         max_id = msg["id"]
                     self._messages.append(msg)
+                    by_id[msg["id"]] = msg
                 except json.JSONDecodeError:
                     continue
         self._next_id = max_id + 1
+        if updates:
+            self._rewrite_jsonl()   # fold the update lines into their messages once
 
     def on_message(self, callback):
         """Register a callback(msg) called whenever a message is added."""
@@ -82,16 +93,7 @@ class MessageStore:
                 msg["metadata"] = metadata
             if not _bulk:
                 # Write first: if the disk is full the message must not exist only in memory.
-                line = json.dumps(msg, ensure_ascii=False) + "\n"
-                with open(self._path, "a+b") as f:
-                    f.seek(0, os.SEEK_END)
-                    if f.tell() > 0:
-                        f.seek(-1, os.SEEK_END)
-                        if f.read(1) != b"\n":   # a half-written last line must not swallow this one
-                            f.write(b"\n")
-                    f.write(line.encode("utf-8"))
-                    f.flush()
-                    os.fsync(f.fileno())
+                self._append_line(json.dumps(msg, ensure_ascii=False) + "\n")
             self._next_id += 1
             self._messages.append(msg)
 
@@ -196,13 +198,28 @@ class MessageStore:
         """Register a callback(ids) called when messages are deleted."""
         self._delete_callbacks.append(callback)
 
+    def _append_line(self, line: str):
+        """Append one JSON line and fsync. Call with the lock held."""
+        with open(self._path, "a+b") as f:
+            f.seek(0, os.SEEK_END)
+            if f.tell() > 0:
+                f.seek(-1, os.SEEK_END)
+                if f.read(1) != b"\n":   # a half-written last line must not swallow this one
+                    f.write(b"\n")
+            f.write(line.encode("utf-8"))
+            f.flush()
+            os.fsync(f.fileno())
+
     def update_message(self, msg_id: int, updates: dict) -> dict | None:
-        """Update fields on a message in-place. Returns the updated message or None."""
+        """Update fields on a message in-place. Returns the updated message or None.
+        Scranton: the change is appended as one small line ({"_update": id, "fields": …}) and
+        applied on load, instead of rewriting the whole log on every reaction (0.2 s at 30 MB,
+        with the server frozen). The log is compacted once at the next start."""
         with self._lock:
-            for m in self._messages:
+            for m in reversed(self._messages):
                 if m["id"] == msg_id:
+                    self._append_line(json.dumps({"_update": msg_id, "fields": updates}, ensure_ascii=False) + "\n")
                     m.update(updates)
-                    self._rewrite_jsonl()
                     return dict(m)
             return None
 
@@ -295,13 +312,14 @@ class MessageStore:
                 raw = json.loads(self._todos_path.read_text("utf-8"))
                 self._todos = {int(k): v for k, v in raw.items()}
             except Exception:
+                # Scranton: keep the broken file aside instead of overwriting it on the next save.
+                from safe_io import quarantine
+                quarantine(self._todos_path)
                 self._todos = {}
 
     def _save_todos(self):
-        self._todos_path.write_text(
-            json.dumps({str(k): v for k, v in self._todos.items()}, indent=2),
-            "utf-8"
-        )
+        from safe_io import atomic_write
+        atomic_write(self._todos_path, json.dumps({str(k): v for k, v in self._todos.items()}, indent=2))
 
     def on_todo(self, callback):
         """Register a callback(msg_id, status) called on todo changes.

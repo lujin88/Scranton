@@ -603,6 +603,28 @@ def _post(server_port: int, sender: str, token: str, channel: str, reply_to, tex
         print(f"  couldn't post to chat: {exc}", flush=True)
 
 
+def _take_queue(queue_file: Path, taking: Path, keep: int | None = None) -> int:
+    """Move what's in the queue into .taking (after anything left there by a stop mid-delivery).
+    With keep, only the newest `keep` items stay. Returns how many were dropped."""
+    lines = []
+    if taking.exists():
+        lines += [l for l in taking.read_text("utf-8").splitlines() if l.strip()]
+    if queue_file.exists():
+        fresh = queue_file.with_name(queue_file.name + ".fresh")
+        os.replace(queue_file, fresh)
+        lines += [l for l in fresh.read_text("utf-8").splitlines() if l.strip()]
+    else:
+        fresh = None
+    dropped = 0
+    if keep is not None and len(lines) > keep:
+        dropped, lines = len(lines) - keep, lines[-keep:]
+    from safe_io import atomic_write
+    atomic_write(taking, "".join(l + "\n" for l in lines))
+    if fresh is not None:
+        fresh.unlink(missing_ok=True)
+    return dropped
+
+
 def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = False, trigger_flag=None,
                    server_port: int = 8300, agent_name: str = "", get_token_fn=None,
                    refresh_interval: int = 10, default_role: str = "", team_brief: str = ""):
@@ -621,14 +643,14 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
     while True:
         try:
             _, queue_file = get_identity_fn()
-            if queue_file.exists() and queue_file.stat().st_size > 0:
-                # Take the file in one step (rename), so a mention the server appends
-                # meanwhile lands in a fresh file instead of being truncated away.
-                taking = queue_file.with_name(queue_file.name + ".taking")
-                os.replace(queue_file, taking)
+            taking = queue_file.with_name(queue_file.name + ".taking")
+            if (queue_file.exists() and queue_file.stat().st_size > 0) or taking.exists():
+                # Take the queue in one step (rename), so a mention the server appends meanwhile
+                # lands in a fresh file. The taken lines stay in .taking until they've been
+                # delivered or put back: a stop in between doesn't lose them.
+                _take_queue(queue_file, taking)
                 with open(taking, "r", encoding="utf-8") as f:
                     lines = f.readlines()
-                taking.unlink(missing_ok=True)
 
                 has_trigger = False
                 channel = "general"
@@ -771,11 +793,16 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                             _PROBLEM_POSTED["question"] = time.time()
                         if not blocked and failures == 3:
                             _post(server_port, current_name, _token, channel, thread_root,
-                                  "Your message didn't reach my terminal (tmux error, 3 tries). "
-                                  "Try restarting me from my profile.")
+                                  "Your message didn't reach me after 3 tries. "
+                                  "Restart me: Settings → Agents → me → Restart.")
                         time.sleep(10 if blocked else 3)
+                taking.unlink(missing_ok=True)   # delivered, or put back in the queue
         except Exception as exc:
             print(f"  queue watcher: {type(exc).__name__}: {exc}", flush=True)
+            try:
+                taking.unlink(missing_ok=True)   # a bad batch mustn't repeat forever
+            except Exception:
+                pass
 
         time.sleep(1)
 
@@ -932,9 +959,11 @@ def main():
     # Scranton: keep work that arrived while this teammate was down (a crash, an update,
     # "Resume"), but only the last few items so a long outage doesn't replay a flood.
     queue_file = _identity["queue"]
-    if queue_file.exists():
-        pending = [l for l in queue_file.read_text("utf-8").splitlines() if l.strip()]
-        queue_file.write_text("".join(l + "\n" for l in pending[-5:]), "utf-8")
+    _taking = queue_file.with_name(queue_file.name + ".taking")
+    if queue_file.exists() or _taking.exists():
+        _dropped = _take_queue(queue_file, _taking, keep=5)
+        if _dropped:
+            print(f"  skipped {_dropped} older message(s) that arrived while I was stopped", flush=True)
 
     # Scranton: API keys are always stripped so the CLIs use your subscription,
     # even when the tmux server was started from a shell that has them set.

@@ -328,7 +328,7 @@
                 toast('Marked unread');
             }
             if (k === 'delete') {
-                if (confirm('Delete this message?') && window.ws && window.ws.readyState === WebSocket.OPEN) {
+                if (confirm('Delete this message? This can\'t be undone.') && window.ws && window.ws.readyState === WebSocket.OPEN) {
                     window.ws.send(JSON.stringify({ type: 'delete', ids: [id] }));
                 }
             }

@@ -192,12 +192,26 @@ case "${1:-}" in
             echo "Port $PORT is still in use by another program, so Scranton couldn't restart."
             rm -f "$RUN_DIR/prev_head"; exit 1
         fi
-        if start_server; then rm -f "$RUN_DIR/prev_head"; exit 0; fi
+        # Healthy = it started AND still answers 10 s later (a crash right after binding the
+        # port must roll back too). Only then is the rollback point dropped.
+        healthy() {
+            curl -fs -o /dev/null --max-time 5 "http://127.0.0.1:$PORT/" || return 1
+            sleep 10
+            curl -fs -o /dev/null --max-time 5 "http://127.0.0.1:$PORT/"
+        }
+        if start_server && healthy; then rm -f "$RUN_DIR/prev_head" "$RUN_DIR/prev_requirements.txt"; exit 0; fi
         if [ -f "$RUN_DIR/prev_head" ]; then
             prev=$(cat "$RUN_DIR/prev_head")
             echo "New version didn't start - going back to $prev"
+            stop_pidfile "$RUN_DIR/server.pid"
             git reset --hard --quiet "$prev"
-            "$PY" -m pip install -q -r requirements.txt || true
+            # Put back the exact packages from before the update (requirements use >=).
+            if [ -f "$RUN_DIR/prev_requirements.txt" ]; then
+                "$PY" -m pip install -q -r "$RUN_DIR/prev_requirements.txt" || true
+            else
+                "$PY" -m pip install -q -r requirements.txt || true
+            fi
+            rm -f "$RUN_DIR/prev_requirements.txt"
             rm -f "$RUN_DIR/prev_head"
             echo "The update didn't start, so Scranton went back to the previous version. Details: data/logs/server.log" > "$RUN_DIR/update_failed"
             start_server || exit 1
