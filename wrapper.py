@@ -488,6 +488,62 @@ def _quiet_note(now=None) -> str:
             f"or something is broken for real users; collect questions for her and post them after {end}.")
 
 
+def _work_file(queue_file: Path, name: str) -> Path:
+    return queue_file.parent / "run" / f"{name}.work.json"
+
+
+def _remember_work(queue_file: Path, name: str, places, thread_root, channel) -> None:
+    """Note what the agent was last asked, so after a restart it can carry on by itself."""
+    try:
+        ch, th = (places[-1] if places else (channel, thread_root))
+        f = _work_file(queue_file, name)
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps({"channel": ch, "thread": th, "at": time.time()}), "utf-8")
+    except Exception:
+        pass
+
+
+def _resume_unfinished(queue_file: Path, name: str, server_port: int, get_token_fn, delay: float = 25.0) -> None:
+    """After a restart (Mac rebooted, agent restarted): if the last request wasn't answered,
+    ask the agent to pick it up again, without Lu having to @ it."""
+    time.sleep(delay)   # let the CLI start and draw its prompt first
+    f = _work_file(queue_file, name)
+    try:
+        w = json.loads(f.read_text("utf-8"))
+    except (OSError, ValueError):
+        return
+    at = float(w.get("at") or 0)
+    if time.time() - at > 24 * 3600:
+        return
+    ch, th = str(w.get("channel") or "general"), w.get("thread")
+    try:
+        import urllib.parse, urllib.request
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{server_port}/api/messages?channel={urllib.parse.quote(ch)}&limit=200",
+            headers={"Authorization": f"Bearer {get_token_fn()}"})
+        msgs = json.loads(urllib.request.urlopen(req, timeout=5).read())
+    except Exception:
+        return
+    base = name.split("-")[0]
+    answered = any(float(m.get("timestamp") or 0) > at and str(m.get("sender", "")).split("-")[0] == base
+                   for m in msgs if isinstance(m, dict))
+    if answered:
+        return
+    where = f"#{ch}" + (f", in the thread under message #{th} (reply with reply_to={th})" if th is not None else "")
+    prompt = (f"Scranton was restarted while you were working (for example the Mac restarted), so your earlier session "
+              f"ended. Use mcp to read {where}: find the last request to you that you haven't answered, check your "
+              f"branch and files for what you already did, and carry on from there. First post one line saying "
+              f"where you're picking up.")
+    line = {"channel": ch, "prompt": prompt}
+    if th is not None:
+        line["thread"] = th
+    try:
+        with open(queue_file, "a", encoding="utf-8") as q:
+            q.write(json.dumps(line, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
+
 # Where the agent was last asked something, so problems are reported there.
 _LAST_PLACE = {"channel": "general", "thread": None}
 
@@ -668,6 +724,7 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                     if not blocked and result is not False:
                         stuck_since = 0.0
                         failures = 0
+                        _remember_work(queue_file, agent_name, places, thread_root, channel)
                     else:
                         # Not delivered: put the mention back and try again shortly.
                         failures += 1
@@ -993,6 +1050,9 @@ def main():
                 _notify_recovery(data_dir, current_name)
 
     threading.Thread(target=_watcher_monitor, daemon=True).start()
+    # Scranton: pick up unfinished work after a restart, without a new @mention
+    threading.Thread(target=_resume_unfinished, args=(queue_file, assigned_name, server_port, get_token),
+                     daemon=True).start()
 
     _activity_checker = None
 
