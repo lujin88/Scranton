@@ -552,12 +552,13 @@
         const wrap = document.createElement('div');
         wrap.className = 'sc-choices';
         // What you already answered, from your replies in its thread (so the phone shows it too)
+        const typedOwn = {};   // question -> what you typed in "Something else"
         const fromReplies = (qi) => {
             const mine = String(me()).toLowerCase();
             for (const r of byId.values()) {
                 if (!r || Number(r.reply_to) !== Number(msg.id) || String(r.sender || '').toLowerCase() !== mine) continue;
-                const m = /^@\S+\s+(\d*)([A-H])：/.exec(String(r.text || ''));
-                if (m && (blocks.length === 1 ? true : Number(m[1]) === Number(blocks[qi].num || qi + 1))) return m[2];
+                const m = /^@\S+\s+(\d*)([A-H])：(.*)$/s.exec(String(r.text || ''));
+                if (m && (blocks.length === 1 ? true : Number(m[1]) === Number(blocks[qi].num || qi + 1))) { typedOwn[qi] = m[3]; return m[2]; }
             }
             return null;
         };
@@ -568,12 +569,37 @@
                     ${b.question ? `<div class="sc-choice-q">${b.num ? esc(b.num) + '. ' : ''}${esc(b.question)}</div>` : ''}
                     ${b.options.map((o) => `<button type="button" class="sc-choice${picked === o.key ? ' on' : ''}" data-k="${esc(o.key)}"${picked ? ' disabled' : ''}>
                         <span class="sc-choice-key">${esc(o.key)}</span><span>${esc(o.text)}</span></button>`).join('')}
-                    <div class="sc-choice-foot"><button type="button" class="sc-choice-own" data-own>${picked ? 'Change my answer' : 'None of these: write my own'}</button></div>
+                    ${(() => {
+                        // the last row: your own answer, typed right here (Grok Bot's "Something else")
+                        const k = String.fromCharCode(65 + b.options.length);
+                        const mine = picked === k;
+                        return `<label class="sc-choice sc-choice-other${mine ? ' on' : ''}"><span class="sc-choice-key">${k}</span>
+                            <input type="text" data-other="${k}" placeholder="Something else" aria-label="Your own answer" maxlength="500"
+                                value="${mine ? esc(typedOwn[qi] || '') : ''}"${picked ? ' disabled' : ''}></label>`;
+                    })()}
+                    ${picked ? '<div class="sc-choice-foot"><button type="button" class="sc-choice-own" data-own>Change my answer</button></div>' : ''}
                 </div>`;
             }).join('');
         };
         paint();
         wrap._paint = paint;
+        wrap.addEventListener('keydown', (e) => {
+            const inp = e.target.closest?.('[data-other]');
+            if (!inp || e.key !== 'Enter' || e.isComposing || e.shiftKey) return;
+            e.preventDefault(); e.stopPropagation();
+            const v = inp.value.trim();
+            if (!v || !window.ws || window.ws.readyState !== WebSocket.OPEN) return;
+            const qi = Number(inp.closest('[data-q]').dataset.q);
+            const block = blocks[qi], k = inp.dataset.other;
+            const tag = blocks.length > 1 || block.num ? `${block.num || qi + 1}${k}` : k;
+            const root = rootOf(msg) ?? Number(msg.id);
+            window.ws.send(JSON.stringify({ type: 'message', text: `@${sender} ${tag}：${v}`, sender: me(),
+                channel: msg.channel || 'general', reply_to: Number(root), attachments: [] }));
+            typedOwn[qi] = v;
+            chosenStore.set(msg.id, qi, k);
+            paint();
+            toast(`Answered ${tag}`);
+        });
         wrap.addEventListener('click', (e) => {
             const own = e.target.closest('[data-own]');
             if (own) {
@@ -584,6 +610,7 @@
                 window.scAnswerOwn(msg, tag);
                 return;
             }
+            if (e.target.closest('.sc-choice-other')) { e.stopPropagation(); return; }   // typing, not picking
             const b = e.target.closest('.sc-choice');
             if (!b || b.disabled) return;
             e.stopPropagation();

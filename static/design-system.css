@@ -1123,3 +1123,17 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 /* a quote inside your own (dark) bubble */
 .sc-tmsg.self .sc-quoted, .message.self .sc-quoted { background: rgba(255, 255, 255, 0.10); color: rgba(255, 255, 255, 0.72); border-left-color: rgba(255, 255, 255, 0.5); }
 .sc-tmsg.self .sc-quoted b, .message.self .sc-quoted b { color: #fff; }
+
+/* Option cards, Grok Bot style: a white card with a hairline, a bold question, key chips,
+   and a last row to type your own answer. */
+:root[data-theme="light"] .sc-choice-card { background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08); }
+.sc-choice-card { padding: 16px 16px 10px; border-radius: 20px; }
+.sc-choice-q { font-size: var(--ds-fs-md); margin: 0 4px 10px; }
+.sc-choice { color: var(--ds-text) !important; }
+.sc-choice-key { width: 26px; height: 26px; border-radius: 7px; font-weight: 500; box-shadow: 0 0 0 1px rgba(var(--ink), 0.08); }
+:root[data-theme="light"] .sc-choice-key { background: #f4f4f4; }
+.sc-choice-other { cursor: text; }
+.sc-choice-other input { flex: 1; min-width: 0; height: 30px; border: 0; outline: none; background: transparent; color: var(--ds-text); font: inherit; font-size: 14px; padding: 0; }
+.sc-choice-other input::placeholder { color: var(--ds-text-3); }
+.sc-choice-other:focus-within { background: var(--ds-hover) !important; }
+.sc-choice-other input:disabled { color: var(--ds-text); }
