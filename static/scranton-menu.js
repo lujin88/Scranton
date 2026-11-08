@@ -27,7 +27,7 @@
     }
     function paintStatus() {
         const st = myStatus();
-        document.querySelectorAll('#sc-me .sc-me-dot').forEach((d) => { d.className = `sc-me-dot ${st}`; });
+        document.querySelectorAll('#sc-me .sc-me-dot, .sc-rail-me .sc-me-dot').forEach((d) => { d.className = `sc-me-dot ${st}`; });
         const chip = document.getElementById('sc-me');
     }
 
@@ -100,8 +100,11 @@
         const stLabel = (STATUSES.find(([k]) => k === st) || STATUSES[0])[1];
         const chev = window.scIcon ? window.scIcon('right', 16) : '›';
         menu.innerHTML = `
-            <div class="sc-am-head"><span class="sc-am-av">${pic}<span class="sc-me-dot ${st}"></span></span><span class="sc-am-name">${esc(me())}</span></div>
-            ${row('status', `<span class="sc-am-dot ${st}"></span>`, 'Status', `<em>${stLabel}</em><i class="sc-am-chev">${chev}</i>`)}
+            <button type="button" role="menuitem" class="sc-am-head" data-a="status" aria-haspopup="menu" aria-label="Status: ${stLabel}">
+                <span class="sc-am-av">${pic}<span class="sc-me-dot ${st}"></span></span>
+                <span class="sc-am-who"><span class="sc-am-name">${esc(me())}</span><span class="sc-am-st"><span class="sc-am-dot ${st}"></span>${stLabel}</span></span>
+                <i class="sc-am-chev">${chev}</i></button>
+            <hr>
             ${row('settings', svg('settings'), 'Settings')}
             ${row('update', svg('update'), 'Check for updates')}
             <hr>

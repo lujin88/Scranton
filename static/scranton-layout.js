@@ -58,7 +58,8 @@
         });
         const paintMe = () => {
             const b = float.querySelector('.sc-rail-me');
-            if (b && window.scMyAvatarHtml) b.innerHTML = window.scMyAvatarHtml();
+            // the picture plus your status dot, same as in the full sidebar
+            if (b && window.scMyAvatarHtml) { b.innerHTML = `<span class="sc-rail-pic">${window.scMyAvatarHtml()}</span><span class="sc-me-dot"></span>`; window.scPaintStatus && window.scPaintStatus(); }
         };
         paintMe(); setTimeout(paintMe, 1500);
         (window.scOnTeamChange || []).push(paintMe);

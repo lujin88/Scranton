@@ -1114,7 +1114,7 @@ async def _handle_new_message(msg: dict):
             router.set_guard_emitted(channel)
             store.add(
                 "system",
-                f"The agents passed this back and forth {router.max_hops} times, so I paused them. "
+                f"The agents passed this back and forth {router.pause_hops(channel)} times, so I paused them. "
                 "Type /continue to let them go on.",
                 channel=channel
             )

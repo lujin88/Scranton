@@ -181,7 +181,8 @@
         let ch = m.channel || 'general';
         if (!window.channelList.includes(ch)) ch = 'general';
         if (ch !== window.activeChannel && typeof switchChannel === 'function') switchChannel(ch);
-        setTimeout(() => { if (typeof scrollToMessage === 'function') scrollToMessage(m.id); }, 60);
+        if (window.scFocusMessage) window.scFocusMessage(m);
+        else setTimeout(() => { if (typeof scrollToMessage === 'function') scrollToMessage(m.id); }, 60);
         closeDrawer();
     }
 

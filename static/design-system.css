@@ -846,9 +846,15 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 /* Loop-guard pause: a one-line note in the conversation, the decision docked above the box */
 .message.sc-pause-note { display: flex; justify-content: center; }
 .message.sc-pause-note .msg-text { display: inline-flex; align-items: center; gap: 6px; color: var(--ds-warn-text) !important; }
-#sc-pause-dock { display: flex; align-items: center; gap: 12px; max-width: var(--ds-read-w); margin: 0 auto 8px; padding: 10px 10px 10px 14px;
+#sc-pause-dock { display: flex; align-items: flex-start; gap: 10px; max-width: var(--ds-read-w); margin: 0 auto 8px; padding: 12px 14px;
     border-radius: var(--ds-r-card); background: var(--ds-raised); box-shadow: 0 0 0 1px rgba(var(--ink), 0.08), 0 4px 16px rgba(0, 0, 0, 0.06); }
-.sc-pd-ic { color: var(--ds-warn-text); display: grid; place-items: center; }
+.sc-pd-ic { color: var(--ds-warn-text); display: grid; place-items: center; height: 20px; flex: none; }   /* centred on the title's line */
+.sc-pd-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sc-pd-body b { font-weight: 600; font-size: var(--ds-fs-md); line-height: 20px; color: var(--ds-text); }
+.sc-pd-body small { font-size: var(--ds-fs-sm); line-height: 18px; color: var(--ds-text-2); }
+.sc-pd-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.sc-pd-link { height: 30px; padding: 0 8px; border: 0; background: none; color: var(--ds-text-2); font: inherit; font-size: var(--ds-fs-sm); cursor: pointer; border-radius: var(--ds-r-control); }
+.sc-pd-link:hover { background: var(--ds-hover); color: var(--ds-text); }
 .sc-pd-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .sc-pd-text b { font-weight: 600; font-size: var(--ds-fs-md); color: var(--ds-text); }
 .sc-pd-text small { font-size: var(--ds-fs-sm); color: var(--ds-text-2); }
@@ -899,8 +905,10 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
     body.sc-sidebar-collapsed #sc-float-tools .sc-tool { background: transparent !important; backdrop-filter: none; width: 36px; height: 36px; border-radius: var(--ds-r-control); }
     body.sc-sidebar-collapsed #sc-float-tools .sc-tool:hover { background: var(--ds-hover) !important; }
     body.sc-sidebar-collapsed .sc-rail-me { display: grid; place-items: center; margin-top: auto; width: 36px; height: 36px; padding: 0; border: 0;
-        border-radius: 50%; background: var(--ds-hover); overflow: hidden; cursor: pointer; color: var(--ds-text); font-weight: 600; }
+        border-radius: 50%; background: none; overflow: visible; position: relative; cursor: pointer; color: var(--ds-text); font-weight: 600; }
+    body.sc-sidebar-collapsed .sc-rail-pic { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: var(--ds-hover); }
     body.sc-sidebar-collapsed .sc-rail-me img, body.sc-sidebar-collapsed .sc-rail-me svg { width: 100%; height: 100%; object-fit: cover; }
+    body.sc-sidebar-collapsed .sc-rail-me .sc-me-dot { position: absolute; right: -1px; bottom: -1px; border-color: var(--ds-canvas); }
     body.sc-sidebar-collapsed .sc-rail-me:hover { box-shadow: 0 0 0 2px rgba(var(--ink), 0.15); }
     body.sc-sidebar-collapsed #content-area { padding-left: 56px; }
 }
@@ -1066,3 +1074,13 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
    placeholder ("@项目经理") switches font and pushes the line 2px down in one box only. */
 #input, #sc-thread-input, .sc-mhl-mirror { line-height: 20px !important; }
 .sc-thread-bar .sc-agentpick-btn:not(.generic), #mention-toggles-row .sc-agentpick-btn:not(.generic) { width: 28px !important; height: 28px !important; min-width: 0 !important; min-height: 0 !important; padding: 0 !important; }
+
+/* account menu: your name and status are one row (Slack); click or hover it to change status */
+#sc-account-menu > .sc-am-head { width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 0; border-radius: var(--ds-r-control);
+    background: none; color: var(--ds-text); font: inherit; text-align: left; cursor: pointer; min-height: 0; }
+#sc-account-menu > .sc-am-head:hover, #sc-account-menu > .sc-am-head[aria-expanded="true"] { background: var(--ds-hover); }
+.sc-am-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sc-am-st { display: flex; align-items: center; gap: 6px; font-size: var(--ds-fs-sm); color: var(--ds-text-2); }
+.sc-am-st .sc-am-dot { width: 8px; height: 8px; }
+.sc-pd-actions > button { height: 30px !important; min-height: 0 !important; box-sizing: border-box; display: inline-flex; align-items: center; }
+.sc-tmsg.sc-flash .sc-tmsg-body { box-shadow: 0 0 0 2px var(--ds-accent); border-radius: var(--ds-r-row); transition: box-shadow .3s; }

@@ -263,7 +263,7 @@ autostart = false
 [routing]
 # "none" = only route on explicit @mention. "all" = route to all agents by default.
 default = "none"
-max_agent_hops = 12   # a normal pm→dev→qa→visualqa→pm round is already 4; Lu sees a notice in Activity if it stops
+max_agent_hops = 40   # overall budget without you; two agents bouncing between each other stop after 8 in a row
 
 [mcp]
 http_port = 8200

@@ -505,6 +505,8 @@ def _remember_work(queue_file: Path, name: str, places, thread_root, channel) ->
 
 
 # Posts the wrapper makes by itself. They aren't the agent answering the request.
+_NUDGE = ("Scranton: you worked on the last request in #{ch} but no reply from you reached the chat. "
+          "Post your reply now with chat_send, or say what's blocking you.")
 _ASKED = [None]   # () -> the question on the agent's screen, set in main() on macOS/Linux
 AUTO_POSTS = ("I stopped", "I can't read this yet", "I hit an error", "I'm picking up")
 
@@ -1225,6 +1227,7 @@ def main():
     _seen = [None, 0.0]      # problem key on screen now, since when
     _idle_since = [None]     # went from working to idle at
     _checked_work = [None]   # the request we already checked for a missing reply
+    _nudged = {}             # request time -> when we reminded the agent to reply
 
     def _work_at():
         try:
@@ -1275,10 +1278,17 @@ def main():
                         try:
                             msgs = _read_channel(server_port, get_token(), _LAST_PLACE["channel"])
                             if not _replied_since(msgs, cur, w_at):
-                                _post(server_port, cur, get_token(), _LAST_PLACE["channel"], _LAST_PLACE["thread"],
-                                      "I stopped without replying. Open my terminal to see where I am, or @ me again.")
+                                if _nudged.get(w_at) is None and _watcher_inject_fn:
+                                    # First ask the agent itself: often its reply just didn't reach
+                                    # Scranton (e.g. Scranton was restarting). Only tell Lu if that fails.
+                                    _nudged[w_at] = now
+                                    _checked_work[0] = None   # check again after this nudge
+                                    _watcher_inject_fn(_NUDGE.format(ch=_LAST_PLACE["channel"]))
+                                else:
+                                    _post(server_port, cur, get_token(), _LAST_PLACE["channel"], _LAST_PLACE["thread"],
+                                          "I stopped without replying, even after a reminder. Open my terminal to see where I am, or @ me again.")
                         except Exception:
-                            pass
+                            pass   # Scranton unreachable: say nothing now, the next check will tell
                 # Send on state change, periodically while active (refresh lease),
                 # or periodically while idle (keep presence alive)
                 IDLE_REPORT_INTERVAL = 8  # keep-alive while idle

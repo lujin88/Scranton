@@ -645,13 +645,33 @@
                     e.target.closest('[data-pa]').disabled = true;
                 }
                 if (a === 'keep') { keptPaused.add(c); renderPauseDock(); }
+                if (a === 'see') { const r = lastAgentThread(c); if (r != null) openThread(Number(r)); }
             });
         }
         const n = pauseHops.get(ch);
-        dock.innerHTML = `<span class="sc-pd-ic">${window.scIcon ? window.scIcon('hourglass', 18) : ''}</span>
-            <span class="sc-pd-text"><b>Agents are paused here</b><small>They went back and forth${n ? ` ${n} times` : ''} without you. Check the last messages first.</small></span>
-            <button type="button" class="sc-btn sm" data-pa="keep">Keep paused</button>
-            <button type="button" class="sc-btn primary sm" data-pa="go">Let them continue</button>`;
+        const where = lastAgentThread(ch);
+        // Say what happened, what each button does, and where to look (approval-card pattern:
+        // the outcome is on the button, the decision is recorded in the conversation).
+        dock.innerHTML = `<span class="sc-pd-ic">${window.scIcon ? window.scIcon('hourglass', 16) : ''}</span>
+            <div class="sc-pd-body">
+                <b>The agents paused and are waiting for you</b>
+                <small>They handed this back and forth${n ? ` ${n} times` : ''} without you. Continue, and they pick up where they stopped. Or reply in the thread to steer them first.</small>
+                <div class="sc-pd-actions">
+                    <button type="button" class="sc-btn primary sm" data-pa="go">Let them continue</button>
+                    ${where != null ? '<button type="button" class="sc-btn sm" data-pa="see">Open the thread</button>' : ''}
+                    <button type="button" class="sc-pd-link" data-pa="keep">Not now</button>
+                </div>
+            </div>`;
+    }
+    // The newest thread an agent wrote in, here: where the back-and-forth happened.
+    function lastAgentThread(ch) {
+        const team = (window.scGetTeam && window.scGetTeam()) || {};
+        let best = null;
+        for (const m of byId.values()) {
+            if (!m || (m.channel || 'general') !== ch || !team[String(m.sender || '').split('-')[0].toLowerCase()]) continue;
+            if (!best || Number(m.id) > Number(best.id)) best = m;
+        }
+        return best ? (rootOf(best) ?? Number(best.id)) : null;
     }
     window.scRenderPauseDock = renderPauseDock;
     // While paused, the empty message box suggests /continue; Tab types it (like ChatGPT).
@@ -711,6 +731,28 @@
         setTimeout(() => document.getElementById('sc-thread-input')?.focus(), 30);
     }
     window.scOpenThread = openThread;
+    // Take me to a message (Activity, links): a reply opens its thread with that reply in view
+    // and the reply box ready; a channel message scrolls into view. Waits for the channel to load.
+    window.scFocusMessage = (m) => {
+        const id = Number(m.id), root = m.reply_to != null ? Number(m.reply_to) : null;
+        let tries = 0;
+        const step = () => {
+            const known = byId.get(id) || (root != null && byId.get(root));
+            if (!known && tries++ < 40) { setTimeout(step, 100); return; }
+            const r = root != null ? (rootOf(byId.get(id) || m) ?? root) : null;
+            if (r != null && byId.has(r)) {
+                openThread(r);
+                setTimeout(() => {
+                    const el = document.querySelector(`#sc-thread .sc-tmsg[data-mid="${id}"]`);
+                    if (el) { el.scrollIntoView({ block: 'center' }); el.classList.add('sc-flash'); setTimeout(() => el.classList.remove('sc-flash'), 1800); }
+                    document.querySelector(`.message[data-id="${r}"]`)?.scrollIntoView({ block: 'center' });
+                }, 80);
+                return;
+            }
+            if (typeof scrollToMessage === 'function') scrollToMessage(id);
+        };
+        step();
+    };
     // The agent you're talking to in the open thread: who started it, else the last agent to reply.
     window.scThreadAgent = () => {
         if (activeThread == null) return '';
