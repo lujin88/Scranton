@@ -1604,6 +1604,6 @@ body.sc-info-open #sc-info {
 .message.system .chat-bubble, .message.system, .msg-system, .system-msg { border: 0 !important; }
 .mention-toggle { border: 0 !important; background: var(--tone-2e) !important; color: var(--text) !important; }
 .mention-toggle:hover { background: var(--tone-3a) !important; }
-.mention-toggle.active { background: var(--accent-soft) !important; color: #cfe0ff !important; }
+.mention-toggle.active { background: var(--ds-mention-bg) !important; color: var(--ds-link-text) !important; }
 .message.system-msg > *, .message.system-msg .chat-bubble { border: 0 !important; background: transparent !important; }
 .message.system-msg { font-style: normal !important; color: var(--text-dim) !important; }

@@ -766,14 +766,14 @@ button.sc-mv-row:hover { background: var(--ds-hover); }
 
 /* Files waiting to be sent: Grok Bot cards. × shows on hover (always on touch screens). */
 #attachments .attachment-preview { max-width: min(360px, 100%) !important; }
-#attachments .sc-pend { position: relative; gap: 12px; width: 340px; max-width: 100%; padding: 10px 44px 10px 10px;
+#attachments .sc-pend, #sc-thread-atts .sc-pend { position: relative; gap: 12px; width: 340px; max-width: 100%; padding: 10px 44px 10px 10px;
     border: 0; border-radius: var(--ds-r-card); background: var(--tone-2c); box-shadow: 0 0 0 1px rgba(var(--ink), 0.10); }
 .sc-pend-ic { flex: none; width: 40px; height: 44px; border-radius: 8px; background: var(--tone-12);
     box-shadow: 0 0 0 1px rgba(var(--ink), 0.10); display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 0 8px; }
 .sc-pend-ic i { display: block; height: 3px; border-radius: 2px; background: rgba(var(--ink), 0.18); }
 .sc-pend-ic i:nth-child(1) { width: 60%; } .sc-pend-ic i:nth-child(3) { width: 45%; }
-#attachments .sc-pend .file-attachment-name { font-size: var(--ds-fs-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#attachments .sc-pend .file-attachment-detail { font-size: var(--ds-fs-sm); color: var(--ds-text-2); }
+#attachments .sc-pend .file-attachment-name, #sc-thread-atts .sc-pend .file-attachment-name { font-size: var(--ds-fs-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#attachments .sc-pend .file-attachment-detail, #sc-thread-atts .sc-pend .file-attachment-detail { font-size: var(--ds-fs-sm); color: var(--ds-text-2); }
 #attachments .attachment-preview > .attachment-remove {
     top: 50% !important; right: 10px !important; left: auto !important; transform: translateY(-50%);
     width: 28px !important; height: 28px !important; display: grid; place-items: center;
@@ -792,12 +792,12 @@ button.sc-mv-row:hover { background: var(--ds-hover); }
 #input-row { flex-wrap: wrap; }
 #input-row > #attachments { order: -1; flex-basis: 100%; margin: 0 0 6px !important; padding: 0; }
 #input-row > #attachments:empty { display: none; }
-#attachments .sc-pend { box-shadow: 0 0 0 1px rgba(var(--ink), 0.10); }
+#attachments .sc-pend, #sc-thread-atts .sc-pend { box-shadow: 0 0 0 1px rgba(var(--ink), 0.10); }
 :root[data-theme="dark"] #attachments .sc-pend { background: var(--tone-2c); }
-#attachments .sc-pend .sc-pend-name { display: flex; min-width: 0; overflow: visible; }
-#attachments .sc-pend .sc-pend-name > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#attachments .sc-pend .sc-pend-name > span:last-child { flex: none; white-space: nowrap; }
-#attachments .sc-pend .file-attachment-info { flex: 1; }
+#attachments .sc-pend .sc-pend-name, #sc-thread-atts .sc-pend .sc-pend-name { display: flex; min-width: 0; overflow: visible; }
+#sc-thread-atts .sc-pend .sc-pend-name > span:first-child, #attachments .sc-pend .sc-pend-name > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#sc-thread-atts .sc-pend .sc-pend-name > span:last-child, #attachments .sc-pend .sc-pend-name > span:last-child { flex: none; white-space: nowrap; }
+#sc-thread-atts .sc-pend .file-attachment-info, #attachments .sc-pend .file-attachment-info { flex: 1; }
 
 /* "Scranton was updated" when you were mid-message, so we didn't reload for you */
 .sc-update-toast { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); z-index: 1000; display: flex; align-items: center; gap: 12px;
@@ -808,3 +808,28 @@ button.sc-mv-row:hover { background: var(--ds-hover); }
     white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; border-style: solid; border-color: transparent; margin: 0; }
 .sc-mention-hl mark { color: transparent; background: var(--ds-mention-bg); border-radius: 4px; box-shadow: 0 0 0 2px var(--ds-mention-bg); }
 textarea.sc-mention-hl-input { position: relative; z-index: 1; background: transparent !important; }
+
+/* Thread reply box = the main message box: text on top, then + ⚡ @chips … send */
+#sc-thread .sc-thread-compose { display: flex !important; flex-direction: column; align-items: stretch !important; gap: 4px;
+    padding: 8px 12px !important; border-radius: var(--ds-r-card) !important; background: var(--ds-field) !important; border: 0 !important; }
+#sc-thread-atts:empty { display: none; }
+#sc-thread-atts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+#sc-thread-atts .attachment-preview { position: relative; display: inline-flex; max-width: 100%; }
+#sc-thread-atts .sc-pend { width: 100%; }
+#sc-thread-input { width: 100% !important; min-height: 40px; padding: 10px 6px !important; font-size: 14px !important;
+    border: 0 !important; background: transparent !important; resize: none; outline: none; box-shadow: none !important; }
+.sc-thread-bar { display: flex; align-items: center; gap: 6px; min-height: 32px; }
+.sc-thread-chips { display: flex; gap: 6px; min-width: 0; overflow: hidden; flex: 1; }
+#sc-thread-attach { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border: 0; border-radius: var(--ds-r-control);
+    background: transparent; color: var(--ds-text-2); cursor: pointer; }
+#sc-thread-attach:hover { background: var(--ds-hover); color: var(--ds-text); }
+#sc-thread-send { position: static !important; margin-left: auto; width: 32px !important; height: 32px !important; flex: none; }
+/* the cards' × shares the rules of the main box */
+#sc-thread-atts .attachment-preview > .attachment-remove { position: absolute; top: 50%; right: 10px; transform: translateY(-50%);
+    width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--ds-text-2); opacity: 0; transition: opacity .12s; cursor: pointer; }
+#sc-thread-atts .attachment-preview:hover > .attachment-remove, #sc-thread-atts .attachment-preview:focus-within > .attachment-remove { opacity: 1; }
+@media (hover: none) { #sc-thread-atts .attachment-preview > .attachment-remove { opacity: 1; } }
+#sc-thread .sc-thread-chips .mention-toggle { background: transparent !important; font-weight: 400 !important; color: var(--ds-text-2) !important;
+    padding: 4px 8px !important; font-size: var(--ds-fs-xs) !important; border-radius: var(--ds-r-control) !important; border: 0 !important; white-space: nowrap; }
+#sc-thread .sc-thread-chips .mention-toggle:hover { background: var(--ds-hover) !important; color: var(--ds-text) !important; }
+#sc-thread .sc-thread-chips .mention-toggle.active { background: var(--ds-mention-bg) !important; color: var(--ds-link-text) !important; }

@@ -660,6 +660,7 @@
         const body = panel.querySelector('.sc-thread-body');
         if (activeThread == null) infoActive = infoTab != null;
         panel.classList.toggle('sc-info-active', infoActive);
+        renderThreadChips();
         const infoBtn = infoTab != null
             ? `<button type="button" class="sc-ttab${infoActive ? ' active' : ''}" data-info="1" title="Details"><span class="sc-ttab-label">${esc(infoTab)}</span><span class="sc-ttab-x" data-close-info="1" title="Close">✕</span></button>`
             : '';
@@ -685,12 +686,62 @@
         if (input) input.placeholder = `Reply in thread${root ? ' · @' + labelOf(root.sender) : ''}`;
     }
 
+    // Files waiting to go with the thread reply (same cards as the main box).
+    const threadAtts = [];
+    function renderThreadAtts() {
+        const box = document.getElementById('sc-thread-atts');
+        if (!box || typeof createAttachmentPreview !== 'function') return;
+        box.innerHTML = '';
+        threadAtts.forEach((a, i) => box.appendChild(createAttachmentPreview(a, () => { threadAtts.splice(i, 1); renderThreadAtts(); })));
+    }
+    async function addThreadFiles(files) {
+        for (const f of files) {
+            try { threadAtts.push(await uploadAttachment(f)); }
+            catch (err) { window.scToast ? window.scToast(err.message || 'Upload failed') : alert(err.message); }
+        }
+        renderThreadAtts();
+    }
+    // @ chips under the reply box: who's in this thread (they're who you'd answer).
+    function renderThreadChips() {
+        const wrap = document.querySelector('#sc-thread .sc-thread-chips');
+        const root = byId.get(activeThread);
+        if (!wrap) return;
+        wrap.innerHTML = '';
+        if (!root) return;
+        const team = (window.scGetTeam && window.scGetTeam()) || {};
+        const people = [];
+        const add = (n) => { n = String(n || '').toLowerCase().replace(/-\d+$/, ''); if (team[n] && !people.includes(n)) people.push(n); };
+        [...(replies.get(Number(root.id)) || [])].reverse().forEach((m) => add(m.sender));
+        add(root.sender);
+        (String(root.text || '').match(/@([\w-]+)/g) || []).forEach((t) => add(t.slice(1)));
+        for (const h of people.slice(0, 3)) {
+            const b = document.createElement('button');
+            b.type = 'button'; b.className = 'mention-toggle'; b.textContent = '@' + labelOf(h);
+            b.onclick = () => {
+                const input = document.getElementById('sc-thread-input');
+                const tag = '@' + labelOf(h) + ' ';
+                if (input.value.includes(tag)) input.value = input.value.replace(tag, '');
+                else input.value = tag + input.value;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.focus();
+            };
+            b.dataset.tag = '@' + labelOf(h) + ' ';
+            wrap.appendChild(b);
+        }
+        markThreadChips();
+    }
+    function markThreadChips() {
+        const v = (document.getElementById('sc-thread-input') || {}).value || '';
+        document.querySelectorAll('#sc-thread .sc-thread-chips .mention-toggle').forEach((b) => b.classList.toggle('active', v.includes(b.dataset.tag)));
+    }
+    window.scRenderThreadChips = renderThreadChips;
+
     function sendThreadReply() {
         const input = document.getElementById('sc-thread-input');
         const root = byId.get(activeThread);
         if (!input || !root) return;
         let text = window.scNormalizeMentions ? window.scNormalizeMentions(input.value.trim()) : input.value.trim();
-        if (!text) return;
+        if (!text && !threadAtts.length) return;
         // A reply without an @ goes to the teammate you're talking with in this thread:
         // the last teammate who replied, else the starter, else whoever the root @'d.
         if (!/(^|\s)@[\w-]+/.test(text)) {
@@ -706,9 +757,10 @@
             if (target) text = `@${target} ${text}`;
         }
         if (window.ws && window.ws.readyState === WebSocket.OPEN) {
-            window.ws.send(JSON.stringify({ type: 'message', text, sender: me(), channel: root.channel || 'general', reply_to: Number(root.id), attachments: [] }));
+            window.ws.send(JSON.stringify({ type: 'message', text, sender: me(), channel: root.channel || 'general', reply_to: Number(root.id), attachments: threadAtts.slice() }));
             input.value = '';
             input.style.height = '';
+            threadAtts.splice(0); renderThreadAtts();
         }
     }
 
@@ -807,9 +859,23 @@
         // ⚡ shortcuts, same as under the main message box
         const send = document.getElementById('sc-thread-send');
         if (send && window.scMakeShortcutButton && !panel.querySelector('.sc-shortcut-btn')) {
-            send.before(window.scMakeShortcutButton(() => document.getElementById('sc-thread-input')));
+            document.getElementById('sc-thread-attach').after(window.scMakeShortcutButton(() => document.getElementById('sc-thread-input')));
         }
-        input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 160) + 'px'; });
+        input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 160) + 'px'; markThreadChips(); });
+        const attach = document.getElementById('sc-thread-attach'), file = document.getElementById('sc-thread-file');
+        if (attach && file) {
+            attach.innerHTML = window.scIcon ? window.scIcon('add', 18) : '+';
+            attach.addEventListener('click', () => file.click());
+            file.addEventListener('change', () => { addThreadFiles(Array.from(file.files || [])); file.value = ''; });
+        }
+        input.addEventListener('paste', (e) => {
+            const files = Array.from(e.clipboardData?.files || []);
+            if (files.length) { e.preventDefault(); addThreadFiles(files); }
+        });
+        panel.querySelector('.sc-thread-compose').addEventListener('drop', (e) => {
+            const files = Array.from(e.dataTransfer?.files || []);
+            if (files.length) { e.preventDefault(); e.stopPropagation(); addThreadFiles(files); }
+        });
         document.getElementById('sc-thread-send').addEventListener('click', sendThreadReply);
     }
 

@@ -362,8 +362,14 @@
                 </div>
                 <div class="sc-thread-body"></div>
                 <div class="sc-thread-compose">
-                    <textarea id="sc-thread-input" rows="1" placeholder="Reply in thread"></textarea>
-                    <button type="button" id="sc-thread-send" aria-label="Send reply"><span class="ri-wrap" data-ri="enter" data-size="16"></span></button>
+                    <div id="sc-thread-atts"></div>
+                    <textarea id="sc-thread-input" rows="1" placeholder="Reply in thread" aria-label="Reply in thread"></textarea>
+                    <div class="sc-thread-bar">
+                        <button type="button" id="sc-thread-attach" class="sc-tbar-btn" aria-label="Attach files" title="Attach files"></button>
+                        <input type="file" id="sc-thread-file" multiple hidden>
+                        <div class="sc-thread-chips"></div>
+                        <button type="button" id="sc-thread-send" aria-label="Send reply"><span class="ri-wrap" data-ri="enter" data-size="16"></span></button>
+                    </div>
                 </div>
             </aside>
             <aside id="team-panel" aria-label="Team">
