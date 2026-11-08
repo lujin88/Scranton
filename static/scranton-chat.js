@@ -504,6 +504,14 @@
         if (cur && cur.options.length >= 2) blocks.push(cur);
         return blocks;
     }
+    // The option cards need the team list; if it arrives after the messages, paint them then.
+    (window.scOnTeamChange = window.scOnTeamChange || []).push(() => {
+        document.querySelectorAll('#messages .message.sc-msg').forEach((el) => {
+            if (el.querySelector('.sc-choices')) return;
+            const m = byId.get(Number(el.dataset.id));
+            if (m) { try { paintChoices(el, m); } catch (_) { /* never break rendering */ } }
+        });
+    });
     function paintChoices(el, msg) {
         const sender = String(msg.sender || '').split('-')[0];
         const team = (window.scGetTeam && window.scGetTeam()) || {};
