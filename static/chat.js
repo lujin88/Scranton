@@ -2709,48 +2709,57 @@ function setupPaste() {
     });
 }
 
+// Scranton: no full-page overlay while dragging (it covered the page and could get stuck).
+// The message box you'd drop into lights up instead; dragging something from inside the page
+// (an image in a message) is ignored; and the highlight clears itself if the drag ends anywhere.
 function setupDragDrop() {
-    const dropzone = document.getElementById('dropzone');
-    let dragCount = 0;
+    let internal = false, clearTimer = null;
+    const boxes = () => [document.getElementById('input-row'), document.querySelector('#sc-thread .sc-thread-compose')];
+    const clear = () => { boxes().forEach((b) => b && b.classList.remove('sc-drop-target')); };
+    const isFileDrag = (e) => !internal && Array.from(e.dataTransfer?.types || []).includes('Files');
+    const boxFor = (target) => {
+        const inThread = target && target.closest && target.closest('#sc-thread') && !target.closest('#sc-info')
+            && !document.getElementById('sc-thread')?.classList.contains('hidden') && document.body.classList.contains('sc-thread-open');
+        return inThread ? document.querySelector('#sc-thread .sc-thread-compose') : document.getElementById('input-row');
+    };
 
-    document.addEventListener('dragenter', (e) => {
-        e.preventDefault();
-        dragCount++;
-        if (e.dataTransfer?.types?.includes('Files')) {
-            dropzone.classList.remove('hidden');
-        }
-    });
-
-    document.addEventListener('dragleave', (e) => {
-        e.preventDefault();
-        dragCount--;
-        if (dragCount <= 0) {
-            dragCount = 0;
-            dropzone.classList.add('hidden');
-        }
-    });
+    document.addEventListener('dragstart', () => { internal = true; });
+    document.addEventListener('dragend', () => { internal = false; clear(); });
+    window.addEventListener('blur', clear);
 
     document.addEventListener('dragover', (e) => {
+        if (!isFileDrag(e)) return;
         e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        const box = boxFor(e.target);
+        boxes().forEach((b) => b && b.classList.toggle('sc-drop-target', b === box));
+        clearTimeout(clearTimer);
+        clearTimer = setTimeout(clear, 250);   // dragover stops when the drag leaves or ends
     });
 
     document.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        dragCount = 0;
-        dropzone.classList.add('hidden');
-
-        const files = e.dataTransfer?.files;
-        if (!files) return;
-
-        const target = document.elementFromPoint(e.clientX, e.clientY) || e.target;
-        // Scranton: dropped on the open thread → they go with the thread reply
-        if (target.closest('#sc-thread') && !target.closest('#sc-info') && window.scAddThreadFiles) {
-            await window.scAddThreadFiles(Array.from(files));
+        const wasInternal = internal;
+        internal = false;
+        clearTimeout(clearTimer);
+        clear();
+        if (wasInternal) {
+            // something dragged within the page: let a text box take it as text, never open the image
+            if (!(e.target.closest && e.target.closest('textarea, input'))) e.preventDefault();
             return;
         }
-        const inJob = target.closest('#jobs-panel') &&
+        const files = e.dataTransfer?.files;
+        if (!files || !files.length) return;
+        e.preventDefault();
+        const target = e.target;
+        if (boxFor(target) !== document.getElementById('input-row') && window.scAddThreadFiles) {
+            await window.scAddThreadFiles(Array.from(files));
+            document.getElementById('sc-thread-input')?.focus();
+            return;
+        }
+        const inJob = target.closest && target.closest('#jobs-panel') &&
             !document.getElementById('jobs-conversation-view').classList.contains('hidden');
         await uploadFiles(Array.from(files), Boolean(inJob));
+        document.getElementById('input')?.focus();
     });
 }
 

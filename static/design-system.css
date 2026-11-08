@@ -1180,3 +1180,11 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
     box-shadow: 0 0 0 2px var(--ds-accent-fill), 0 1px 4px rgba(0, 0, 0, 0.2); }
 .sc-ap-slider input::-moz-range-thumb { width: 28px; height: 28px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 0 0 2px var(--ds-accent-fill), 0 1px 4px rgba(0, 0, 0, 0.2); }
 .sc-ap-slider input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--ds-accent-fill), 0 0 0 5px rgba(59, 130, 246, 0.3); }
+/* drop files: the box you'd drop into lights up (no full-page overlay) */
+#input-row.sc-drop-target, #sc-thread .sc-thread-compose.sc-drop-target { position: relative; box-shadow: 0 0 0 2px var(--ds-accent-fill) !important; }
+#input-row.sc-drop-target::after, #sc-thread .sc-thread-compose.sc-drop-target::after {
+    content: "Drop to attach"; position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; border-radius: inherit; pointer-events: none;
+    background: color-mix(in srgb, var(--ds-accent-fill) 10%, var(--ds-field)); color: var(--ds-accent); font-weight: 600; font-size: var(--ds-fs-md); }
+#dropzone { display: none !important; }
+/* a dropped image waits as a small card in the box, never a full-size picture */
+#attachments img, #sc-thread-atts img { max-width: 120px !important; max-height: 80px !important; object-fit: cover; border-radius: 8px; }
