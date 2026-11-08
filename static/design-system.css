@@ -1103,3 +1103,17 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
    doesn't move when you collapse or expand. */
 @media (min-width: 761px) { #sc-side-tools { justify-content: flex-start !important; padding: 10px 10px 4px !important; gap: 6px !important; } }
 .sc-ap-eff .sc-ap-svc { font-size: var(--ds-fs-xs); padding: 0 4px; }
+
+/* ================================================================ bubble padding, one rule
+   Channel and thread bubbles share the same inner padding, and lists sit inside the text
+   column (markers used to hang outside the bubble's left edge). */
+:root { --ds-bubble-pad-y: 10px; --ds-bubble-pad-x: 16px; }
+.sc-tmsg:not(.self) .sc-tmsg-body, .sc-tmsg.self .sc-tmsg-body { padding: var(--ds-bubble-pad-y) var(--ds-bubble-pad-x) !important; }
+.msg-text ul, .msg-text ol, .sc-tmsg-text ul, .sc-tmsg-text ol { margin: 6px 0 !important; padding-left: 1.4em !important; }
+.msg-text li, .sc-tmsg-text li { margin: 2px 0; padding-left: 2px; }
+.msg-text li::marker, .sc-tmsg-text li::marker { color: var(--ds-text-2); }
+.msg-text p, .sc-tmsg-text p { margin: 0 0 6px; }
+.msg-text p:last-child, .sc-tmsg-text p:last-child, .msg-text ul:last-child, .msg-text ol:last-child,
+.sc-tmsg-text ul:last-child, .sc-tmsg-text ol:last-child { margin-bottom: 0 !important; }
+.msg-text > :first-child, .sc-tmsg-text > :first-child { margin-top: 0 !important; }
+.sc-tmsg-head { margin-bottom: 2px; }
