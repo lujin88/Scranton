@@ -981,3 +981,26 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 .sc-perm-opt[aria-checked="true"] .sc-perm-dot { box-shadow: inset 0 0 0 5px var(--ds-accent); }
 .sc-perm-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; color: var(--ds-text-3); font-size: var(--ds-fs-sm); }
 .sc-older-note { text-align: center; padding: 10px 0; font-size: var(--ds-fs-xs); color: var(--ds-text-3); }
+
+/* Message box: the @'d agent's face; opens model / thinking / restart / stop (Buzz pattern) */
+#sc-agentpick-btn { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; overflow: hidden; cursor: pointer; flex: none;
+    background: var(--ds-hover); box-shadow: 0 0 0 2px var(--ds-field), 0 0 0 3px rgba(var(--ink), 0.15); margin: 0 4px; }
+#sc-agentpick-btn img, #sc-agentpick-btn svg { width: 100%; height: 100%; object-fit: cover; }
+#sc-agentpick-btn[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--ds-field), 0 0 0 4px var(--ds-accent); }
+#sc-agentpick { position: fixed; z-index: 900; width: 340px; padding: 12px; border-radius: var(--ds-r-card); background: var(--ds-overlay);
+    color: var(--ds-text); box-shadow: var(--ds-shadow); }
+.sc-ap-loading { margin: 6px 4px; color: var(--ds-text-2); font-size: var(--ds-fs-sm); }
+.sc-ap-head { display: flex; align-items: center; gap: 10px; }
+.sc-ap-av { width: 32px; height: 32px; border-radius: 50%; overflow: hidden; flex: none; }
+.sc-ap-av img, .sc-ap-av svg { width: 100%; height: 100%; object-fit: cover; }
+.sc-ap-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sc-ap-name b { font-weight: 600; font-size: var(--ds-fs-md); }
+.sc-ap-name small { font-size: var(--ds-fs-xs); color: var(--ds-text-2); }
+.sc-ap-name small.working { color: var(--ds-warn-text); } .sc-ap-name small.available { color: var(--ds-ok-text); }
+.sc-ap-tool { width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: var(--ds-r-control); background: none; color: var(--ds-text-2); cursor: pointer; }
+.sc-ap-tool:hover { background: var(--ds-hover); color: var(--ds-text); }
+.sc-ap-row { display: flex; gap: 8px; margin-top: 12px; }
+.sc-ap-sel { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: var(--ds-fs-xs); color: var(--ds-text-2); min-width: 0; }
+.sc-ap-sel select { height: 34px; padding: 0 10px; border: 0; border-radius: var(--ds-r-control); background: var(--ds-field); color: var(--ds-text);
+    font: inherit; font-size: var(--ds-fs-sm); box-shadow: 0 0 0 1px rgba(var(--ink), 0.10); max-width: 100%; }
+.sc-ap-note { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; font-size: var(--ds-fs-sm); color: var(--ds-text-2); }
