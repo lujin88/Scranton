@@ -436,6 +436,16 @@ def cursor_models() -> list[list[str]]:
     return found
 
 
+def model_label(pid: str, model: str) -> str:
+    """Short name for a teammate's model, for lists ("Opus 5.5"; "Claude" when it's the app's default)."""
+    for m in PROVIDERS.get(pid, {}).get("models", []):
+        if m and m[0] == (model or "") and model:
+            return m[1]
+    if model:
+        return model
+    return PROVIDERS.get(pid, {}).get("name", "").split(" (")[0]
+
+
 def models_for(pid: str) -> list[list[str]]:
     base = [list(m) + [""] * (3 - len(m)) for m in PROVIDERS.get(pid, {}).get("models", [["", "Default", ""]])]
     if pid == "cursor":

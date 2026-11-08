@@ -2476,7 +2476,7 @@ function updateMentionMenu() {
         const av = window.scAvatarHtml ? window.scAvatarHtml(item.name) : '';
         const st = window.scAgentState ? window.scAgentState(item.name) : '';
         row.innerHTML = av
-            ? `<span class="mention-av ${st}">${av}</span><span class="mention-name">${escapeHtml(item.label)}</span><span class="mention-handle">@${escapeHtml(item.name)}</span>`
+            ? `<span class="mention-av ${st}">${av}</span><span class="mention-name">${escapeHtml(item.label)}</span>${mentionMetaHtml(item.name, st)}`
             : `<span class="mention-dot" style="background: ${item.color}"></span><span class="mention-name">${escapeHtml(item.label)}</span>`;
         row.addEventListener('mousedown', (e) => {
             e.preventDefault();
@@ -2493,6 +2493,15 @@ function updateMentionMenu() {
     mentionMenuVisible = true;
 }
 
+// Right side of an @ row: whether they're working, and on which model (Lu: the handle tells her nothing).
+function mentionMetaHtml(name, st) {
+    const t = ((window.scGetTeam && window.scGetTeam()) || {})[name] || {};
+    const state = { working: 'Working', available: 'Online', pending: 'Starting' }[st] || 'Not running';
+    const model = [t.model_name, t.effort ? ({ xhigh: 'extra high' }[t.effort] || t.effort) : ''].filter(Boolean).join(' · ');
+    return `<span class="mention-meta"><span class="mention-st ${st || 'offline'}">${state}</span>${model ? `<span class="mention-model">${escapeHtml(model)}</span>` : ''}</span>`;
+}
+
+window.mentionMetaHtml = mentionMetaHtml;
 let _lastMentionedAgent = ''; // track most recent mention for auto-assignment
 
 function selectMention(name) {

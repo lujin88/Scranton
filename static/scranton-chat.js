@@ -1122,7 +1122,7 @@
         }
         function paint() {
             menu.innerHTML = items.map((x, i) => `<button type="button" role="option" aria-selected="${i === index}" class="sc-menu-item${i === index ? ' active' : ''}" data-i="${i}">
-                <span class="sc-tm-av">${avatarOf(x.h)}</span><span>${esc(x.label)}</span></button>`).join('');
+                <span class="sc-tm-av">${avatarOf(x.h)}</span><span>${esc(x.label)}</span>${window.mentionMetaHtml ? window.mentionMetaHtml(x.h, window.scAgentState ? window.scAgentState(x.h) : '') : ''}</button>`).join('');
         }
         box.addEventListener('keydown', (e) => {
             if (!menu) return;

@@ -1212,3 +1212,10 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 .decision-choices { gap: 0 !important; }
 .decision-choice { color: var(--ds-text) !important; }
 .decision-choice .sc-rec { margin-left: -4px; }
+
+/* @ list, right side: status over model, small and quiet; green only while working. */
+#mention-menu .mention-meta, .sc-tmention .mention-meta { margin-left: auto; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; line-height: 1.25; }
+#mention-menu .mention-st, .sc-tmention .mention-st { font-size: 12px; color: var(--ds-text-2); }
+#mention-menu .mention-st.working, .sc-tmention .mention-st.working { color: #34c759; }
+#mention-menu .mention-st.offline, .sc-tmention .mention-st.offline { color: var(--ds-text-3); }
+#mention-menu .mention-model, .sc-tmention .mention-model { font-size: 11px; color: var(--ds-text-3); white-space: nowrap; }

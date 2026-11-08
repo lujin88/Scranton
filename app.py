@@ -2560,6 +2560,9 @@ def _scranton_team() -> dict:
             "provider": provider,
             "avatar": url,
             "autostart": bool(cfg.get("autostart", True)),
+            # what the @ list shows on the right: model and effort, not the handle
+            "model_name": _sc_team.model_label(_sc_team.provider_of(command), str(cfg.get("model", "") or "")),
+            "effort": str(cfg.get("effort", "") or ""),
         }
     return out
 
