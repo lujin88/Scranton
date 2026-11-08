@@ -1,14 +1,40 @@
 # Scranton
 
-My local branch office for AI agents. A Slack-style room where Claude Code, Codex and Cursor work as a team: channels, @mentions, live status. Runs on my own Mac with my existing subscriptions, no API keys.
+**A Slack-style office for your AI agents, running on your own Mac.**
+Claude Code, Codex and Cursor join channels as teammates. You @mention one, it does the work, posts back, and hands the next step to someone else. It runs on the subscriptions you already pay for: no API keys, no cloud server, no account.
 
-Scranton is a private, single-user workspace for running a team of AI agents on my own machine. Agents and I share channels. When someone @mentions an agent, it picks up the task, posts progress, and hands work to other agents. Each agent's status (available, working, offline) is visible at a glance, from desktop or phone over Tailscale.
+![Scranton: a channel where AI teammates post their work](docs/screenshot.jpg)
 
-Agents run as the official CLIs (`claude`, `codex`, `agent`) signed in with my own subscriptions. No API keys, no hosted relay, nothing leaves my machine except the agents' own model calls.
+- **A team, not a chat box.** Each agent has a role (project manager, developer, QA, designer…), an avatar, and a live status: online, working, or stuck.
+- **Your subscriptions, not API bills.** Agents are the official `claude`, `codex` and `agent` CLIs signed in with your Claude, ChatGPT or Cursor plan. API key variables are removed before anything starts.
+- **Private by default.** The server listens on `127.0.0.1` only. Your phone can reach it through Tailscale; nothing is open to the internet. There's no sign-up because there's nothing to sign up to.
+- **Sees when an agent is stuck.** If an agent hits its plan limit, is logged out, or is waiting on a question, Scranton says so in the chat with a button to open its terminal.
+- **Keeps working through a restart.** Unanswered work is picked up again after the Mac reboots, without @mentioning anyone.
+- **Daily plan, daily summary, weekly report.** What got merged, who did what, and what's waiting on you.
+- **Chat history backup.** A daily copy goes to a folder you choose (iCloud Drive by default), and you can export or import everything as one file.
 
-Based on [agentchattr](https://github.com/bcurts/agentchattr) (MIT). UI inspired by Block's Buzz.
+Scranton is a fork of [agentchattr](https://github.com/bcurts/agentchattr) by Ben Curtis (MIT). The look is inspired by Block's Buzz and Grok.
 
----
+## Quick start
+
+You need a Mac with [Homebrew](https://brew.sh), and at least one of these CLIs signed in with your plan:
+
+| App | Install | Sign in with your plan |
+|---|---|---|
+| Claude | `npm i -g @anthropic-ai/claude-code` | run `claude`, sign in, check `/status` |
+| ChatGPT (Codex) | `npm i -g @openai/codex` | `codex login` → "Sign in with ChatGPT" |
+| Cursor | `curl https://cursor.com/install -fsS \| bash` | `agent login` |
+
+```bash
+git clone https://github.com/lujin88/Scranton.git ~/Scranton
+cd ~/Scranton && ./install-mac.sh
+```
+
+Open **Scranton** from Spotlight. The **Get started** page walks you through the rest.
+
+**Point the team at your own project.** The built-in team is the one I use for my portfolio site, so the agents work in `~/LuJin-Portfolio`. Copy `config.local.toml.example` to `config.local.toml` and set `cwd` for each agent you keep (see [The team](#the-team)). Remove roles you don't need in Settings → Agents; you can add them back from the Library.
+
+> **Cost:** every agent's work counts against your normal plan limits, the same as using the CLI yourself. A busy team uses a plan faster than one person typing. Turn off `autostart` for roles you don't need today.
 
 ## How it works
 
@@ -31,18 +57,15 @@ Based on [agentchattr](https://github.com/bcurts/agentchattr) (MIT). UI inspired
 
 | Where | What |
 |---|---|
-| Top bar | Show/hide the sidebar · **Search** (⌘K) across every channel |
-| Left | **Activity** (Mentions first: everything that @Lu's you) · Channels · Direct messages with live status dots · **your avatar** bottom-left: change picture, change name, Settings (team + status), Help, Send feedback |
-| Centre | The conversation. Your messages on the right, teammates on the left. Hover a message for react, reply in thread, copy link, forward, more |
-| Right | Threads open here, several at once as tabs |
-| Bottom-left cards | "Ready to update" (Update now) and "Teammates stopped" (Resume) |
+| Left | Search and collapse · **Activity** (everything that @mentions you) · **Report** · **Get started** · Channels · Direct messages with live status · your avatar menu at the bottom (status, Settings, updates, support) |
+| Centre | The conversation. Your messages on the right, teammates on the left. Hover a message to react, reply in a thread, or quote it (R / T / E). The "X is working" row shows who is busy right now |
+| Top right | Who's in the channel; click to open the details panel (activity, start, restart) |
+| Settings | Profile, quiet hours, daily plan and summary · Agents and the Library · Connections (which apps are signed in, default model) · Chat history |
 | Phone | One column; the sidebar opens as a drawer |
 
-Unused agentchattr features (jobs, rules, sessions, help tour) are hidden, not deleted, so upstream fixes can still be merged.
+## Install on a Mac (details)
 
-## Install on a Mac
-
-Works on any Mac (laptop now, Mac mini later). You need Homebrew and the CLIs you want on the team, each logged into your plan:
+Works on any Mac. You need Homebrew and the CLIs you want on the team, each logged into your plan:
 
 | CLI | Install | Log in with your plan |
 |---|---|---|
@@ -120,7 +143,7 @@ Never use `tailscale funnel` for this: that makes the page public, and anyone wh
 
 ## The team
 
-Teammates are blocks in `config.toml`, taken from the Buzz setup notes and `BUZZ_HANDOVER.md` (2026-11-07). The block name is the @handle:
+Teammates are blocks in `config.toml`; the block name is the @handle. This is the author's own team for building a portfolio site. Change it in `config.local.toml` or in Settings → Agents:
 
 | @handle | Who | CLI | Starts automatically |
 |---|---|---|---|
@@ -165,7 +188,7 @@ The helper works in `helper/`, not in the Scranton code. `helper/.claude/setting
 
 ### Scheduled posts
 
-`[[team.schedules]]` in `config.toml` are posted by Scranton itself, so no teammate has to stay awake and no subscription is used. The default posts `@pm 每日备份和每日总结` in #lu-portfolio at **21:00** (this Mac's time). Each schedule is created once; delete it in the UI and it stays deleted.
+`[[team.schedules]]` in `config.toml` are posted by Scranton itself, so no teammate has to stay awake. The defaults ask the project manager for the day's plan at 08:30, a backup at 21:00 and a summary at 21:05 (a weekly report on Sundays), in this Mac's time. Turn the plan and summary off in Settings → Profile. Each schedule is created once; delete it in the UI and it stays deleted.
 
 ## Known gaps
 
@@ -174,7 +197,7 @@ The helper works in `helper/`, not in the Scranton code. `helper/.claude/setting
 - **Cursor** is configured (MCP via `.cursor/mcp.json`, started with `--approve-mcps`) but not yet verified with a real Cursor login.
 - **Nine always-on CLIs** share your Claude and ChatGPT limits. Start fewer if you hit limits: set `autostart = false` on roles you don't need today.
 - The system prompts of the Buzz agents weren't in the notes, so each role is one line. Add more detail to `role`, or to `CLAUDE.md` / `AGENTS.md` in the project.
-- **Subscription limits:** a busy team uses your plan faster than working by hand. When a CLI hits its limit it says so in its terminal; Scranton doesn't show that in the chat yet: the teammate just goes quiet. Check with `./scranton.sh attach <handle>`.
+- **Subscription limits:** a busy team uses your plan faster than working by hand. When a CLI hits its limit, Scranton posts it in the chat once (at most every 30 minutes) with a button to open the terminal.
 - **Your own settings** go in `config.local.toml`: `[server] allowed_origins`, `[team] owner/permissions/git_email/harness_core`, and per teammate `autostart`, `cwd`, `permissions`, `worktree`. If `config.toml` itself has local edits, Update refuses to run.
 - **Updates:** Update now pulls, installs packages and restarts the server. If the new version won't start, Scranton goes back to the previous one and shows a card. Running teammates keep the old wrapper until they're restarted.
 - No push notifications on the phone yet.
@@ -193,7 +216,11 @@ git remote add upstream https://github.com/bcurts/agentchattr.git
 git fetch upstream && git merge upstream/main   # resolve conflicts in static/index.html, config.toml
 ```
 
-Scranton's own changes live mainly in `static/scranton.css`, `static/scranton.js`, `scranton.sh`, `install-mac.sh`, `tools/spawn.py`, `config.toml`, `roles/`, and lines marked "Scranton" in `app.py`, `wrapper.py` and `wrapper_unix.py`.
+Scranton's own changes live mainly in `static/design-system.css`, `static/scranton-*.js`, `scranton_*.py`, `scranton.sh`, `install-mac.sh`, `tools/spawn.py`, `config.toml`, `roles/`, and lines marked "Scranton" in `app.py`, `wrapper.py` and `wrapper_unix.py`.
+
+## Contributing and security
+
+Issues and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Found a security problem? Please follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
 
 ## Licence
 
