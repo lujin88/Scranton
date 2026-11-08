@@ -112,7 +112,7 @@
     /* ---- Layout ---- */
     --ds-sidebar-w: 256px;
     --ds-panel-w: 340px;
-    --ds-read-w: 820px;          /* conversation column: centred, so lines stay readable */
+    --ds-read-w: 960px;          /* conversation column, centred; Grok Bot uses ~960 at 1440 wide */
 
     /* map the old variables onto the system */
     --bg: var(--ds-surface);
@@ -1084,3 +1084,18 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 .sc-am-st .sc-am-dot { width: 8px; height: 8px; }
 .sc-pd-actions > button { height: 30px !important; min-height: 0 !important; box-sizing: border-box; display: inline-flex; align-items: center; }
 .sc-tmsg.sc-flash .sc-tmsg-body { box-shadow: 0 0 0 2px var(--ds-accent); border-radius: var(--ds-r-row); transition: box-shadow .3s; }
+
+/* One recipe for every control that floats: sidebar search/collapse, the channel pill and the
+   members pill. Fill + 1px hairline + soft shadow, so all four read as the same kind of thing. */
+:root { --ds-float-edge: 0 0 0 1px rgba(var(--ink), 0.08), 0 1px 2px rgba(0, 0, 0, 0.06); }
+:root[data-theme="light"] #sc-side-tools .sc-tool,
+:root[data-theme="light"] #sc-pane-pill,
+:root[data-theme="light"] #sc-pane-head #sc-members-btn { background: #fff !important; box-shadow: var(--ds-float-edge) !important; }
+:root[data-theme="dark"] #sc-side-tools .sc-tool,
+:root[data-theme="dark"] #sc-pane-pill,
+:root[data-theme="dark"] #sc-pane-head #sc-members-btn { box-shadow: var(--ds-float-edge) !important; }
+:root[data-theme="light"] #sc-side-tools .sc-tool:hover,
+:root[data-theme="light"] #sc-pane-pill:hover,
+:root[data-theme="light"] #sc-pane-head #sc-members-btn:hover { background: #f7f7f7 !important; }
+:root[data-theme="light"] #sc-pane-pill[aria-expanded="true"] { background: #ececec !important; }
+:root[data-theme="dark"] #sc-side-tools .sc-tool { border-radius: 50% !important; }
