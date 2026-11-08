@@ -105,6 +105,16 @@ def main():
         # This is safe: same-origin policy prevents cross-origin pages from reading
         # the response body, so only the user's own browser tab gets the token.
         html = (static_dir / "index.html").read_text("utf-8")
+        # Scranton: cache-busting from each file's modification time, so a changed CSS/JS file
+        # is never served stale and nobody has to bump ?v= by hand.
+        def _stamp(m):
+            f = static_dir / m.group(2)
+            try:
+                return f'{m.group(1)}{m.group(2)}?v={int(f.stat().st_mtime)}{m.group(3)}'
+            except OSError:
+                return m.group(0)
+        import re as _re2
+        html = _re2.sub(r'((?:src|href)="/static/)([^"?]+\.(?:js|css))(?:\?v=[^"]*)?(")', _stamp, html)
         injected = html.replace(
             "</head>",
             f'<script>window.__SESSION_TOKEN__="{session_token}";</script>\n</head>',

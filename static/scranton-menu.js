@@ -200,7 +200,8 @@
             <div class="sc-dlg-head"><h2>${esc(title)}</h2><button type="button" class="sc-dlg-x" aria-label="Close">✕</button></div>
             <div class="sc-dlg-body">${bodyHtml}</div></div>`;
         document.body.appendChild(d);
-        const close = () => d.remove();
+        const release = window.scModal ? window.scModal(d) : () => {};
+        const close = () => { d.remove(); release(); };
         d.addEventListener('click', (e) => { if (e.target === d || e.target.closest('.sc-dlg-x')) close(); });
         d.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
         d.querySelector('.sc-dlg-x').focus();
@@ -270,8 +271,8 @@
             <div class="sc-sq">${ico.search}<input id="sc-search-input" type="text" placeholder="Search messages, people and channels" autocomplete="off" spellcheck="false" aria-label="Search">
                 <button type="button" class="sc-sq-clear" hidden aria-label="Clear">Clear</button></div>
             <div class="sc-sf" role="tablist">
-                <button type="button" data-f="all" class="on">All</button><button type="button" data-f="messages">Messages</button>
-                <button type="button" data-f="people">People</button><button type="button" data-f="channels">Channels</button></div>
+                <button type="button" role="tab" aria-selected="true" data-f="all" class="on">All</button><button type="button" role="tab" aria-selected="false" data-f="messages">Messages</button>
+                <button type="button" role="tab" aria-selected="false" data-f="people">People</button><button type="button" role="tab" aria-selected="false" data-f="channels">Channels</button></div>
             <div id="sc-search-results" role="listbox"></div>
             <div class="sc-sfoot"><span id="sc-search-count"></span><span class="sc-keys"><kbd>↑</kbd><kbd>↓</kbd> Navigate <kbd>↵</kbd> Open <kbd>esc</kbd> Close</span></div>
         </div>`;
@@ -292,7 +293,8 @@
         const count = d.querySelector('#sc-search-count');
         const clear = d.querySelector('.sc-sq-clear');
         let filter = 'all', hits = [], seq = 0, timer = null, active = 0;
-        const close = () => { d.remove(); window.removeEventListener('resize', place); };
+        const release = window.scModal ? window.scModal(d) : () => {};
+        const close = () => { d.remove(); window.removeEventListener('resize', place); release(); };
         d.addEventListener('click', (e) => { if (e.target === d) close(); });
 
         const team = () => (window.scGetTeam ? window.scGetTeam() : {}) || {};
@@ -402,7 +404,7 @@
         d.querySelector('.sc-sf').addEventListener('click', (e) => {
             const b = e.target.closest('[data-f]'); if (!b) return;
             filter = b.dataset.f; active = 0;
-            d.querySelectorAll('.sc-sf button').forEach((x) => x.classList.toggle('on', x === b));
+            d.querySelectorAll('.sc-sf button').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', String(x === b)); });
             render(); input.focus();
         });
         render();

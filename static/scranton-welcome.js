@@ -11,7 +11,12 @@
     const team = () => (window.scGetTeam ? window.scGetTeam() : {}) || {};
     const label = (h) => (window.scLabelOf ? window.scLabelOf(h) : h);
     const PM = 'pm';
-    const PROJECT = 'lu-portfolio';
+    // The first project channel in the sidebar (not #general), else general.
+    const projectChannel = () => {
+        const names = Array.from(document.querySelectorAll('#channel-list [data-channel], .channel-sidebar-row[data-channel]'))
+            .map((el) => el.dataset.channel).filter((n) => n && n !== 'general' && !n.startsWith('dm-'));
+        return names[0] || 'general';
+    };
 
     let connected = null;   // null = not checked yet
     async function checkConnections() {
@@ -37,10 +42,10 @@
                 done: hasPic || (myName && !/^(user|you)$/i.test(myName)), go: () => { window.scOpenSettings && window.scOpenSettings('profile'); } },
             { id: 'meet', icon: 'chat-smile', title: `Say hi to ${esc(pm ? label(pm) : 'your project manager')}`, text: 'Your project manager plans the work and hands it to the team.',
                 done: pmAnswered, go: () => { close(); pm && window.scOpenDm && window.scOpenDm(pm); } },
-            { id: 'task', icon: 'task', title: 'Give the first task', text: `In #${PROJECT}, @ someone and say what you need.`,
+            { id: 'task', icon: 'task', title: 'Give the first task', text: `In #${projectChannel()}, @ someone and say what you need.`,
                 done: LS.get('scranton-welcome-task', '') === '1', go: () => {
                     close();
-                    if (typeof switchChannel === 'function') switchChannel(PROJECT);
+                    if (typeof switchChannel === 'function') switchChannel(projectChannel());
                     setTimeout(() => {
                         const input = document.getElementById('input');
                         if (input && pm) { input.value = `@${label(pm)} `; input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
@@ -86,14 +91,14 @@
                 <div class="sc-wl-also">${(window.scMoreTools || []).map((t) => t.url
                     ? `<a href="${esc(t.url)}" target="_blank" rel="noopener">${ic(t.icon, 16)}<span><b>${esc(t.name)}</b> · ${esc(t.what)}</span></a>`
                     : `<span class="soon">${ic(t.icon, 16)}<span><b>${esc(t.name)}</b> · ${esc(t.what)} · soon</span></span>`).join('')}</div>
-                <div class="sc-wl-foot"><span>${done} of ${list.length} done</span><button type="button" class="sc-wl-hide" data-a="hide">${done === list.length ? 'Done' : 'Hide for now'}</button></div>
+                <div class="sc-wl-foot"><span>${done} of ${list.length} done</span><button type="button" class="sc-wl-hide" data-a="hide">${done === list.length ? 'Done' : 'Hide'}</button></div>
             </div>`;
     }
 
     function renderSideRow(done, total) {
         let row = document.getElementById('sc-start-row');
-        const hidden = LS.get('scranton-welcome-hidden', '') === '1';
-        if (done >= total || hidden) { row?.remove(); return; }
+        // "Hide" only stops it opening by itself; the sidebar row stays until every step is done.
+        if (done >= total) { row?.remove(); return; }
         if (!row) {
             row = document.createElement('button');
             row.id = 'sc-start-row';
@@ -111,12 +116,14 @@
         document.body.classList.remove('sc-report-open');
         section().classList.remove('hidden');
         document.body.classList.add('sc-welcome-open');
+        const f = document.querySelector('#app > footer, footer'); if (f) f.inert = true;   // the composer is behind it
         checkConnections().then(render);
         render();
     }
     function close() {
         section().classList.add('hidden');
         document.body.classList.remove('sc-welcome-open');
+        const f = document.querySelector('#app > footer, footer'); if (f) f.inert = false;
     }
     window.scOpenWelcome = open;
 

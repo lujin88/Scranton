@@ -541,3 +541,17 @@ body.sc-in-dm #mention-toggles-row > #sc-shortcut-btn { display: grid !important
 .sc-mp-row .sc-mp-btn.start { opacity: 0; transition: opacity .12s; }
 .sc-mp-row:hover .sc-mp-btn.start, .sc-mp-row:focus-within .sc-mp-btn.start { opacity: 1; }
 @media (hover: none) { .sc-mp-row .sc-mp-btn.start { opacity: 1; } }
+
+/* ================================================================ accessibility (review v2.2) */
+.message.sc-msg:focus-within > .sc-tools, .message.sc-msg:focus > .sc-tools { display: flex !important; }
+.message.sc-msg:focus-visible { outline: 2px solid var(--ds-accent); outline-offset: -2px; border-radius: 14px; }
+/* White text on a fill passes AA only on the deeper blue */
+.sc-badge, .sc-card-btn, #sc-inbox-badge { background: var(--ds-accent-fill) !important; color: #fff !important; }
+.sc-me-initial, .sc-mp-av.me .sc-me-initial { color: #8ab4f8 !important; }
+/* Touch: 44 px targets for the composer and card close buttons */
+@media (pointer: coarse) {
+    #send, #sc-attach-btn, #sc-shortcut-btn, .sc-card-x { min-width: 44px !important; min-height: 44px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

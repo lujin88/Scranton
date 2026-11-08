@@ -214,6 +214,7 @@
 
     function addToolbar(el, id) {
         if (el.querySelector('.sc-tools')) return;
+        el.tabIndex = 0;   // keyboard users reach a message with Tab; its actions show while it's focused
         const bar = document.createElement('div');
         bar.className = 'sc-tools';
         bar.innerHTML = `<button type="button" data-act="react" title="Add reaction (E)">${ICONS.react}</button>`
@@ -262,6 +263,7 @@
     function toast(text) {
         const t = document.createElement('div');
         t.className = 'sc-toast';
+        t.setAttribute('role', 'status');
         t.textContent = text;
         document.body.appendChild(t);
         setTimeout(() => t.remove(), 1600);
@@ -401,7 +403,11 @@
         if (e.metaKey || e.ctrlKey || e.altKey) return;
         const a = document.activeElement;
         if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable)) return;
-        if (!hovered || !hovered.matches(':hover')) return;
+        // The focused message (keyboard) first, else the one under the pointer.
+        const focused = a && a.closest && a.closest('.message.sc-msg');
+        const target = focused || (hovered && hovered.matches(':hover') ? hovered : null);
+        if (!target) return;
+        hovered = target;
         const id = Number(hovered.dataset.id);
         if (!id && id !== 0) return;
         const k = e.key.toLowerCase();

@@ -58,6 +58,7 @@
                 <section class="sc-st-main"><button type="button" class="sc-st-x" aria-label="Close">${icon('close')}</button><div class="sc-st-body"></div></section>
             </div>`;
             document.body.appendChild(root);
+            releaseModal = window.scModal ? window.scModal(root) : null;
             root.addEventListener('click', onClick);
             root.addEventListener('change', onChange);
 
@@ -66,11 +67,12 @@
         render();
         root.querySelector('.sc-st-x').focus();
     }
-    function close() { root?.remove(); root = null; }
+    let releaseModal = null;
+    function close() { root?.remove(); root = null; if (releaseModal) { releaseModal(); releaseModal = null; } }
 
     function renderNav() {
         root.querySelector('.sc-st-navlist').innerHTML = NAV.map(([g, items]) => `<div class="sc-st-group">${g}</div>`
-            + items.map(([id, name, ic]) => `<button type="button" class="sc-st-item${id === section ? ' on' : ''}" data-nav="${id}">${icon(ic, 18)}<span>${name}</span></button>`).join('')).join('');
+            + items.map(([id, name, ic]) => `<button type="button" class="sc-st-item${id === section ? ' on' : ''}" data-nav="${id}"${id === section ? ' aria-current="page"' : ''}>${icon(ic, 18)}<span>${name}</span></button>`).join('')).join('');
     }
 
     async function render() {
@@ -366,7 +368,7 @@
                 </div>
             </header>
             ${pickingAvatar ? `<div class="sc-av-pop"><div class="sc-av-grid">${p.avatars.map((f) => `<button type="button" class="sc-av-pick${f === p.avatar ? ' on' : ''}" data-av-set="${esc(f)}" aria-label="${esc(f)}"><img src="/static/avatars/${esc(f)}" alt=""></button>`).join('')}</div></div>` : ''}
-            <div class="sc-tabs" role="tablist">${tabs.map(([id, n]) => `<button type="button" role="tab" class="${id === agentTab ? 'on' : ''}" data-tab="${id}">${n}</button>`).join('')}</div>
+            <div class="sc-tabs" role="tablist">${tabs.map(([id, n]) => `<button type="button" role="tab" aria-selected="${id === agentTab}" class="${id === agentTab ? 'on' : ''}" data-tab="${id}">${n}</button>`).join('')}</div>
             <div class="sc-tabbody">${content}</div>`;
     }
     // Grouped model list: Default, then "Always the newest", "Pinned version", …
@@ -677,12 +679,17 @@
     function flash(id, text) {
         const el = root && root.querySelector('#' + id);
         if (!el) return;
+        el.setAttribute('role', 'status');
         el.textContent = text;
         clearTimeout(el._t);
         el._t = setTimeout(() => { el.textContent = ''; }, 4000);
     }
 
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && root) close(); });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && root) close();
+        // Rows that act as buttons open with Enter or Space too
+        if (root && (e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[role="button"][tabindex]')) { e.preventDefault(); e.target.click(); }
+    });
     window.scOpenSettings = (sec, handle) => open(sec, handle);
     window.scOpenAgent = (h, tab) => open('agents', h, tab);
 })();

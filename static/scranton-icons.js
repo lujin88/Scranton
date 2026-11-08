@@ -20,4 +20,30 @@
     window.scFillIcons = fill;
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => fill());
     else fill();
+
+    // A modal keeps keyboard focus inside itself and gives it back to what opened it.
+    // scModal(dialogEl) → call the returned function when the dialog closes.
+    window.scModal = function (dlg) {
+        const opener = document.activeElement;
+        const app = document.getElementById('app');
+        if (app) app.inert = true;
+        const onKey = (e) => {
+            if (e.key !== 'Tab' || !dlg.isConnected) return;
+            const f = Array.from(dlg.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])'))
+                .filter((x) => x.offsetParent !== null);
+            if (!f.length) return;
+            const first = f[0], last = f[f.length - 1];
+            if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+            else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        };
+        document.addEventListener('keydown', onKey, true);
+        let done = false;
+        return function release() {
+            if (done) return;
+            done = true;
+            document.removeEventListener('keydown', onKey, true);
+            if (app && !document.querySelector('#sc-settings, #sc-dialog')) app.inert = false;
+            if (opener && opener.isConnected && typeof opener.focus === 'function') opener.focus();
+        };
+    };
 })();

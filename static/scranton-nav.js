@@ -163,7 +163,7 @@
     function initInboxFilters() {
         document.querySelectorAll('#sc-inbox .sc-tab').forEach((t) => t.addEventListener('click', () => {
             filterKind = t.dataset.kind;
-            document.querySelectorAll('#sc-inbox .sc-tab').forEach((x) => x.classList.toggle('active', x === t));
+            document.querySelectorAll('#sc-inbox .sc-tab').forEach((x) => { x.classList.toggle('active', x === t); x.setAttribute('aria-selected', String(x === t)); });
             renderInbox();
         }));
         document.getElementById('sc-inbox-from')?.addEventListener('change', renderInbox);

@@ -17,6 +17,7 @@
         if (!el) {
             el = document.createElement('div');
             el.id = 'sc-banners';
+            el.setAttribute('role', 'status');
             // Desktop: part of the sidebar, above your avatar, so it never covers the people list.
             // Phone: floating above the composer (the sidebar is a drawer there).
             const me = document.getElementById('sc-me');

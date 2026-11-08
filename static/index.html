@@ -198,10 +198,10 @@
                 </div>
                 <div class="sc-inbox-filters">
                     <div class="sc-tabs" role="tablist">
-                        <button type="button" class="sc-tab active" data-kind="mention">Mentions</button>
-                        <button type="button" class="sc-tab" data-kind="all">All</button>
-                        <button type="button" class="sc-tab" data-kind="reply">Replies</button>
-                        <button type="button" class="sc-tab" data-kind="dm">DMs</button>
+                        <button type="button" class="sc-tab active" role="tab" aria-selected="true" data-kind="mention">Mentions</button>
+                        <button type="button" class="sc-tab" role="tab" aria-selected="false" data-kind="all">All</button>
+                        <button type="button" class="sc-tab" role="tab" aria-selected="false" data-kind="reply">Replies</button>
+                        <button type="button" class="sc-tab" role="tab" aria-selected="false" data-kind="dm">DMs</button>
                     </div>
                     <label class="sc-from">From <select id="sc-inbox-from"><option value="">Everyone</option></select></label>
                     <label class="sc-unread-toggle"><span>Unread</span><input type="checkbox" id="sc-inbox-unread"><span class="sc-switch"></span></label>
@@ -214,7 +214,7 @@
                     <div class="loading-spinner"></div>
                     <span>Loading messages…</span>
                 </div>
-                <div id="messages"></div>
+                <div id="messages" role="log" aria-live="polite" aria-relevant="additions" aria-label="Messages"></div>
                 <div id="typing-indicator" class="hidden">
                     <span class="typing-name"></span> is working…
                 </div>

@@ -17,10 +17,11 @@ Scranton is a fork of [agentchattr](https://github.com/bcurts/agentchattr) by Be
 
 ## Quick start
 
-You need a Mac with [Homebrew](https://brew.sh), and at least one of these CLIs signed in with your plan:
+You need a Mac with [Homebrew](https://brew.sh), the basic tools, and the CLIs your agents use, signed in with your plan. The built-in team uses Claude and ChatGPT (Codex); turn off the others in Settings → Agents.
 
 | App | Install | Sign in with your plan |
 |---|---|---|
+| Tools | `brew install node git tmux` | – |
 | Claude | `npm i -g @anthropic-ai/claude-code` | run `claude`, sign in, check `/status` |
 | ChatGPT (Codex) | `npm i -g @openai/codex` | `codex login` → "Sign in with ChatGPT" |
 | Cursor | `curl https://cursor.com/install -fsS \| bash` | `agent login` |
@@ -106,13 +107,13 @@ Logs: `data/logs/`. If a teammate's CLI exits, Scranton restarts it, waiting lon
 
 1. `./scranton.sh check`: every CLI you use says it's installed and logged in.
 2. `./scranton.sh start pm`: only the server and 项目经理, to keep the first test small.
-3. `./scranton.sh attach pm`. Claude may ask "trust this folder?" and, in full-permission mode, show a one-time warning about bypassing permissions. Accept both, then leave with `Ctrl+B`, `D`. Do this once per Claude and Codex teammate.
+3. Settings → Agents → 项目经理 → Terminal shows what the agent sees. Nothing to answer there: the first time an agent starts, Scranton marks its project folder as trusted and, in full-access mode, turns off Claude's one-time warning (see below).
 4. Open http://localhost:8300. In Direct messages, 项目经理's dot is green.
-5. In #lu-portfolio: `@pm 你好，说一下你是谁、用的什么模型`. The dot turns yellow (working), then the reply arrives and shows up in **Activity**.
-6. `./scranton.sh start` brings up everyone with `autostart`. Hand-off test: `@pm 让 @dev 列出项目里的文件，然后总结给我`.
+5. In #lu-portfolio: `@pm hi, tell me who you are and which model you use`. The dot turns yellow (working), then the reply arrives and shows up in **Activity**.
+6. `./scranton.sh start` brings up everyone with `autostart`. Hand-off test: `@pm ask @dev to list the files in the project, then summarise them for me`.
 7. Try `@visual` (Codex) the same way.
 
-If someone doesn't reply: `./scranton.sh attach pm` (or their handle) and look at their terminal. Cursor support is new in Scranton and hasn't been tested on a real Mac yet (see Known gaps).
+If someone doesn't reply: open their terminal (Settings → Agents → them → Terminal, or the **Open terminal** button on their message). Cursor support is new in Scranton and hasn't been tested on a real Mac yet (see Known gaps).
 
 ## Phone access with Tailscale
 
@@ -192,7 +193,7 @@ The helper works in `helper/`, not in the Scranton code. `helper/.claude/setting
 
 ## Known gaps
 
-- **First start:** Claude and Codex may ask "trust this folder?" the first time they open `LuJin-Portfolio`. Run `./scranton.sh attach pm` (and the others) once and answer it, or the first message waits on that prompt.
+- **What the first start changes on your Mac:** the first time an agent starts, Scranton marks its project folder as trusted and, in full-access mode, turns off Claude's one-time full-permission warning. This changes `~/.claude.json`, `~/.claude/settings.json` and `~/.codex/config.toml`. Uninstalling doesn't undo it.
 
 - **Cursor** is configured (MCP via `.cursor/mcp.json`, started with `--approve-mcps`) but not yet verified with a real Cursor login.
 - **Nine always-on CLIs** share your Claude and ChatGPT limits. Start fewer if you hit limits: set `autostart = false` on roles you don't need today.
