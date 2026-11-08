@@ -437,7 +437,9 @@ def _install_security_middleware(token: str, cfg: dict):
             # Allow registered agents to authenticate via Bearer token
             # for /api/messages and /api/send (no browser session needed).
             auth_header = request.headers.get("authorization", "")
-            if auth_header.lower().startswith("bearer ") and (path in ("/api/messages", "/api/send") or path.startswith("/api/rules/")):
+            agent_ok = (path in ("/api/messages", "/api/send") or path.startswith("/api/rules/")
+                        or (path == "/api/scranton/handover" and request.method == "GET"))   # wrappers read when to hand over
+            if auth_header.lower().startswith("bearer ") and agent_ok:
                 bearer = auth_header[7:].strip()
                 if _self.registry and _self.registry.resolve_token(bearer):
                     return await call_next(request)
@@ -2680,6 +2682,47 @@ async def scranton_older(channel: str, before: int, limit: int = 100):
     older = [m for m in store.get_since(-1)
              if (m.get("channel") or "general") == channel and int(m.get("id", 0)) < int(before)]
     return JSONResponse({"messages": older[-limit:], "more": len(older) > limit})
+
+
+HANDOVER_DEFAULTS = {"enabled": False, "hours": 4, "wakes": 40}
+
+
+def _handover_settings() -> dict:
+    h = room_settings.get("handover") or {}
+    out = dict(HANDOVER_DEFAULTS)
+    if isinstance(h, dict):
+        out.update({k: h[k] for k in HANDOVER_DEFAULTS if k in h})
+    return out
+
+
+@app.get("/api/scranton/handover")
+async def scranton_handover():
+    """Fresh-session handover: on/off and when (hours in one session, or messages handled).
+    Wrappers read this before each new message."""
+    return JSONResponse(_handover_settings())
+
+
+@app.post("/api/scranton/handover")
+async def scranton_handover_set(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = None
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "expected {enabled, hours, wakes}"}, status_code=400)
+    cur = _handover_settings()
+    if "enabled" in body:
+        cur["enabled"] = bool(body["enabled"])
+    try:
+        if "hours" in body:
+            cur["hours"] = max(1, min(int(body["hours"]), 48))
+        if "wakes" in body:
+            cur["wakes"] = max(10, min(int(body["wakes"]), 500))
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "hours and wakes are numbers"}, status_code=400)
+    room_settings["handover"] = cur
+    _save_settings()
+    return JSONResponse(cur)
 
 
 @app.get("/api/scranton/dm-activity")

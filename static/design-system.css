@@ -1004,3 +1004,7 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 .sc-ap-sel select { height: 34px; padding: 0 10px; border: 0; border-radius: var(--ds-r-control); background: var(--ds-field); color: var(--ds-text);
     font: inherit; font-size: var(--ds-fs-sm); box-shadow: 0 0 0 1px rgba(var(--ink), 0.10); max-width: 100%; }
 .sc-ap-note { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; font-size: var(--ds-fs-sm); color: var(--ds-text-2); }
+.sc-ho-when { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; font-size: var(--ds-fs-md); color: var(--ds-text); }
+.sc-ho-when.off { opacity: 0.5; }
+.sc-ho-when input { width: 64px; height: 32px; padding: 0 8px; border: 0; border-radius: var(--ds-r-control); background: var(--ds-field);
+    color: var(--ds-text); font: inherit; box-shadow: 0 0 0 1px rgba(var(--ink), 0.12); }

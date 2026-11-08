@@ -79,6 +79,7 @@ def main():
     mcp_bridge._CURSORS_FILE = data_dir / "mcp_cursors.json"
     mcp_bridge._load_cursors()
     mcp_bridge._ROLES_FILE = data_dir / "roles.json"
+    mcp_bridge._HANDOFF_DIR = data_dir / "handoffs"
     mcp_bridge._load_roles()
 
     # Start MCP servers in background threads

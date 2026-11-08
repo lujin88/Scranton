@@ -49,7 +49,7 @@ async def run(url):
             await do("details", "document.getElementById('sc-pane-pill')?.click()")
             await do("members-tab", "document.querySelector('#sc-info [data-i=\"tab-members\"]')?.click()")
             await do("thread", "document.querySelector('.sc-thread-summary')?.click()")
-            for sec in ("profile", "appearance", "agents", "connections", "shortcuts", "history"):
+            for sec in ("profile", "appearance", "agents", "connections", "shortcuts", "handover", "history"):
                 await do(f"settings-{sec}", f"window.scOpenSettings('{sec}')")
             await do("close-settings", "document.querySelector('.sc-st-x')?.click()")
             await do("report", "document.getElementById('sc-report-row')?.click()", 1500)

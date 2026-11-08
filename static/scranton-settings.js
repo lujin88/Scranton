@@ -35,7 +35,7 @@
 
     const NAV = [
         ['Account', [['profile', 'Profile', 'user'], ['appearance', 'Appearance', 'sun']]],
-        ['Workspace', [['agents', 'Agents', 'robot'], ['connections', 'Connections', 'plug'], ['shortcuts', 'Shortcuts', 'flashlight'], ['history', 'Chat history', 'time']]],
+        ['Workspace', [['agents', 'Agents', 'robot'], ['connections', 'Connections', 'plug'], ['shortcuts', 'Shortcuts', 'flashlight'], ['handover', 'Fresh sessions', 'refresh'], ['history', 'Chat history', 'time']]],
     ];
 
     let root = null;
@@ -105,6 +105,7 @@
         if (section === 'updates') body.innerHTML = updatesView();
         if (section === 'appearance') body.innerHTML = appearanceView();
         if (section === 'shortcuts') { body.innerHTML = shortcutsView(null); scItems = await api('/api/scranton/shortcuts'); if (root && section === 'shortcuts') body.innerHTML = shortcutsView(scItems); }
+        if (section === 'handover') { body.innerHTML = handoverView(null); const h = await api('/api/scranton/handover'); if (root && section === 'handover') body.innerHTML = handoverView(h); }
         if (section === 'history') { body.innerHTML = historyView(null); const b = await api('/api/scranton/backup'); if (root && section === 'history') body.innerHTML = historyView(b); }
         if (section === 'agents' && agentOpen) {
             const p = await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}`);
@@ -189,6 +190,23 @@
         const today = new Date().toDateString() === d.toDateString();
         return (today ? 'Today' : d.toLocaleDateString([], { month: 'short', day: 'numeric' })) + ', ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
+    // ---------------------------------------------------------------- Fresh sessions (handover)
+    function handoverView(h) {
+        const head = `<header class="sc-st-head"><h2>Fresh sessions</h2><p>A long session makes every reply re-read everything before it: slower, uses more of your plan, and the agent loses track. With this on, when a teammate is free between messages, it writes a short handoff, starts a clean session and reads the handoff first.</p></header>`;
+        if (!h) return head + '<div class="sc-st-loading">Loading…</div>';
+        return head + `<div class="sc-hist">
+                <label class="sc-switch-row"><input type="checkbox" id="sc-ho-on"${h.enabled ? ' checked' : ''}><span class="sc-switch"></span><span>${h.enabled ? 'On' : 'Off'}</span></label>
+                <div class="sc-ho-when${h.enabled ? '' : ' off'}">
+                    <span>Start fresh after</span>
+                    <input type="number" id="sc-ho-hours" min="1" max="48" value="${Number(h.hours)}" aria-label="Hours"> <span>hours</span>
+                    <span>or</span>
+                    <input type="number" id="sc-ho-wakes" min="10" max="500" step="10" value="${Number(h.wakes)}" aria-label="Messages"> <span>messages, whichever comes first.</span>
+                </div>
+                <p class="sc-tbl-dim">Never in the middle of a task: only when the next message arrives and the teammate isn't working. Your chat history stays as it is; only the agent's working memory starts over. Each handoff is in <code>data/handoffs/</code>.</p>
+                <span class="sc-st-saved" id="sc-ho-saved"></span>
+            </div>`;
+    }
+
     function historyView(b) {
         const head = `<header class="sc-st-head"><h2>Chat history</h2><p>Your messages live on this Mac. Keep a copy so you don't lose them.</p></header>`;
         if (!b) return head + '<div class="sc-st-loading">Loading…</div>';
@@ -599,6 +617,14 @@
             return;
         }
         if (e.target.id && e.target.id.startsWith('sc-new-')) return;
+        if (e.target.id === 'sc-ho-on' || e.target.id === 'sc-ho-hours' || e.target.id === 'sc-ho-wakes') {
+            const v = (id) => Number(root.querySelector('#' + id)?.value);
+            const h = await api('/api/scranton/handover', { enabled: root.querySelector('#sc-ho-on').checked, hours: v('sc-ho-hours'), wakes: v('sc-ho-wakes') });
+            if (h.error) { flash('sc-ho-saved', h.error); return; }
+            if (root && section === 'handover') root.querySelector('.sc-st-body').innerHTML = handoverView(h);
+            flash('sc-ho-saved', 'Saved. Teammates pick it up within a minute.');
+            return;
+        }
         if (e.target.id === 'sc-bk-on' || e.target.id === 'sc-bk-folder') {
             const b = await api('/api/scranton/backup', e.target.id === 'sc-bk-on' ? { enabled: e.target.checked } : { folder: e.target.value });
             if (b.ok === false) { flash('sc-bk-saved', b.error); return; }

@@ -276,6 +276,12 @@ def _echoes_prompt(line: str, injected: str) -> bool:
     return len(core) >= 12 and bool(injected) and core[:60] in injected
 
 
+def is_working(tmux_session: str) -> bool:
+    """A spinner near the bottom of the screen: the agent is in the middle of something."""
+    text = pane_text(tmux_session, 30)
+    return any(_SPINNER.match(l) for l in [l for l in text.splitlines() if l.strip()][-8:])
+
+
 def describe_screen(tmux_session: str) -> tuple[str, str | None]:
     """(what it's doing in a few words, problem key or None) from the bottom of the screen.
     A problem only counts when no spinner is showing and the line isn't our own prompt."""

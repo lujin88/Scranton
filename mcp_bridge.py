@@ -931,9 +931,36 @@ def chat_summary(
     return f"Unknown action: {action}. Valid actions: read, write."
 
 
+_HANDOFF_DIR = None   # set by run.py: <data>/handoffs
+HANDOFF_MAX = 6000
+
+
+def chat_handoff(sender: str, note: str, ctx: Context | None = None) -> str:
+    """Save your handoff note before Scranton starts you a fresh session (only when Scranton
+    asks for it). Write what the next you needs, as plain operational state, not a diary:
+    what you're working on, decisions made and why, open items and who is waiting on what,
+    the next step, and files / branches / PRs. Under ~40 lines. Overwrites your previous note."""
+    sender, err = _resolve_tool_identity(sender, ctx, field_name="sender", required=True)
+    if err:
+        return err
+    text = str(note or "").strip()
+    if not text:
+        return "Error: the note is empty."
+    if _HANDOFF_DIR is None:
+        return "Error: handoffs aren't set up on this server."
+    import re as _re
+    base = _re.sub(r"-\d+$", "", sender.lower())
+    if not _re.fullmatch(r"[a-z0-9_-]{1,40}", base):
+        return "Error: bad name."
+    from safe_io import atomic_write
+    _HANDOFF_DIR.mkdir(parents=True, exist_ok=True)
+    atomic_write(_HANDOFF_DIR / f"{base}.md", text[:HANDOFF_MAX])
+    return f"Handoff saved ({min(len(text), HANDOFF_MAX)} chars). Scranton will start your fresh session with it."
+
+
 _ALL_TOOLS = [
     chat_send, chat_read, chat_resync, chat_join, chat_who, chat_rules, chat_decision,
-    chat_channels, chat_set_hat, chat_claim, chat_summary, chat_propose_job,
+    chat_channels, chat_set_hat, chat_claim, chat_summary, chat_propose_job, chat_handoff,
 ]
 
 

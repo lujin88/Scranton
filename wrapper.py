@@ -20,6 +20,7 @@ How it works:
 
 import json
 import os
+import re
 import shutil
 import sys
 import threading
@@ -625,6 +626,71 @@ def _take_queue(queue_file: Path, taking: Path, keep: int | None = None) -> int:
     return dropped
 
 
+# Scranton: fresh-session handover (Settings → Agents → Fresh sessions). Filled in by main().
+_HANDOVER = {"command": "", "handoff_dir": None, "busy": None, "cache": None, "at": 0.0}
+_HANDOFF_ASK = ("Scranton: before your next message, save a handoff for a fresh session with the chat_handoff "
+                "tool: what you're working on, decisions made and why, open items and who is waiting on what, "
+                "the next step, and files / branches / PRs. Plain, under 40 lines. Don't post in the chat; "
+                "just call chat_handoff and stop.")
+
+
+def _handover_settings(server_port: int, token: str) -> dict | None:
+    """The handover setting from the server, re-read at most once a minute."""
+    if _HANDOVER["cache"] is not None and time.time() - _HANDOVER["at"] < 60:
+        return _HANDOVER["cache"]
+    try:
+        import urllib.request
+        req = urllib.request.Request(f"http://127.0.0.1:{server_port}/api/scranton/handover",
+                                     headers={"Authorization": f"Bearer {token}"} if token else {})
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            _HANDOVER["cache"] = json.loads(resp.read())
+    except Exception:
+        _HANDOVER["cache"] = None
+    _HANDOVER["at"] = time.time()
+    return _HANDOVER["cache"]
+
+
+def _handover_due(settings: dict | None, started: float, wakes: int) -> bool:
+    if not settings or not settings.get("enabled"):
+        return False
+    return (time.time() - started >= float(settings.get("hours", 4)) * 3600
+            or wakes >= int(settings.get("wakes", 40)))
+
+
+def _do_handover(inject_fn, agent_name: str, wait: float = 240.0) -> str | None:
+    """Ask for a handoff note, wait for it, start a fresh CLI session. Returns the note, or None
+    when anything didn't happen (then the old session simply carries on)."""
+    folder = _HANDOVER.get("handoff_dir")
+    if not folder:
+        return None
+    path = Path(folder) / f"{re.sub(r'-[0-9]+$', '', agent_name.lower())}.md"
+    before = path.stat().st_mtime if path.exists() else 0.0
+    r = inject_fn(_HANDOFF_ASK)
+    if r is False or r == "question":
+        return None
+    deadline = time.time() + wait
+    while time.time() < deadline:
+        if path.exists() and path.stat().st_mtime > before:
+            break
+        time.sleep(2)
+    else:
+        return None
+    busy = _HANDOVER.get("busy")
+    end = time.time() + 60
+    time.sleep(3)
+    while busy and busy() and time.time() < end:   # let it finish its turn
+        time.sleep(2)
+    cmd = os.path.basename(str(_HANDOVER.get("command") or "")).lower()
+    r = inject_fn("/new" if cmd.startswith("codex") else "/clear")
+    if r is False or r == "question":
+        return None
+    time.sleep(5)
+    try:
+        return " ".join(path.read_text("utf-8").split())[:3000]
+    except OSError:
+        return None
+
+
 def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = False, trigger_flag=None,
                    server_port: int = 8300, agent_name: str = "", get_token_fn=None,
                    refresh_interval: int = 10, default_role: str = "", team_brief: str = ""):
@@ -640,6 +706,8 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
     brief_count = 0
     last_rules_epoch = 0  # 0 = unknown/cold start — will inject on first trigger
     trigger_count = 0
+    session_started = time.time()   # Scranton: for the fresh-session handover
+    wakes = 0
     while True:
         try:
             _, queue_file = get_identity_fn()
@@ -726,6 +794,25 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                     else:
                         prompt = f"use mcp to read #{places[0][0] if places else channel} - you're mentioned, take appropriate action and respond"
 
+                    # Scranton: a long session gets a fresh one first (handoff note → /clear → note
+                    # at the top of this message). Only when the agent isn't in the middle of something.
+                    handoff_prefix = ""
+                    _htok = get_token_fn() if get_token_fn else ""
+                    hs = _handover_settings(server_port, _htok)
+                    if _handover_due(hs, session_started, wakes):
+                        busy = _HANDOVER.get("busy")
+                        if not (busy and busy()):
+                            note = _do_handover(inject_fn, agent_name)
+                            if note is not None:
+                                session_started, wakes = time.time(), 0
+                                brief_count, last_rules_epoch, trigger_count, first_mention = 0, 0, 0, True
+                                handoff_prefix = ("You're in a fresh session (Scranton starts one now and then to keep "
+                                                  f"your context small). Your handoff from before: {note} --- The new message: ")
+                            else:
+                                # didn't work this time: try again after a while, not on every message
+                                wakes = max(0, int(hs.get("wakes", 40)) // 2)
+                                session_started = time.time() - float(hs.get("hours", 4)) * 1800
+
                     # Use current identity (may have changed via rename)
                     current_name, _ = get_identity_fn()
                     _undo = (brief_count, last_rules_epoch, first_mention)
@@ -771,11 +858,13 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                     # detection in CLIs (Claude Code shows "[Pasted text +N]")
                     # which can break injection of long session prompts
                     prompt += _quiet_note()
+                    prompt = handoff_prefix + prompt
                     result = inject_fn(prompt.replace("\r", " ").replace("\n", " "))
                     blocked = result == "question"
                     if not blocked and result is not False:
                         stuck_since = 0.0
                         failures = 0
+                        wakes += 1
                         _remember_work(queue_file, agent_name, places, thread_root, channel)
                     else:
                         # Not delivered: put the mention back and try again shortly.
@@ -849,6 +938,8 @@ def main():
     cwd = os.environ.get("SCRANTON_CWD") or agent_cfg.get("cwd", ".")
     command = agent_cfg.get("command", agent)
     data_dir = ROOT / config.get("server", {}).get("data_dir", "./data")
+    _HANDOVER["command"] = command
+    _HANDOVER["handoff_dir"] = data_dir / "handoffs"
     data_dir.mkdir(parents=True, exist_ok=True)
     server_port = config.get("server", {}).get("port", 8300)
     mcp_cfg = config.get("mcp", {})
@@ -1221,8 +1312,9 @@ def main():
         from wrapper_unix import get_activity_checker, run_agent
 
         unix_session_name = f"agentchattr-{assigned_name}"
-        from wrapper_unix import describe_screen
+        from wrapper_unix import describe_screen, is_working
         _describe[0] = lambda: describe_screen(unix_session_name)
+        _HANDOVER["busy"] = lambda: is_working(unix_session_name)
         _set_activity_checker(get_activity_checker(
             unix_session_name, trigger_flag=_trigger_flag,
             provider=_provider_from_command(command),
