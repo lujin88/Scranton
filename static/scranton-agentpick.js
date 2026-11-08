@@ -11,7 +11,19 @@
     const label = (h) => (window.scLabelOf ? window.scLabelOf(h) : h);
     const STATE = { working: 'Working', available: 'Online', offline: 'Not running', pending: 'Starting' };
 
-    let btn = null, pop = null, current = null;
+    // Two message boxes get the button: the main one and a thread's reply box. They share one panel.
+    const SLOTS = {
+        main: { input: () => document.getElementById('input'), row: () => document.getElementById('mention-toggles-row'),
+                box: () => document.getElementById('input-row'), id: 'sc-agentpick-btn', fallback: () => '' },
+        thread: { input: () => document.getElementById('sc-thread-input'), row: () => document.querySelector('#sc-thread .sc-thread-bar'),
+                  box: () => document.querySelector('#sc-thread .sc-thread-compose'), id: 'sc-agentpick-tbtn',
+                  // in a thread the agent you're talking to is already known
+                  fallback: () => (window.scThreadAgent ? window.scThreadAgent() : '') || '' },
+    };
+    const state = { main: { btn: null, current: null }, thread: { btn: null, current: null } };
+    let pop = null, slot = 'main';
+    // the button and agent of the box whose panel is open
+    let btn = null, current = null;
 
     // Which agents does the text @? Longest labels first, so "@UX 调研员" isn't read as "@UX".
     function mentioned(text) {
@@ -28,33 +40,44 @@
         return [...found];
     }
 
-    function update() {
-        const input = document.getElementById('input');
-        const row = document.getElementById('mention-toggles-row');
-        if (!input || !row) return;
-        if (!Object.keys(team()).length) { btn?.remove(); btn = null; current = null; closePop(); return; }
+    function updateSlot(name) {
+        const S = SLOTS[name], st = state[name];
+        const input = S.input(), row = S.row();
+        if (!input || !row) { if (st.btn && !st.btn.isConnected) st.btn = null; return; }
+        if (!Object.keys(team()).length) { st.btn?.remove(); st.btn = null; st.current = null; if (slot === name) closePop(); return; }
         const hits = mentioned(input.value);
-        const h = hits.length === 1 ? hits[0] : '';
-        if (btn && btn.isConnected && current === h) return;
-        if (current !== h && !pop?.dataset.pinned) closePop();
-        current = h;
-        if (!btn) {
-            btn = document.createElement('button');
-            btn.type = 'button';
-            btn.id = 'sc-agentpick-btn';
-            btn.setAttribute('aria-haspopup', 'dialog');
-            btn.addEventListener('click', (e) => { e.stopPropagation(); pop ? closePop() : openPop(); });
-            // after + and ⚡, so those two sit in the same place as in a thread's reply box
-            const anchor = row.querySelector('#sc-shortcut-btn, .sc-shortcut-btn') || row.querySelector('#sc-attach-btn');
-            if (anchor) anchor.after(btn); else row.prepend(btn);
+        const h = hits.length === 1 ? hits[0] : (hits.length ? '' : S.fallback());
+        if (st.btn && st.btn.isConnected && st.current === h) return;
+        if (slot === name && st.current !== h && !pop?.dataset.pinned) closePop();
+        st.current = h;
+        if (!st.btn || !st.btn.isConnected) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.id = S.id;
+            b.className = 'sc-agentpick-btn';
+            b.setAttribute('aria-haspopup', 'dialog');
+            b.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (pop && slot === name) { closePop(); return; }
+                closePop();
+                slot = name; btn = b; current = state[name].current;
+                openPop();
+            });
+            // after + and ⚡, in the same place in both boxes
+            const anchor = row.querySelector('#sc-shortcut-btn, .sc-shortcut-btn') || row.querySelector('#sc-attach-btn, #sc-thread-attach');
+            if (anchor) anchor.after(b); else row.prepend(b);
+            st.btn = b;
         }
-        btn.title = h ? `${label(h)}: model and effort` : 'Agent model and effort';
-        btn.setAttribute('aria-label', btn.title);
-        btn.classList.toggle('generic', !h);
+        const b = st.btn;
+        b.title = h ? `${label(h)}: model and effort` : 'Agent model and effort';
+        b.setAttribute('aria-label', b.title);
+        b.classList.toggle('generic', !h);
         // Remix equalizer-line when no single agent is @'d
-        btn.innerHTML = h ? (window.scAvatarHtml ? window.scAvatarHtml(h) : esc(label(h)).slice(0, 1))
+        b.innerHTML = h ? (window.scAvatarHtml ? window.scAvatarHtml(h) : esc(label(h)).slice(0, 1))
             : '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.17 18a3.001 3.001 0 0 1 5.66 0H22v2H11.83a3.001 3.001 0 0 1-5.66 0H2v-2h4.17Zm6-7a3.001 3.001 0 0 1 5.66 0H22v2h-4.17a3.001 3.001 0 0 1-5.66 0H2v-2h10.17Zm-6-7a3.001 3.001 0 0 1 5.66 0H22v2H11.83a3.001 3.001 0 0 1-5.66 0H2V4h4.17ZM9 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm6 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm-6 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg>';
+        if (slot === name) { btn = b; current = h; }
     }
+    function update() { updateSlot('main'); updateSlot('thread'); }
 
     function closePop() { pop?.remove(); pop = null; btn?.setAttribute('aria-expanded', 'false'); }
 
@@ -179,7 +202,7 @@
         if (!pop || !btn) return;
         // above the whole message box, so it never covers what you're typing
         const r = btn.getBoundingClientRect();
-        const box = (document.getElementById('input-row') || btn).getBoundingClientRect();
+        const box = (SLOTS[slot].box() || btn).getBoundingClientRect();
         const w = pop.offsetWidth;
         pop.style.left = `${Math.max(8, Math.min(r.left - 8, window.innerWidth - w - 8))}px`;
         pop.style.bottom = `${window.innerHeight - box.top + 8}px`;
@@ -188,11 +211,13 @@
     function boot() {
         const input = document.getElementById('input');
         if (!input) return;
-        ['input', 'change', 'keyup', 'focus'].forEach((ev) => input.addEventListener(ev, update));
-        // chips and send set .value directly; check again shortly after any click in the box
-        document.getElementById('input-row')?.addEventListener('click', () => setTimeout(update, 0));
+        ['input', 'change', 'keyup', 'focus'].forEach((ev) => document.addEventListener(ev, (e) => {
+            if (e.target && (e.target.id === 'input' || e.target.id === 'sc-thread-input')) update();
+        }, true));
+        // chips and send set .value directly; check again shortly after any click in either box
+        document.addEventListener('click', (e) => { if (e.target.closest?.('#input-row, #sc-thread')) setTimeout(update, 0); });
         (window.scOnTeamChange = window.scOnTeamChange || []).push(update);
-        document.addEventListener('click', (e) => { if (pop && !e.target.closest('#sc-agentpick, #sc-agentpick-btn')) closePop(); });
+        document.addEventListener('click', (e) => { if (pop && !e.target.closest('#sc-agentpick, .sc-agentpick-btn')) closePop(); });
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && pop) { closePop(); btn?.focus(); } });
         window.addEventListener('resize', place);
         setInterval(update, 1500);   // after send the box is cleared without an event

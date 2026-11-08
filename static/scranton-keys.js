@@ -84,3 +84,42 @@
         if (act) { e.preventDefault(); e.stopPropagation(); act(); }
     }, true);
 })();
+
+// Tooltips for icon-only buttons: show right away (the browser's own title tip waits about a
+// second and often never shows). A trailing "(E)" in the title becomes a key cap.
+(function () {
+    'use strict';
+    let tip = null, timer = null, cur = null;
+    const iconOnly = (b) => !b.textContent.trim() || b.closest('.sc-tools, .sc-ap-tool, .sc-agentpick-btn');
+    function hide() { clearTimeout(timer); timer = null; tip?.remove(); tip = null; cur = null; }
+    function show(el) {
+        const text = el.dataset.tip;
+        if (!text) return;
+        const m = /^(.*?)\s*\(([^)]{1,3})\)$/.exec(text);
+        tip = document.createElement('div');
+        tip.className = 'sc-tip';
+        tip.setAttribute('role', 'tooltip');
+        tip.innerHTML = '';
+        tip.append(document.createTextNode(m ? m[1] : text));
+        if (m) { const k = document.createElement('kbd'); k.textContent = m[2]; tip.append(k); }
+        document.body.appendChild(tip);
+        const r = el.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+        let top = r.top - h - 6;
+        if (top < 4) top = r.bottom + 6;
+        tip.style.left = `${Math.max(4, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 4))}px`;
+        tip.style.top = `${top}px`;
+    }
+    document.addEventListener('pointerover', (e) => {
+        if (e.pointerType === 'touch') return;
+        const b = e.target.closest?.('button[title], button[data-tip], [role="button"][title]');
+        if (!b || b === cur) return;
+        if (!iconOnly(b)) return;
+        hide();
+        // keep the label for screen readers, drop the native title so two tips never show
+        if (b.title) { b.dataset.tip = b.title; if (!b.getAttribute('aria-label')) b.setAttribute('aria-label', b.title.replace(/\s*\([^)]{1,3}\)$/, '')); b.removeAttribute('title'); }
+        cur = b;
+        timer = setTimeout(() => { if (cur === b && b.isConnected) show(b); }, 250);
+    });
+    document.addEventListener('pointerout', (e) => { if (cur && !cur.contains(e.relatedTarget)) hide(); });
+    ['pointerdown', 'scroll', 'keydown', 'blur'].forEach((ev) => window.addEventListener(ev, hide, true));
+})();

@@ -987,12 +987,12 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 .sc-older-note { text-align: center; padding: 10px 0; font-size: var(--ds-fs-xs); color: var(--ds-text-3); }
 
 /* Message box: the @'d agent's face; opens model / thinking / restart / stop (Buzz pattern) */
-#sc-agentpick-btn { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; overflow: hidden; cursor: pointer; flex: none;
-    background: var(--ds-hover); box-shadow: 0 0 0 2px var(--ds-field), 0 0 0 3px rgba(var(--ink), 0.15); margin: 0 4px; }
-#sc-agentpick-btn img, #sc-agentpick-btn svg { width: 100%; height: 100%; object-fit: cover; }
-#sc-agentpick-btn.generic { display: grid; place-items: center; background: none; box-shadow: none; color: var(--ds-text-2); border-radius: var(--ds-r-control); }
-#sc-agentpick-btn.generic:hover { background: var(--ds-hover); color: var(--ds-text); }
-#sc-agentpick-btn.generic svg { width: 18px; height: 18px; }
+.sc-agentpick-btn { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; overflow: hidden; cursor: pointer; flex: none;
+    background: var(--ds-hover); box-shadow: 0 0 0 1px var(--ds-line-strong); margin: 0 6px; }
+.sc-agentpick-btn img, .sc-agentpick-btn svg { width: 100%; height: 100%; object-fit: cover; }
+.sc-agentpick-btn.generic { display: grid; place-items: center; background: none; box-shadow: none; color: var(--ds-text-2); border-radius: var(--ds-r-control); }
+.sc-agentpick-btn.generic:hover { background: var(--ds-hover); color: var(--ds-text); }
+.sc-agentpick-btn.generic svg { width: 18px; height: 18px; }
 .sc-ap-title { margin: 2px 4px 8px; font-size: var(--ds-fs-xs); color: var(--ds-text-2); }
 .sc-ap-list { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; }
 .sc-ap-list button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 0; border-radius: var(--ds-r-control); background: none; color: var(--ds-text); cursor: pointer; text-align: left; font: inherit; }
@@ -1001,8 +1001,8 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 .sc-ap-li-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--ds-fs-sm); }
 .sc-ap-list small { font-size: var(--ds-fs-xs); color: var(--ds-text-2); }
 .sc-ap-list small.working { color: var(--ds-warn-text); } .sc-ap-list small.available { color: var(--ds-ok-text); }
-#sc-agentpick-btn.generic[aria-expanded="true"] { background: var(--ds-hover); }
-#sc-agentpick-btn:not(.generic)[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--ds-field), 0 0 0 4px var(--ds-accent); }
+.sc-agentpick-btn.generic[aria-expanded="true"] { background: var(--ds-hover); }
+.sc-agentpick-btn:not(.generic)[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--ds-field), 0 0 0 4px var(--ds-accent); }
 #sc-agentpick { position: fixed; z-index: 900; width: 340px; padding: 12px; border-radius: var(--ds-r-card); background: var(--ds-overlay);
     color: var(--ds-text); box-shadow: var(--ds-shadow); }
 .sc-ap-loading { margin: 6px 4px; color: var(--ds-text-2); font-size: var(--ds-fs-sm); }
@@ -1049,3 +1049,20 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 .sc-keys-k kbd { min-width: 22px; height: 22px; padding: 0 6px; display: inline-grid; place-items: center; border-radius: 6px;
     background: rgba(var(--ink), 0.06); color: var(--ds-text-2); font: 500 12px/1 var(--ds-font, inherit); }
 .sc-keys-dlg:focus { outline: none; }
+
+/* hover toolbar on thread messages (same bar, no "reply in thread") */
+.sc-tmsg { position: relative; border-radius: var(--ds-r-row); }
+.sc-tmsg > .sc-tools { top: -12px; right: 8px; left: auto; }
+.sc-tmsg:hover > .sc-tools, .sc-tmsg:focus-within > .sc-tools, .sc-tmsg:focus > .sc-tools { display: flex !important; }
+.sc-tmsg:focus { outline: none; }
+.sc-tmsg:focus-visible { box-shadow: 0 0 0 2px var(--ds-accent); }
+@media (hover: none) { .sc-tmsg.sc-tap > .sc-tools { display: flex !important; } }
+/* instant tooltip for icon buttons */
+.sc-tip { position: fixed; z-index: 2000; display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 8px; pointer-events: none;
+    background: #1f1f1f; color: #fff; font-size: var(--ds-fs-xs); line-height: 1.3; white-space: nowrap; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18); }
+:root[data-theme="dark"] .sc-tip { background: #3a3a3a; }
+.sc-tip kbd { min-width: 18px; height: 18px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 4px; background: rgba(255, 255, 255, 0.16); font: 500 11px/1 inherit; }
+/* A fixed line height in both message boxes: with "normal", a Chinese name in the
+   placeholder ("@项目经理") switches font and pushes the line 2px down in one box only. */
+#input, #sc-thread-input, .sc-mhl-mirror { line-height: 20px !important; }
+.sc-thread-bar .sc-agentpick-btn:not(.generic), #mention-toggles-row .sc-agentpick-btn:not(.generic) { width: 28px !important; height: 28px !important; min-width: 0 !important; min-height: 0 !important; padding: 0 !important; }

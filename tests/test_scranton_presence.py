@@ -42,7 +42,7 @@ class ShortcutsTest(unittest.TestCase):
         import scranton_shortcuts as sc
         with tempfile.TemporaryDirectory() as d:
             sc.setup(d)
-            self.assertEqual([i["label"] for i in sc.load()], ["What needs me", "Clean up my Mac"])
+            self.assertEqual([i["label"] for i in sc.load()], ["What needs me", "Clean up my Mac", "Product review"])
             self.assertIn("_to_delete", sc.load()[1]["text"])   # never deletes directly
             saved = sc.save([{"label": "A", "text": "@pm hi"}, {"label": "", "text": "x"}, {"label": "B", "text": " "}])
             self.assertEqual(saved, [{"label": "A", "text": "@pm hi"}])

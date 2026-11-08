@@ -219,15 +219,19 @@
     const ICONS = { get reply() { return ri('reply'); }, get react() { return ri('emoji'); }, get thread() { return ri('thread'); }, get link() { return ri('link'); },
         get forward() { return ri('forward'); }, get more() { return ri('more'); } };
 
-    function addToolbar(el, id) {
+    // In a thread the same bar, minus "Reply in thread" (you're already in it); quoting goes
+    // into the thread's reply box.
+    function addToolbar(el, id, inThread) {
         if (el.querySelector('.sc-tools')) return;
         el.tabIndex = 0;   // keyboard users reach a message with Tab; its actions show while it's focused
         const bar = document.createElement('div');
         bar.className = 'sc-tools';
         bar.innerHTML = `<button type="button" data-act="react" title="Add reaction (E)">${ICONS.react}</button>`
-            + `<button type="button" data-act="reply" title="Quote in your reply (R)">${ICONS.reply}</button>`
-            + `<button type="button" data-act="thread" title="Reply in thread (T)">${ICONS.thread}</button>`
+            + (inThread ? `<button type="button" data-act="tquote" title="Quote this in your reply">${ICONS.reply}</button>`
+                : `<button type="button" data-act="reply" title="Reply in the channel, quoting this (R)">${ICONS.reply}</button>`
+                + `<button type="button" data-act="thread" title="Reply in thread (T)">${ICONS.thread}</button>`)
             + `<button type="button" data-act="more" title="More">${ICONS.more}</button>`;
+        if (inThread) bar.dataset.thread = '1';
         bar.querySelectorAll('button').forEach((b) => b.setAttribute('aria-label', b.title.replace(/ \(.\)$/, '')));
         bar.dataset.mid = id;
         el.appendChild(bar);
@@ -330,13 +334,13 @@
         });
     }
 
-    function openMore(anchor, id) {
+    function openMore(anchor, id, inThread) {
         const m = byId.get(id);
         if (!m) return;
         const items = [
             ['copy', 'Copy text'],
             ['forward', 'Forward to another channel'],
-            ['unread', 'Mark unread'],
+            ...(inThread ? [] : [['unread', 'Mark unread']]),   // unread is per conversation, not per reply
             ['delete', 'Delete message', 'danger'],
         ];
         const pop = popAt(anchor, items.map(([k, label, cls]) =>
@@ -374,7 +378,8 @@
             if (act === 'reply') quoteReply(id);
             if (act === 'thread') openThread(m ? (rootOf(m) ?? id) : id);
             if (act === 'forward') openForward(tool, id);
-            if (act === 'more') openMore(tool, id);
+            if (act === 'more') openMore(tool, id, !!tool.closest('.sc-tools').dataset.thread);
+            if (act === 'tquote') threadQuote(id);
             return;
         }
         const pill = e.target.closest('.sc-reaction');
@@ -412,6 +417,17 @@
             + `<button type="button" class="sc-quote-x" aria-label="Cancel reply">${ri('close')}</button>`;
         bar.querySelector('.sc-quote-x').onclick = clearQuote;
         document.getElementById('input')?.focus();
+    }
+    // Quote inside a thread: a "> who: text" first line in the thread's reply box.
+    function threadQuote(id) {
+        const m = byId.get(id), t = document.getElementById('sc-thread-input');
+        if (!m || !t) return;
+        const who = window.scLabelOf ? window.scLabelOf(String(m.sender)) : String(m.sender);
+        const snippet = String(m.text || '').replace(/^> .*\n/, '').replace(/\s+/g, ' ').trim().slice(0, 140).replace(/@/g, '@\u200b');
+        t.value = `> ${who}: ${snippet}\n${t.value.replace(/^> .*\n/, '')}`;
+        t.dispatchEvent(new Event('input', { bubbles: true }));
+        t.focus();
+        t.setSelectionRange(t.value.length, t.value.length);
     }
     function clearQuote() { quoting = null; document.getElementById('sc-quote')?.remove(); }
     window.scQuoteReply = quoteReply;
@@ -695,6 +711,16 @@
         setTimeout(() => document.getElementById('sc-thread-input')?.focus(), 30);
     }
     window.scOpenThread = openThread;
+    // The agent you're talking to in the open thread: who started it, else the last agent to reply.
+    window.scThreadAgent = () => {
+        if (activeThread == null) return '';
+        const team = (window.scGetTeam && window.scGetTeam()) || {};
+        const base = (x) => String(x || '').split('-')[0].toLowerCase();
+        const root = byId.get(activeThread);
+        if (root && team[base(root.sender)]) return base(root.sender);
+        const r = [...(replies.get(activeThread) || [])].reverse().find((m) => team[base(m.sender)]);
+        return r ? base(r.sender) : '';
+    };
     // "None of these" / "Change my answer": open the thread with "@agent 2：" typed, so you
     // write your own answer (or a different one) in your words. Agents read it like a click.
     window.scAnswerOwn = (msgOrId, tag) => {
@@ -781,6 +807,7 @@
             + list.map(tmsgHtml).join('');
         polishText(body, '.sc-tmsg-text .mention');
         body.querySelectorAll('.sc-tmsg-head > span').forEach(shortTime);
+        body.querySelectorAll('.sc-tmsg[data-mid]').forEach((el) => addToolbar(el, Number(el.dataset.mid), true));
         body.scrollTop = body.scrollHeight;
         const input = document.getElementById('sc-thread-input');
         if (input) input.placeholder = `Reply in thread${root ? ' · @' + labelOf(root.sender) : ''}`;
