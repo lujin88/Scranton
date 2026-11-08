@@ -105,7 +105,8 @@
             row.type = 'button';
             row.className = 'sc-side-row';
             row.onclick = () => open();
-            document.getElementById('sc-inbox-row')?.after(row);
+            // Last in the top group (Activity, Report, Get started): it's temporary, so it goes at the end.
+            (document.getElementById('sc-report-row') || document.getElementById('sc-inbox-row'))?.after(row);
         }
         row.innerHTML = `${ic('rocket', 18)}<span class="sc-side-label">Get started</span><span class="sc-start-count">${done}/${total}</span>`;
     }

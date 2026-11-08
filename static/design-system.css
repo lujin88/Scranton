@@ -564,3 +564,7 @@ body.sc-in-dm #mention-toggles-row > #sc-shortcut-btn { display: grid !important
     .sc-st-main { padding-top: 56px !important; }
     .sc-st-x { top: 8px !important; right: 8px !important; }
 }
+/* Sidebar rows: the keyboard focus ring sits inside the row (it used to float outside and read
+   like a selection frame). Mouse clicks show no ring. */
+.sc-side-row:focus, .channel-sidebar-row:focus, .sc-dm-row:focus { outline: none; }
+.sc-side-row:focus-visible, .channel-sidebar-row:focus-visible, .sc-dm-row:focus-visible { outline: 2px solid var(--ds-accent) !important; outline-offset: -2px !important; box-shadow: none !important; }
