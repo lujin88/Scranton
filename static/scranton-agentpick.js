@@ -92,43 +92,82 @@
         try { const r = await fetch(`/api/scranton/teammate/${encodeURIComponent(h)}`, { headers: H() }); if (r.ok) p = await r.json(); } catch (_) { /* below */ }
         if (!pop || (pop.dataset.pinned || current) !== h) return;
         if (!p || !p.handle) { pop.innerHTML = '<p class="sc-ap-loading">Couldn\'t load this teammate.</p>'; return; }
+        await loadConns();
+        if (!pop || (pop.dataset.pinned || current) !== h) return;
         render(h, p, false);
     }
 
+    // Which AI services this Mac has (Settings → Connections), fetched once per open.
+    let conns = null;
+    async function loadConns() {
+        try { const r = await fetch('/api/scranton/connections', { headers: H() }); if (r.ok) conns = await r.json(); } catch (_) { /* keep the old list */ }
+        return conns || [];
+    }
+    const SHORT = { claude: 'Claude', codex: 'ChatGPT', cursor: 'Cursor' };
+    const svgX = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 10.586l4.95-4.95 1.414 1.414-4.95 4.95 4.95 4.95-1.414 1.414-4.95-4.95-4.95 4.95-1.414-1.414 4.95-4.95-4.95-4.95L7.05 5.636z"/></svg>';
+    const svgBack = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.828 12l4.95 4.95-1.414 1.414L8 12l6.364-6.364 1.414 1.414z"/></svg>';
+
+    // Service first (Claude / ChatGPT / Cursor), then that service's model: when one plan
+    // runs out, switch the agent to another in two clicks.
     function render(h, p, changed) {
         const st = (window.scAgentState && window.scAgentState(h)) || 'offline';
         const models = (p.models || []).slice();
         if (p.model && !models.some(([v]) => v === p.model)) models.push([p.model, p.model]);
         const efforts = p.efforts || [];
+        const svc = (conns || []).map((c) => {
+            const usable = c.installed && c.connected !== false;
+            const why = !c.installed ? 'Not installed on this Mac' : c.connected === false ? 'Not signed in: Settings → Connections' : (c.plan || '');
+            return `<button type="button" class="sc-ap-svc${c.id === p.provider ? ' on' : ''}" data-svc="${esc(c.id)}" title="${esc(why)}"${usable || c.id === p.provider ? '' : ' disabled'} aria-pressed="${c.id === p.provider}">${esc(SHORT[c.id] || c.name)}</button>`;
+        }).join('');
         pop.innerHTML = `
             <div class="sc-ap-head">
-                ${pop.dataset.pinned ? `<button type="button" class="sc-ap-tool sc-ap-back" data-a="back" title="All agents" aria-label="All agents"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.828 12l4.95 4.95-1.414 1.414L8 12l6.364-6.364 1.414 1.414z"/></svg></button>` : ''}
+                ${pop.dataset.pinned ? `<button type="button" class="sc-ap-tool sc-ap-back" data-a="back" title="All agents" aria-label="All agents">${svgBack}</button>` : ''}
                 <span class="sc-ap-av">${window.scAvatarHtml ? window.scAvatarHtml(h) : ''}</span>
-                <span class="sc-ap-name"><b>${esc(label(h))}</b><small class="${esc(st)}">${STATE[st] || st}${p.provider_name ? ' · ' + esc(p.provider_name) : ''}</small></span>
-                ${st !== 'offline' ? `<button type="button" class="sc-ap-tool" data-a="restart" title="Restart" aria-label="Restart">${ic('refresh')}</button>
-                <button type="button" class="sc-ap-tool" data-a="stop" title="Stop" aria-label="Stop"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5H18C18.5523 5 19 5.44772 19 6V18C19 18.5523 18.5523 19 18 19H6C5.44772 19 5 18.5523 5 18V6C5 5.44772 5.44772 5 6 5ZM7 7V17H17V7H7Z"/></svg></button>`
-                : `<button type="button" class="sc-btn primary sm" data-a="start">Start</button>`}
+                <span class="sc-ap-name"><b>${esc(label(h))}</b><small class="${esc(st)}">${STATE[st] || st}</small></span>
+                <button type="button" class="sc-ap-tool" data-a="close" title="Close" aria-label="Close">${svgX}</button>
             </div>
+            ${svc ? `<div class="sc-ap-field"><span>Service</span><div class="sc-ap-svcs" role="group" aria-label="Service">${svc}</div></div>` : ''}
             <div class="sc-ap-row">
                 <label class="sc-ap-sel"><span>Model</span><select data-k="model">${models.map(([v, l]) => `<option value="${esc(v)}"${v === (p.model || '') ? ' selected' : ''}>${esc(l || v || 'Default')}</option>`).join('')}</select></label>
                 ${efforts.length ? `<label class="sc-ap-sel"><span>Thinking</span><select data-k="effort"><option value="">Automatic</option>${efforts.map((x) => `<option value="${esc(x)}"${x === p.effort ? ' selected' : ''}>${esc(x[0].toUpperCase() + x.slice(1))}</option>`).join('')}</select></label>` : ''}
             </div>
-            ${changed ? `<div class="sc-ap-note"><span>${st === 'offline' ? 'Used next time it starts.' : 'Takes effect after a restart.'}</span>${st !== 'offline' ? '<button type="button" class="sc-btn primary sm" data-a="restart">Restart now</button>' : ''}</div>` : ''}`;
+            ${changed ? `<div class="sc-ap-note"><span>${st === 'offline' ? 'Used next time it starts.' : changed === 'svc' ? 'Takes effect after a restart. It starts a fresh session.' : 'Takes effect after a restart.'}</span>${st !== 'offline' ? '<button type="button" class="sc-btn primary sm" data-a="restart">Restart now</button>' : ''}</div>`
+              : `<div class="sc-ap-foot">${st !== 'offline'
+                ? '<button type="button" class="sc-ap-link" data-a="restart">Restart</button><button type="button" class="sc-ap-link" data-a="stop">Stop</button>'
+                : '<button type="button" class="sc-btn primary sm" data-a="start">Start</button>'}</div>`}`;
+        const save = async (key, value) => {
+            const r = await fetch(`/api/scranton/teammate/${encodeURIComponent(h)}`, { method: 'POST', headers: H(),
+                body: JSON.stringify({ action: 'set', key, value }) }).catch(() => null);
+            const ok = r && r.ok && (await r.json().catch(() => ({}))).ok !== false;
+            if (!ok) window.scToast && window.scToast("Couldn't save. Is Scranton running?");
+            return ok;
+        };
         pop.onchange = async (e) => {
             const sel = e.target.closest('[data-k]');
-            if (!sel) return;
-            const r = await fetch(`/api/scranton/teammate/${encodeURIComponent(h)}`, { method: 'POST', headers: H(),
-                body: JSON.stringify({ action: 'set', key: sel.dataset.k, value: sel.value }) }).catch(() => null);
-            const ok = r && r.ok && (await r.json().catch(() => ({}))).ok !== false;
-            if (!ok) { window.scToast && window.scToast("Couldn't save. Is Scranton running?"); return; }
+            if (!sel || !(await save(sel.dataset.k, sel.value))) return;
             p[sel.dataset.k] = sel.value;
             render(h, p, true);
         };
         pop.onclick = async (e) => {
-            const a = e.target.closest('[data-a]')?.dataset.a;
+            const sv = e.target.closest('[data-svc]');
+            if (sv) {
+                e.stopPropagation();
+                if (sv.disabled || sv.dataset.svc === p.provider) return;
+                sv.disabled = true;
+                if (!(await save('provider', sv.dataset.svc))) { sv.disabled = false; return; }
+                // the new service has its own models: load them
+                let np = null;
+                try { const r = await fetch(`/api/scranton/teammate/${encodeURIComponent(h)}`, { headers: H() }); if (r.ok) np = await r.json(); } catch (_) { /* below */ }
+                if (pop && np && np.handle) render(h, np, 'svc');
+                return;
+            }
+            const el = e.target.closest('[data-a]');
+            const a = el?.dataset.a;
             if (!a) return;
-            if (a === 'back') { e.stopPropagation(); openList(); return; }
-            e.target.closest('[data-a]').disabled = true;
+            e.stopPropagation();
+            if (a === 'back') { openList(); return; }
+            if (a === 'close') { closePop(); btn?.focus(); return; }
+            el.disabled = true;
             await fetch(`/api/scranton/teammate/${encodeURIComponent(h)}`, { method: 'POST', headers: H(), body: JSON.stringify({ action: a }) }).catch(() => null);
             window.scToast && window.scToast({ restart: `Restarting ${label(h)}…`, stop: `${label(h)} stopped.`, start: `Starting ${label(h)}…` }[a]);
             closePop();

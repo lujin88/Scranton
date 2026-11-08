@@ -1017,6 +1017,17 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 .sc-ap-back { margin-left: -6px; margin-right: -4px; }
 .sc-ap-tool:hover { background: var(--ds-hover); color: var(--ds-text); }
 .sc-ap-row { display: flex; gap: 8px; margin-top: 12px; }
+.sc-ap-field { display: flex; flex-direction: column; gap: 4px; margin-top: 14px; font-size: var(--ds-fs-xs); color: var(--ds-text-2); }
+.sc-ap-svcs { display: flex; gap: 4px; padding: 3px; border-radius: var(--ds-r-control); background: rgba(var(--ink), 0.06); }
+.sc-ap-svc { flex: 1; height: 30px; border: 0; border-radius: calc(var(--ds-r-control) - 3px); background: none; color: var(--ds-text-2); font: inherit; font-size: var(--ds-fs-sm); cursor: pointer; }
+.sc-ap-svc:hover:not(:disabled):not(.on) { color: var(--ds-text); background: var(--ds-hover); }
+.sc-ap-svc.on { background: var(--ds-overlay); color: var(--ds-text); font-weight: 600; box-shadow: 0 0 0 1px var(--ds-line-strong), 0 1px 2px rgba(0, 0, 0, 0.06); }
+.sc-ap-svc:disabled:not(.on) { opacity: .4; cursor: not-allowed; }
+.sc-ap-foot { display: flex; gap: 4px; margin: 10px -6px -4px; }
+.sc-ap-link { height: 30px; padding: 0 8px; border: 0; border-radius: var(--ds-r-control); background: none; color: var(--ds-text-2); font: inherit; font-size: var(--ds-fs-sm); cursor: pointer; }
+.sc-ap-foot .sc-btn { margin-left: 6px; }
+.sc-ap-link:hover { background: var(--ds-hover); color: var(--ds-text); }
+.sc-ap-link[data-a="stop"]:hover { color: var(--ds-err-text); }
 .sc-ap-sel { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: var(--ds-fs-xs); color: var(--ds-text-2); min-width: 0; }
 .sc-ap-sel select { height: 34px; padding: 0 10px; border: 0; border-radius: var(--ds-r-control); background: var(--ds-field); color: var(--ds-text);
     font: inherit; font-size: var(--ds-fs-sm); box-shadow: 0 0 0 1px rgba(var(--ink), 0.10); max-width: 100%; }
