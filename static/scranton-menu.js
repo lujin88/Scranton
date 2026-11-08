@@ -87,8 +87,9 @@
     function row(a, ic, text, extra) {
         return `<button type="button" role="menuitem" data-a="${a}"${extra ? ' aria-haspopup="menu"' : ''}>${ic}<span>${text}</span>${extra || ''}</button>`;
     }
-    function openMenu() {
-        const chip = document.getElementById('sc-me');
+    function openMenu(anchor) {
+        // The sidebar's "you" row, or the avatar dot on the collapsed rail.
+        const chip = anchor || document.getElementById('sc-me');
         if (!chip) return;
         closeMenu();
         const pic = window.scMyAvatarHtml ? window.scMyAvatarHtml() : '';
@@ -425,6 +426,7 @@
         document.getElementById('sc-search-btn')?.addEventListener('click', openSearch);
         window.scSendFeedback = sendFeedback;
         window.scPaintStatus = paintStatus;
+        window.scToggleAccountMenu = (anchor) => { if (menu) closeMenu(); else openMenu(anchor); };
         paintStatus();
         window.scOpenSearch = openSearch;
     }

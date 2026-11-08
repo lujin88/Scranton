@@ -138,6 +138,8 @@ function scNotSent(text, channel) {
 setTimeout(() => {
     try {
         const u = JSON.parse(localStorage.getItem('scranton-unsent') || 'null');
+        // Commands (/continue…) never echo back, so an old saved one isn't a lost message.
+        if (u && String(u.text || '').trim().startsWith('/')) { localStorage.removeItem('scranton-unsent'); return; }
         if (u && Date.now() - u.t < 3600e3 && !scPending) scNotSent(u.text, u.channel);
     } catch (_) {}
 }, 4000);

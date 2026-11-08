@@ -48,12 +48,20 @@
         float.id = 'sc-float-tools';
         float.innerHTML = `
             <button type="button" class="sc-tool" data-t="expand" aria-label="Show sidebar" title="Show sidebar">${ic('sidebar', 20)}</button>
-            <button type="button" class="sc-tool" data-t="search" aria-label="Search">${ic('search', 20)}</button>`;
+            <button type="button" class="sc-tool" data-t="search" aria-label="Search">${ic('search', 20)}</button>
+            <button type="button" class="sc-rail-me" data-t="me" aria-label="You: status, settings, updates" aria-haspopup="menu"></button>`;
         float.addEventListener('click', (e) => {
             const t = e.target.closest('[data-t]')?.dataset.t;
             if (t === 'expand') { e.stopPropagation(); window.scToggleDrawer && window.scToggleDrawer(); }
             if (t === 'search') document.getElementById('sc-search-btn')?.click();
+            if (t === 'me') { e.stopPropagation(); window.scToggleAccountMenu && window.scToggleAccountMenu(e.target.closest('[data-t]')); }
         });
+        const paintMe = () => {
+            const b = float.querySelector('.sc-rail-me');
+            if (b && window.scMyAvatarHtml) b.innerHTML = window.scMyAvatarHtml();
+        };
+        paintMe(); setTimeout(paintMe, 1500);
+        (window.scOnTeamChange || []).push(paintMe);
         h.insertBefore(pill, h.firstChild);
         h.insertBefore(float, pill);
         // Details open behind a thread tab: bring them to the front instead of closing them.
