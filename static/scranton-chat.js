@@ -610,6 +610,7 @@
         openThreads.push(rootId);
         while (openThreads.length > 4) openThreads.shift();
         activeThread = rootId;
+        infoActive = false;
         document.body.classList.add('sc-thread-open');
         renderThread();
         seenReplyCount.set(rootId, (replies.get(rootId) || []).length);
@@ -622,7 +623,7 @@
         const i = openThreads.indexOf(rootId);
         if (i >= 0) openThreads.splice(i, 1);
         if (activeThread === rootId) activeThread = openThreads.length ? openThreads[openThreads.length - 1] : null;
-        if (activeThread == null) document.body.classList.remove('sc-thread-open');
+        if (activeThread == null && infoTab == null) document.body.classList.remove('sc-thread-open');
         renderThread();
     }
 
@@ -638,18 +639,37 @@
             + '</div></div>';
     }
 
+    // The right panel holds threads and, as its first tab, the channel / person details
+    // (opened from the name pill). One panel, never two columns.
+    let infoTab = null;      // label of the details tab, or null when it isn't open
+    let infoActive = false;
+    window.scRightPanel = {
+        info(on, label) {
+            if (on) { if (infoTab == null) infoActive = true; infoTab = label; } else { infoTab = null; infoActive = false; }
+            document.body.classList.toggle('sc-thread-open', activeThread != null || infoTab != null);
+            renderThread();
+        },
+        showInfo() { if (infoTab != null) { infoActive = true; renderThread(); } },
+        isShowingInfo() { return infoTab != null && infoActive; },
+    };
+
     function renderThread() {
         const panel = document.getElementById('sc-thread');
         if (!panel) return;
         const tabs = panel.querySelector('.sc-thread-tabs');
         const body = panel.querySelector('.sc-thread-body');
-        if (activeThread == null) { tabs.innerHTML = ''; body.innerHTML = ''; return; }
-        tabs.innerHTML = openThreads.map((rid) => {
+        if (activeThread == null) infoActive = infoTab != null;
+        panel.classList.toggle('sc-info-active', infoActive);
+        const infoBtn = infoTab != null
+            ? `<button type="button" class="sc-ttab${infoActive ? ' active' : ''}" data-info="1" title="Details"><span class="sc-ttab-label">${esc(infoTab)}</span><span class="sc-ttab-x" data-close-info="1" title="Close">✕</span></button>`
+            : '';
+        if (activeThread == null) { tabs.innerHTML = infoBtn; body.innerHTML = ''; return; }
+        tabs.innerHTML = infoBtn + openThreads.map((rid) => {
             const r = byId.get(rid) || {};
             const mine = String(r.sender || '').toLowerCase() === me().toLowerCase();
             const snippet = String(r.text || '').replace(/@[\w-]+/g, '').replace(/\s+/g, ' ').trim();
             const label = mine ? (snippet.slice(0, 18) || 'Your thread') : `@${labelOf(r.sender || '?')}`;
-            return `<button type="button" class="sc-ttab${rid === activeThread ? ' active' : ''}" data-root="${rid}" title="${esc(String(r.text || '').slice(0, 120))}">`
+            return `<button type="button" class="sc-ttab${rid === activeThread && !infoActive ? ' active' : ''}" data-root="${rid}" title="${esc(String(r.text || '').slice(0, 120))}">`
                 + `<span class="sc-ttab-label">${esc(label)}</span><span class="sc-ttab-x" data-close="${rid}" title="Close">✕</span></button>`;
         }).join('');
         const root = byId.get(activeThread);
@@ -767,13 +787,16 @@
         const panel = document.getElementById('sc-thread');
         if (!panel) return;
         panel.querySelector('.sc-thread-tabs').addEventListener('click', (e) => {
+            if (e.target.closest('[data-close-info]')) { e.stopPropagation(); window.scToggleInfo && window.scToggleInfo(false); return; }
             const x = e.target.closest('[data-close]');
             if (x) { e.stopPropagation(); closeThread(Number(x.dataset.close)); return; }
+            if (e.target.closest('[data-info]')) { infoActive = true; renderThread(); return; }
             const t = e.target.closest('[data-root]');
-            if (t) { activeThread = Number(t.dataset.root); renderThread(); }
+            if (t) { activeThread = Number(t.dataset.root); infoActive = false; renderThread(); }
         });
         panel.querySelector('.sc-thread-close').addEventListener('click', () => {
             openThreads.splice(0); activeThread = null;
+            if (infoTab != null && window.scToggleInfo) window.scToggleInfo(false);
             document.body.classList.remove('sc-thread-open'); renderThread();
         });
         const input = document.getElementById('sc-thread-input');

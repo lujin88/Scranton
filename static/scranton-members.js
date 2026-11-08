@@ -63,7 +63,7 @@
         const list = (members[ch] || []).filter((h) => team()[h]);
         const total = list.length + 1;   // you're in every channel
         const meAv = `<span class="sc-mb-av me">${window.scMyAvatarHtml ? window.scMyAvatarHtml() : ''}</span>`;
-        btn.title = `${total} people in #${ch} (you and ${list.length} teammate${list.length === 1 ? '' : 's'}). Add or remove`;
+        btn.title = `${total} members of #${ch}`;
         btn.setAttribute('aria-label', btn.title);
         btn.innerHTML = `<span class="sc-mb-stack">${meAv}${list.slice(0, 3).map((h) => `<span class="sc-mb-av ${esc(state(h))}">${avatar(h)}</span>`).join('')}</span><span class="sc-mb-count">${total}</span>`;
         if (panelOpen()) renderPanel();
@@ -74,9 +74,9 @@
     function closePanel(apply) {
         const p = document.getElementById('sc-members-panel');
         if (!p) return;
-        if (apply) applyDraft();
+        if (apply && editing) applyDraft();
         p.remove();
-        draft = null; order = null; draftCh = null;
+        draft = null; order = null; draftCh = null; editing = false;
     }
     function togglePanel() { panelOpen() ? closePanel(true) : renderPanel(); }
 
@@ -90,6 +90,23 @@
     let draft = null;          // Set of handles that should be in the channel
     let order = null;          // handles in display order, frozen while open
     let draftCh = null;
+    let editing = false;       // first a plain list of who's here; "Add people" switches to editing
+
+    function viewHtml(ch, inCh) {
+        const people = [...inCh].sort((a, b) => ({ working: 0, available: 1 }[state(a)] ?? 2) - ({ working: 0, available: 1 }[state(b)] ?? 2));
+        return `
+            <div class="sc-mp-head">
+                <div class="sc-mp-title"><b>#${esc(ch)}</b><span>${inCh.length + 1} members</span></div>
+                <button type="button" class="sc-btn sm" data-edit="1">Add people</button>
+            </div>
+            <div class="sc-mp-view">
+                <div class="sc-mv-row me"><span class="sc-mv-av">${window.scMyAvatarHtml ? window.scMyAvatarHtml() : ''}</span>
+                    <span class="sc-mv-name">${esc(window.scMe ? window.scMe() : 'You')} <em>you</em></span><span class="sc-mv-st available">Online</span></div>
+                ${people.map((h) => `<button type="button" class="sc-mv-row" data-dm="${esc(h)}" title="Message ${esc(label(h))}">
+                    <span class="sc-mv-av">${avatar(h)}</span><span class="sc-mv-name">${esc(label(h))}</span>
+                    <span class="sc-mv-st ${esc(state(h))}">${esc(stateText(h))}</span></button>`).join('')}
+            </div>`;
+    }
 
     function renderPanel() {
         const ch = current();
@@ -110,6 +127,8 @@
             p.addEventListener('change', onPanelChange);
             document.body.appendChild(p);
         }
+        p.classList.toggle('viewing', !editing);
+        if (!editing) { p.innerHTML = viewHtml(ch, inCh); placePanel(p); return; }
         const scroll = p.querySelector('.sc-mp-list')?.scrollTop || 0;
         const adds = [...draft].filter((h) => !inCh.includes(h));
         const removes = inCh.filter((h) => !draft.has(h));
@@ -143,6 +162,9 @@
 `;
         const list = p.querySelector('.sc-mp-list');
         if (list) list.scrollTop = scroll;
+        placePanel(p);
+    }
+    function placePanel(p) {
         const btn = document.getElementById('sc-members-btn');
         if (btn) {
             const r = btn.getBoundingClientRect();
@@ -173,6 +195,8 @@
         if (!b) return;
         e.preventDefault();   // buttons inside <label> must not toggle the checkbox
         const ch = current();
+        if (b.dataset.edit) { editing = true; renderPanel(); return; }
+        if (b.dataset.dm) { closePanel(false); window.scOpenDm && window.scOpenDm(b.dataset.dm); return; }
         if (b.dataset.selectall) {
             const all = Object.keys(team());
             draft = draft.size === all.length ? new Set() : new Set(all);

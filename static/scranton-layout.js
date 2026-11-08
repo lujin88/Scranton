@@ -56,7 +56,11 @@
         });
         h.insertBefore(pill, h.firstChild);
         h.insertBefore(float, pill);
-        pill.addEventListener('click', () => toggleInfo());
+        // Details open behind a thread tab: bring them to the front instead of closing them.
+        pill.addEventListener('click', () => {
+            const rp = window.scRightPanel;
+            if (isOpen() && rp && !rp.isShowingInfo()) rp.showInfo(); else toggleInfo();
+        });
     }
 
     // ---------------------------------------------------------------- details panel
@@ -66,7 +70,10 @@
             p = document.createElement('aside');
             p.id = 'sc-info';
             p.setAttribute('aria-label', 'Details');
-            document.getElementById('sc-center')?.after(p);
+            // Lives inside the right panel (with the threads), under its tabs.
+            const tp = document.getElementById('sc-thread');
+            const head = tp && tp.querySelector('.sc-thread-head');
+            if (head) head.after(p); else document.getElementById('sc-center')?.after(p);
             p.addEventListener('click', onPanelClick);
         }
         return p;
@@ -84,8 +91,9 @@
         const on = isOpen() && !document.body.classList.contains('sc-inbox-open');
         document.body.classList.toggle('sc-info-open', on);
         document.getElementById('sc-pane-pill')?.setAttribute('aria-expanded', String(on));
-        if (!on) { p.innerHTML = ''; return; }
         const ch = window.activeChannel || 'general';
+        if (window.scRightPanel) window.scRightPanel.info(on, isDm(ch) && team()[ch.slice(3)] ? label(ch.slice(3)) : `# ${ch}`);
+        if (!on) { p.innerHTML = ''; return; }
         const close = `<button type="button" class="sc-tool sc-info-x" data-i="close" aria-label="Close">${ic('close', 20)}</button>`;
         if (isDm(ch) && team()[ch.slice(3)]) {
             const h = ch.slice(3);
@@ -256,7 +264,6 @@
     }
     function initResize() {
         makeResizable(document.getElementById('sc-thread'), 'scranton-thread-w', '--sc-thread-w');
-        makeResizable(panel(), 'scranton-info-w', '--sc-info-w');
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(initResize, 500));
     else setTimeout(initResize, 500);
