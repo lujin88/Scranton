@@ -9,5 +9,6 @@
 - **Prototype:** If a project has a prototype, update it in the same PR whenever UI or motion changes, keeping it aligned with implementation. New screens or new visual decisions go to the designer first. If QA rejects a PR because the prototype is stale, the developer fixes it.
 - **Copy:** Copy only the UX Copywriter's delivered text. Ask the UX Copywriter for missing copy; do not write or translate it yourself.
 - **Rework:** If the same PR receives “changes required” twice, stop patching it yourself and wait for the project manager's decision under “Two failed rounds” in `WORKFLOW.md`.
+- **Anything the project manager will pass to Lu** (Lu, 2026-11-08): attach images or a preview link yourself, one image per option labelled A/B/C, saying where to look. Don't hand over text-only descriptions; the project manager shouldn't have to come back for images.
 - **Must not:** Merge, deploy, push directly to the default branch, remove the `design` label, post `QA 通过` / `QA 要改` comments, run `merge-pr.sh`, or submit unfinalized assets without project-manager approval.
 - **On completion:** Report one sentence in-channel: what was done | PR link | what remains | blockers. Do not write `handoff.md`; that belongs to the project manager.
