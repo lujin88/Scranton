@@ -209,6 +209,18 @@ def _load_settings():
     room_settings["seeded_members"] = sorted(seeded_m)
 
 
+_last_logged: dict = {}
+
+
+def _log_rate_limited(what: str, every: float = 300):
+    """log.exception at most once per `every` seconds per kind: loud enough to find, not a flood."""
+    import time as _t
+    now = _t.time()
+    if now - _last_logged.get(what, 0) >= every:
+        _last_logged[what] = now
+        log.exception(what)
+
+
 def _label_of(name: str) -> str:
     """The name Lu sees for a teammate (its label), not the handle."""
     base = str(name).split("-")[0]
@@ -678,7 +690,7 @@ def configure(cfg: dict, session_token: str = ""):
                 _known_online.clear()
                 _known_online.update(currently_online)
             except Exception:
-                pass
+                _log_rate_limited("presence check failed")
 
     threading.Thread(target=_background_checks, daemon=True).start()
 
@@ -2558,7 +2570,18 @@ async def scranton_report(days: int = 7):
     days = max(1, min(int(days), 31))
     owner = str(room_settings.get("username") or config.get("team", {}).get("owner", "Lu"))
     team = {n: a for n, a in config.get("agents", {}).items()}
-    return JSONResponse(await asyncio.to_thread(_sc_report.build, store.get_since(-1), team, owner, days))
+    msgs = store.get_since(-1)
+    # Same answer for a minute unless a message or the estimate changed: the page re-asks often.
+    key = (days, owner, len(msgs), msgs[-1]["id"] if msgs else -1, _sc_report.settings().get("minutes_per_pr"))
+    hit = _report_cache.get("v")
+    if hit and hit[0] == key and time.time() - hit[1] < 60:
+        return JSONResponse(hit[2])
+    data = await asyncio.to_thread(_sc_report.build, msgs, team, owner, days)
+    _report_cache["v"] = (key, time.time(), data)
+    return JSONResponse(data)
+
+
+_report_cache: dict = {}
 
 
 @app.post("/api/scranton/report/settings")

@@ -440,9 +440,8 @@ def _save_cursors():
         with _cursors_lock:
             snapshot = dict(_cursors)
         _CURSORS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        tmp = _CURSORS_FILE.with_suffix(".tmp")
-        tmp.write_text(json.dumps(snapshot), "utf-8")
-        os.replace(tmp, _CURSORS_FILE)  # atomic on POSIX
+        from safe_io import atomic_write
+        atomic_write(_CURSORS_FILE, json.dumps(snapshot))
     except Exception:
         log.warning("Failed to save cursor state to %s", _CURSORS_FILE)
 
@@ -464,9 +463,8 @@ def _save_roles():
         return
     try:
         _ROLES_FILE.parent.mkdir(parents=True, exist_ok=True)
-        tmp = _ROLES_FILE.with_suffix(".tmp")
-        tmp.write_text(json.dumps(_roles), "utf-8")
-        os.replace(tmp, _ROLES_FILE)
+        from safe_io import atomic_write
+        atomic_write(_ROLES_FILE, json.dumps(_roles))
     except Exception:
         log.warning("Failed to save roles to %s", _ROLES_FILE)
 

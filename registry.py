@@ -8,6 +8,7 @@ Thread-safe: a single threading.Lock guards all mutations.
 
 import colorsys
 import json
+import logging
 import secrets
 import threading
 import time
@@ -30,6 +31,8 @@ class Instance:
     state: str = "pending"   # "pending" | "active"
     registered_at: float = field(default_factory=time.time)
 
+
+log = logging.getLogger(__name__)
 
 class RuntimeRegistry:
     GRACE_PERIOD = 30  # seconds — name reserved after deregister
@@ -82,13 +85,12 @@ class RuntimeRegistry:
         """Persist renames to disk. Must be called outside the lock."""
         try:
             self._data_dir.mkdir(parents=True, exist_ok=True)
-            tmp = self._renames_path().with_suffix(".tmp")
             with self._lock:
                 data = dict(self._renames)
-            tmp.write_text(json.dumps(data), "utf-8")
-            tmp.replace(self._renames_path())
+            from safe_io import atomic_write
+            atomic_write(self._renames_path(), json.dumps(data))
         except Exception:
-            pass
+            log.warning("Couldn't save renames", exc_info=True)
 
     # --- Instance persistence (survives server restart) ---
 
@@ -108,11 +110,10 @@ class RuntimeRegistry:
                     "instances": {n: _inst_full(i) for n, i in self._instances.items()},
                     "reclaimable": {n: _inst_full(i) for n, i in self._reclaimable.items()},
                 }
-            tmp = self._instances_path().with_suffix(".tmp")
-            tmp.write_text(json.dumps(data), "utf-8")
-            tmp.replace(self._instances_path())
+            from safe_io import atomic_write
+            atomic_write(self._instances_path(), json.dumps(data))
         except Exception:
-            pass
+            log.warning("Couldn't save the agent registry", exc_info=True)
 
     def _load_instances(self):
         p = self._instances_path()

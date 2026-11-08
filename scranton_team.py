@@ -16,6 +16,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from safe_io import atomic_write
 
 ROOT = Path(__file__).parent
 OVERRIDES = ROOT / "data" / "teammates.json"
@@ -122,9 +123,7 @@ def set_override(name: str, key: str, value, config: dict) -> dict:
         if not entry:
             data.pop(name, None)
         OVERRIDES.parent.mkdir(parents=True, exist_ok=True)
-        tmp = OVERRIDES.with_suffix(".tmp")
-        tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), "utf-8")
-        os.replace(tmp, OVERRIDES)
+        atomic_write(OVERRIDES, json.dumps(data, indent=2, ensure_ascii=False))
         # live config sees it too
         config["agents"][name].update({k: v for k, v in entry.items()})
         if key not in entry:
@@ -140,9 +139,7 @@ COMMANDS = {"claude": "claude", "codex": "codex", "cursor": "agent"}
 
 def _write(data: dict) -> None:
     OVERRIDES.parent.mkdir(parents=True, exist_ok=True)
-    tmp = OVERRIDES.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), "utf-8")
-    os.replace(tmp, OVERRIDES)
+    atomic_write(OVERRIDES, json.dumps(data, indent=2, ensure_ascii=False))
 
 
 def project_folders(config: dict) -> list[str]:
@@ -344,9 +341,7 @@ def mark_models_seen(pid: str) -> None:
 
 def _write_json(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), "utf-8")
-    os.replace(tmp, path)
+    atomic_write(path, json.dumps(data, indent=2, ensure_ascii=False))
 
 
 QUIET = ROOT / "data" / "quiet-hours.json"

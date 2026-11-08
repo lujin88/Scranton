@@ -7,19 +7,26 @@ letting the next save overwrite it, so nothing is lost silently.
 from __future__ import annotations
 
 import os
+import threading
 import time
+import uuid
 from pathlib import Path
 
 
 def atomic_write(path, text: str, encoding: str = "utf-8") -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    # Unique per call: two threads saving the same file must not share a temp file.
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.{uuid.uuid4().hex[:6]}.tmp")
     with open(tmp, "w", encoding=encoding) as f:
         f.write(text)
         f.flush()
         os.fsync(f.fileno())
-    os.replace(tmp, path)
+    try:
+        os.replace(tmp, path)
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def quarantine(path) -> Path | None:

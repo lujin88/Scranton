@@ -218,7 +218,8 @@ def start_daily(interval: int = 3600):
                 if due():
                     backup_now()
             except Exception:
-                pass
+                import logging
+                logging.getLogger(__name__).exception("daily chat backup failed")
             time.sleep(interval)
     threading.Thread(target=loop, daemon=True, name="scranton-backup").start()
 

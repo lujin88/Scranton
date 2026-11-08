@@ -122,6 +122,9 @@ def set_minutes_per_pr(value) -> dict:
     return settings()
 
 
+_cache: dict = {}
+
+
 def build(messages: list[dict], team: dict, owner: str, days: int = 7, now: float | None = None) -> dict:
     now = now or time.time()
     since = now - days * 86400
@@ -146,10 +149,16 @@ def build(messages: list[dict], team: dict, owner: str, days: int = 7, now: floa
             if MERGED_RE.search(text) and not NOT_MERGED_RE.search(text):
                 p["merged"] = True
     unverified = 0
-    for i, p in enumerate(sorted(prs.values(), key=lambda p: -(p["first"] or 0))):
-        state = None
-        if i < 40 and time.time() - _gh_blocked[0] > 3600:
-            state = pr_state(p["url"])
+    newest = sorted(prs.values(), key=lambda p: -(p["first"] or 0))
+    states = {}
+    if time.time() - _gh_blocked[0] > 3600:
+        # A few at a time (one bot account for everyone), not 40 in a row with 10 s timeouts each.
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=4) as ex:
+            for url, st in zip([p["url"] for p in newest[:40]], ex.map(pr_state, [p["url"] for p in newest[:40]])):
+                states[url] = st
+    for p in newest:
+        state = states.get(p["url"])
         if state is None:
             p["checked"] = False
             unverified += 1
@@ -172,14 +181,22 @@ def build(messages: list[dict], team: dict, owner: str, days: int = 7, now: floa
     # 3. waiting on you: agent messages that @ you, and how long until you wrote in that channel
     waits, open_items = [], []
     tag = re.compile(r"@" + re.escape(owner) + r"(?![\w-])", re.I)
+    # One pass: when the owner wrote, per channel (sorted), then a binary search per mention.
+    import bisect
+    mine: dict = {}
+    for x in recent:
+        if str(x.get("sender", "")).lower() == owner_l:
+            mine.setdefault(x.get("channel", "general"), []).append(float(x.get("timestamp") or 0))
+    for v in mine.values():
+        v.sort()
     for m in recent:
-        if base(m.get("sender")) not in agents or not tag.search(str(m.get("text") or "")):
+        if base(m.get("sender")) not in agents or "@" not in str(m.get("text") or "") or not tag.search(str(m.get("text") or "")):
             continue
         t0 = float(m.get("timestamp") or 0)
         ch = m.get("channel", "general")
-        reply = next((float(x.get("timestamp") or 0) for x in recent
-                      if x.get("channel", "general") == ch and str(x.get("sender", "")).lower() == owner_l
-                      and float(x.get("timestamp") or 0) > t0), None)
+        times = mine.get(ch, [])
+        i = bisect.bisect_right(times, t0)
+        reply = times[i] if i < len(times) else None
         if reply is None:
             open_items.append({"id": m.get("id"), "channel": ch, "by": base(m.get("sender")),
                                "text": str(m.get("text") or "")[:140], "since": t0})

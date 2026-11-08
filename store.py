@@ -103,7 +103,9 @@ class MessageStore:
                 try:
                     cb(msg)
                 except Exception:
-                    pass
+                    # Saved but maybe not shown or routed: say so in the server log.
+                    import logging
+                    logging.getLogger(__name__).exception("message %s saved, but a listener failed", msg.get("id"))
 
         return msg
 
