@@ -26,6 +26,7 @@
     }
 
     function labelOf(name) {
+        if (name === 'grok') return '幕僚长 (Grok)';   // Grok Bot, posting through scranton.sh grok
         const c = (typeof agentConfig !== 'undefined' && agentConfig[name]) || scTeam[baseOf(name)] || {};
         return c.label || name;
     }
@@ -35,6 +36,7 @@
     }
 
     function avatarHtml(name) {
+        if (name === 'grok') return '<span class="sc-grok-av" aria-hidden="true">G</span>';
         const t = scTeam[baseOf(name)];
         // Server only returns /static/avatars/<plain file name>; escape anyway.
         if (t && t.avatar && /^\/static\/avatars\/[^/]+$/.test(t.avatar)) return `<img src="${escAttr(t.avatar)}" alt="" loading="lazy">`;

@@ -442,6 +442,10 @@ def _install_security_middleware(token: str, cfg: dict):
                 if _self.registry and _self.registry.resolve_token(bearer):
                     return await call_next(request)
 
+            # Scranton: Grok Bot's command (scranton.sh grok) has its own token, for its own routes only.
+            if path.startswith("/api/scranton/grok/") and _sc_grok.check(request.headers.get("x-grok-token", "")):
+                return await call_next(request)
+
             req_token = (
                 request.headers.get("x-session-token")
                 or request.query_params.get("token")
@@ -481,6 +485,8 @@ def configure(cfg: dict, session_token: str = ""):
     _sc_backup.setup(data_dir, raw_upload_dir)
     _sc_presence.setup(data_dir)
     _sc_shortcuts.setup(data_dir)
+    _sc_grok.setup(data_dir)
+    _sc_grok.token()   # so `scranton.sh grok` finds it
     if not os.environ.get("PYTEST_CURRENT_TEST"):
         _sc_backup.start_daily()
 
@@ -1144,6 +1150,8 @@ async def _handle_new_message(msg: dict):
         # Session guard: suppress out-of-turn agent triggers
         if allowed_agent and target != allowed_agent:
             continue
+        if target == _sc_grok.HANDLE:
+            continue   # Grok Bot isn't a CLI here: it reads its mentions with `scranton.sh grok mentions`
         available = agents.is_available(target)
         if not available and target in (config or {}).get("agents", {}):
             # Scranton: @-ing a teammate who isn't running starts them; the message waits in
@@ -2646,6 +2654,78 @@ async def scranton_presence(request: Request):
     return JSONResponse({"ok": True})
 
 
+def _grok_labels() -> dict:
+    labels = {n: str(a.get("label") or n) for n, a in ((config or {}).get("agents") or {}).items()}
+    labels[_sc_grok.HANDLE] = _sc_grok.LABEL
+    return labels
+
+
+@app.post("/api/scranton/grok/say")
+async def scranton_grok_say(request: Request):
+    """Grok Bot posts as 幕僚长 (Grok). Only into an existing channel or an agent's DM."""
+    b = await request.json()
+    channel = str(b.get("channel") or "").strip().lstrip("#").lower()
+    text = str(b.get("text") or "").strip()
+    if not text:
+        return JSONResponse({"ok": False, "error": "nothing to send"}, status_code=400)
+    if len(text) > _sc_grok.MAX_TEXT:
+        return JSONResponse({"ok": False, "error": f"too long (max {_sc_grok.MAX_TEXT} characters)"}, status_code=400)
+    if channel not in room_settings.get("channels", []):
+        return JSONResponse({"ok": False, "error": f"no channel #{channel}. Channels: " + ", ".join(
+            c for c in room_settings.get("channels", []) if not c.startswith("dm-"))}, status_code=400)
+    reply_to = b.get("reply_to")
+    try:
+        reply_to = int(reply_to) if reply_to not in (None, "") else None
+    except (TypeError, ValueError):
+        reply_to = None
+    if reply_to is not None and not store.get_by_id(reply_to):
+        reply_to = None
+    text = window_text(text)
+    msg = store.add(_sc_grok.HANDLE, text, channel=channel, reply_to=reply_to)
+    return JSONResponse({"ok": True, "id": msg["id"]})
+
+
+def window_text(text: str) -> str:
+    """Grok writes @项目经理 like Lu does; turn labels into handles so they reach the agent."""
+    for h, a in ((config or {}).get("agents") or {}).items():
+        lab = str(a.get("label") or "")
+        if lab and f"@{lab}" in text:
+            text = text.replace(f"@{lab}", f"@{h}")
+    return text
+
+
+@app.get("/api/scranton/grok/read")
+async def scranton_grok_read(channel: str = "", since: int = -1, limit: int = 30, mentions: bool = False):
+    """Recent messages as plain lines. mentions=1: what @s grok or the owner, in any channel."""
+    limit = max(1, min(int(limit), 200))
+    owner = str(room_settings.get("username") or "Lu")
+    msgs = [m for m in store.get_since(int(since)) if m.get("type", "chat") == "chat"]
+    if channel:
+        ch = channel.strip().lstrip("#").lower()
+        msgs = [m for m in msgs if m.get("channel", "general") == ch]
+    if mentions:
+        tag = _re.compile(r"@(" + _re.escape(_sc_grok.HANDLE) + "|" + _re.escape(owner) + r")(?![\w-])", _re.I)
+        msgs = [m for m in msgs if tag.search(str(m.get("text") or ""))]
+    labels = _grok_labels()
+    labels[owner.lower()] = owner
+    lines = [_sc_grok.line(m, labels) for m in msgs[-limit:]]
+    return JSONResponse({"ok": True, "last_id": msgs[-1]["id"] if msgs else int(since), "lines": lines})
+
+
+@app.get("/api/scranton/grok/status")
+async def scranton_grok_status():
+    """Channels and who's working, so Grok knows where to post."""
+    agents_cfg = (config or {}).get("agents") or {}
+    import mcp_bridge
+    def _state(h):
+        if any(mcp_bridge._activity.get(n) for n in list(mcp_bridge._activity) if n.split("-")[0] == h):
+            return "working"
+        return "online" if agents and agents.is_available(h) else "not running"
+    team = {h: {"label": a.get("label", h), "state": _state(h), "doing": _sc_doing.get(h, "")} for h, a in agents_cfg.items()}
+    return JSONResponse({"ok": True, "owner": room_settings.get("username"),
+                         "channels": [c for c in room_settings.get("channels", []) if not c.startswith("dm-")], "team": team})
+
+
 @app.get("/api/scranton/shortcuts")
 async def scranton_shortcuts_get():
     return JSONResponse(_sc_shortcuts.load())
@@ -3105,6 +3185,7 @@ import scranton_report as _sc_report  # noqa: E402
 import scranton_backup as _sc_backup  # noqa: E402
 import scranton_presence as _sc_presence  # noqa: E402
 import scranton_shortcuts as _sc_shortcuts  # noqa: E402
+import scranton_grok as _sc_grok  # noqa: E402
 
 
 async def _broadcast_json(payload: dict):

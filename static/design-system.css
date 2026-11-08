@@ -657,3 +657,4 @@ button.sc-mv-row:hover { background: var(--ds-hover); }
 #sc-account-menu button em + .sc-am-chev, .sc-am-sub button em + .sc-am-chev { margin-left: -10px !important; }
 #sc-account-menu button em, .sc-am-sub button em { color: var(--ds-text-2); font-style: normal; }
 #sc-pane-pill .sc-pill-chev { margin-left: -4px; }   /* glyph has 4px side bearing: keeps the visible gap at ~8px */
+.sc-grok-av { width: 100%; height: 100%; display: grid; place-items: center; border-radius: 50%; background: #f5f5f5; color: #0e0e0e; font-weight: 700; font-size: 14px; }

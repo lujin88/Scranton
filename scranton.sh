@@ -8,6 +8,7 @@
 #   ./scranton.sh attach pm        watch / type into a teammate's terminal (Ctrl+B, D to leave)
 #   ./scranton.sh check            are the CLIs installed and logged in?
 #   ./scranton.sh restart-server   restart only the server (teammates keep working)
+#   ./scranton.sh grok …           for Grok Bot: post / read as 幕僚长 (Grok) (docs/grok-bot.md)
 #
 # Teammates run in background tmux sessions, so they keep working when you
 # close the terminal. Logs: data/logs/. Pids: data/run/.
@@ -244,6 +245,11 @@ case "${1:-}" in
         s=$(tmux ls -F '#S' 2>/dev/null | grep -E "^agentchattr-$2(-[0-9]+)?\$" | head -1 || true)
         [ -n "$s" ] || { echo "No running terminal for $2. Running: $(tmux ls -F '#S' 2>/dev/null | sed 's/^agentchattr-//' | tr '\n' ' ')"; exit 1; }
         tmux attach -t "=$s"
+        ;;
+    grok)
+        # Grok Bot (幕僚长) runs this on your Mac: post and read only. See docs/grok-bot.md
+        shift
+        SCRANTON_PORT=$(port) exec "$PY" tools/grok_cli.py "$@"
         ;;
     check)
         for c in claude codex agent; do

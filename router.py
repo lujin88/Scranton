@@ -54,6 +54,9 @@ class Router:
         ch = self._get_ch(channel)
         mentions = self.parse_mentions(text)
 
+        if not self._is_agent(sender) and sender == "grok":
+            # Scranton: Grok Bot (幕僚长) only reaches whoever it @s; never "everyone".
+            return mentions
         if not self._is_agent(sender):
             # Human message resets hop counter and unpauses
             ch["hop_count"] = 0
