@@ -16,6 +16,10 @@ class BackupTest(unittest.TestCase):
         (self.data / "pm_queue.jsonl").write_text("x")
         (self.data / "run").mkdir(); (self.data / "run" / "pm.pid").write_text("1")
         (self.up / "a.png").write_bytes(b"png")
+        (self.data / "provider-config").mkdir()
+        (self.data / "provider-config" / "pm.json").write_text('{"headers": {"Authorization": "Bearer abc"}}')
+        (self.data / "other.json").write_text('{"token": "abc"}')
+        (self.data / "schedules.json").write_text('[{"prompt": "never use an API key or a token"}]')
         bk.setup(self.data, self.up)
         bk.set_settings(folder=str(self.dest))
 
@@ -30,7 +34,8 @@ class BackupTest(unittest.TestCase):
         self.assertIn("data/agentchattr_log.jsonl", n)
         self.assertIn("uploads/a.png", n)
         self.assertIn("README.txt", n)
-        for bad in ("data/registry.json", "data/pm_queue.jsonl", "data/run/pm.pid", "data/backup.json"):
+        self.assertIn("data/schedules.json", n)  # mentioning the words is fine
+        for bad in ("data/provider-config/pm.json", "data/other.json", "data/registry.json", "data/pm_queue.jsonl", "data/run/pm.pid", "data/backup.json"):
             self.assertNotIn(bad, n)
 
     def test_backup_now_and_keep_14(self):

@@ -182,7 +182,16 @@ case "${1:-}" in
         ensure_venv
         PORT=$(port)
         stop_pidfile "$RUN_DIR/server.pid"
+        # No (or a stale) pid file: stop whatever Scranton server holds the port, so the
+        # restart really happens instead of "already running" with the old code.
+        for pid in $(lsof -nP -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null); do
+            case "$(ps -o command= -p "$pid" 2>/dev/null)" in *run.py*) kill "$pid" 2>/dev/null || true ;; esac
+        done
         i=0; while [ "$i" -lt 20 ] && lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; do sleep 0.5; i=$((i + 1)); done
+        if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+            echo "Port $PORT is still in use by another program, so Scranton couldn't restart."
+            rm -f "$RUN_DIR/prev_head"; exit 1
+        fi
         if start_server; then rm -f "$RUN_DIR/prev_head"; exit 0; fi
         if [ -f "$RUN_DIR/prev_head" ]; then
             prev=$(cat "$RUN_DIR/prev_head")

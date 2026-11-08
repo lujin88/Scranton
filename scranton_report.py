@@ -6,7 +6,9 @@ estimate (minutes per merged PR); Scranton never invents a baseline.
 from __future__ import annotations
 
 import json
+import os
 import re
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -17,7 +19,52 @@ ROOT = Path(__file__).parent
 STATS = ROOT / "data" / "stats.json"
 SETTINGS = ROOT / "data" / "report.json"
 PR_RE = re.compile(r"https://github\.com/[\w.-]+/[\w.-]+/pull/\d+")
-MERGED_RE = re.compile(r"\bmerged\b|已合并|合并了|合并完成|merge-pr\.sh", re.I)
+MERGED_RE = re.compile(r"\bmerged\b|已合并|合并了|合并完成", re.I)
+NOT_MERGED_RE = re.compile(r"not (?:yet )?merged|\bwill merge\b|未合并|还没合并|没有合并|等.{0,6}合并|待合并", re.I)
+PR_PARTS = re.compile(r"github\.com/([\w.-]+)/([\w.-]+)/pull/(\d+)")
+_pr_cache: dict = {}
+_pr_lock = threading.Lock()
+
+
+def _pr_cache_path() -> Path:
+    return ROOT / "data" / "pr-state.json"
+
+
+def pr_state(url: str) -> bool | None:
+    """Merged or not, read from GitHub (read-only, cached; merged is final, open is rechecked
+    after 15 min). None when gh isn't there or GitHub can't be reached."""
+    m = PR_PARTS.search(url)
+    if not m or os.environ.get("PYTEST_CURRENT_TEST"):
+        return None
+    with _pr_lock:
+        if not _pr_cache:
+            try:
+                _pr_cache.update(json.loads(_pr_cache_path().read_text("utf-8")))
+            except (OSError, ValueError):
+                pass
+        hit = _pr_cache.get(url)
+    if hit and (hit.get("merged") or time.time() - hit.get("at", 0) < 900):
+        return bool(hit.get("merged"))
+    try:
+        out = subprocess.run(["gh", "api", f"repos/{m.group(1)}/{m.group(2)}/pulls/{m.group(3)}", "--jq", ".merged_at"],
+                             capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if out.returncode != 0:
+        if re.search(r"403|429|rate limit|suspended", out.stderr or "", re.I):
+            _gh_blocked[0] = time.time()
+        return None
+    merged = (out.stdout or "").strip() not in ("", "null")
+    with _pr_lock:
+        _pr_cache[url] = {"merged": merged, "at": time.time()}
+        try:
+            atomic_write(_pr_cache_path(), json.dumps(_pr_cache))
+        except OSError:
+            pass
+    return merged
+
+
+_gh_blocked = [0.0]   # GitHub said stop: don't ask again for an hour
 
 _lock = threading.Lock()
 _stats: dict = {}
@@ -95,8 +142,19 @@ def build(messages: list[dict], team: dict, owner: str, days: int = 7, now: floa
             if not p["title"] and who in agents:
                 t = PR_RE.sub("", str(m.get("text") or "")).strip(" |:-—\n")
                 p["title"] = t.splitlines()[0][:120] if t else ""
-            if MERGED_RE.search(str(m.get("text") or "")):
+            text = str(m.get("text") or "")
+            if MERGED_RE.search(text) and not NOT_MERGED_RE.search(text):
                 p["merged"] = True
+    unverified = 0
+    for i, p in enumerate(sorted(prs.values(), key=lambda p: -(p["first"] or 0))):
+        state = None
+        if i < 40 and time.time() - _gh_blocked[0] > 3600:
+            state = pr_state(p["url"])
+        if state is None:
+            p["checked"] = False
+            unverified += 1
+        else:
+            p["merged"], p["checked"] = state, True
     shipped = sorted(prs.values(), key=lambda p: (not p["merged"], -(p["first"] or 0)))
 
     # 2. measured work per agent
@@ -137,7 +195,7 @@ def build(messages: list[dict], team: dict, owner: str, days: int = 7, now: floa
     return {
         "days": days,
         "shipped": shipped[:50],
-        "counts": {"prs": len(shipped), "merged": merged,
+        "counts": {"prs": len(shipped), "merged": merged, "unverified": unverified,
                    "agent_hours": round(sum(w["hours"] for w in work), 1),
                    "replies": sum(w["replies"] for w in work)},
         "work": work,

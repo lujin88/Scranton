@@ -503,6 +503,26 @@ def _remember_work(queue_file: Path, name: str, places, thread_root, channel) ->
         pass
 
 
+# Posts the wrapper makes by itself. They aren't the agent answering the request.
+AUTO_POSTS = ("I stopped", "I can't read this yet", "I hit an error", "I'm picking up")
+
+
+def _replied_since(msgs, name: str, at: float) -> bool:
+    base = name.split("-")[0]
+    return any(isinstance(m, dict) and float(m.get("timestamp") or 0) > at
+               and str(m.get("sender", "")).split("-")[0] == base
+               and not str(m.get("text", "")).startswith(AUTO_POSTS)
+               for m in msgs)
+
+
+def _read_channel(server_port: int, token: str, channel: str) -> list:
+    import urllib.parse, urllib.request
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{server_port}/api/messages?channel={urllib.parse.quote(channel)}&limit=200",
+        headers={"Authorization": f"Bearer {token}"})
+    return json.loads(urllib.request.urlopen(req, timeout=5).read())
+
+
 def _resume_unfinished(queue_file: Path, name: str, server_port: int, get_token_fn, delay: float = 25.0) -> None:
     """After a restart (Mac rebooted, agent restarted): if the last request wasn't answered,
     ask the agent to pick it up again, without Lu having to @ it."""
@@ -517,17 +537,10 @@ def _resume_unfinished(queue_file: Path, name: str, server_port: int, get_token_
         return
     ch, th = str(w.get("channel") or "general"), w.get("thread")
     try:
-        import urllib.parse, urllib.request
-        req = urllib.request.Request(
-            f"http://127.0.0.1:{server_port}/api/messages?channel={urllib.parse.quote(ch)}&limit=200",
-            headers={"Authorization": f"Bearer {get_token_fn()}"})
-        msgs = json.loads(urllib.request.urlopen(req, timeout=5).read())
+        msgs = _read_channel(server_port, get_token_fn(), ch)
     except Exception:
         return
-    base = name.split("-")[0]
-    answered = any(float(m.get("timestamp") or 0) > at and str(m.get("sender", "")).split("-")[0] == base
-                   for m in msgs if isinstance(m, dict))
-    if answered:
+    if _replied_since(msgs, name, at):
         return
     where = f"#{ch}" + (f", in the thread under message #{th} (reply with reply_to={th})" if th is not None else "")
     prompt = (f"Scranton was restarted while you were working (for example the Mac restarted), so your earlier session "
@@ -543,6 +556,23 @@ def _resume_unfinished(queue_file: Path, name: str, server_port: int, get_token_
     except OSError:
         pass
 
+
+_OWNER_DEFAULT = ["the owner"]
+
+
+def _owner_name(queue_file: Path) -> str:
+    """The name Lu uses in the chat now (Settings → Profile), so @mentions reach her Activity."""
+    try:
+        name = json.loads((queue_file.parent / "settings.json").read_text("utf-8")).get("username", "")
+        if name and name != "user":
+            return str(name)
+    except (OSError, ValueError, AttributeError):
+        pass
+    return _OWNER_DEFAULT[0]
+
+
+# problem key -> when it was last said in the chat (shared by the queue watcher and the monitor)
+_PROBLEM_POSTED: dict = {}
 
 # Where the agent was last asked something, so problems are reported there.
 _LAST_PLACE = {"channel": "general", "thread": None}
@@ -690,7 +720,7 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                         prompt += f"\n\nROLE: {role}"
                     if team_brief:
                         if brief_count == 0 or (refresh_interval > 0 and brief_count % refresh_interval == 0):
-                            prompt += f"\n\nTEAM: {team_brief}"
+                            prompt += f"\n\nTEAM: {team_brief.replace('{owner}', _owner_name(queue_file))}"
                         brief_count += 1
 
                     # Smart rules injection: first trigger, epoch change, or periodic refresh
@@ -737,7 +767,8 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                             stuck_since = time.time()
                             _post(server_port, current_name, _token, channel, thread_root,
                                   "I can't read this yet: my terminal is waiting on a question. "
-                                  "Open my profile → Terminal to answer it, and I'll pick this up right after.")
+                                  "Open my terminal to answer it, and I'll pick this up right after.")
+                            _PROBLEM_POSTED["question"] = time.time()
                         if not blocked and failures == 3:
                             _post(server_port, current_name, _token, channel, thread_root,
                                   "Your message didn't reach my terminal (tmux error, 3 tries). "
@@ -1016,6 +1047,7 @@ def main():
     _team_brief = str(config.get("team", {}).get("brief", "") or "").strip()
     _hc = str(config.get("team", {}).get("harness_core", "") or "").strip()
     _team_brief = _team_brief.replace("{harness_core}", os.path.expanduser(_hc) if _hc else "harness-core")
+    _OWNER_DEFAULT[0] = str(config.get("team", {}).get("owner", "") or "the owner")
 
     def start_watcher(inject_fn):
         nonlocal _watcher_inject_fn, _watcher_thread
@@ -1062,7 +1094,16 @@ def main():
 
     _describe = [None]       # set below on macOS/Linux: reads the agent's screen
     _app_name = {"claude": "Claude", "codex": "ChatGPT", "cursor": "Cursor"}.get(_provider_from_command(command), "the app")
-    _reported = {}           # problem key -> when we last said it in the chat
+    _reported = _PROBLEM_POSTED
+    _seen = [None, 0.0]      # problem key on screen now, since when
+    _idle_since = [None]     # went from working to idle at
+    _checked_work = [None]   # the request we already checked for a missing reply
+
+    def _work_at():
+        try:
+            return float(json.loads(_work_file(queue_file, assigned_name).read_text("utf-8")).get("at") or 0)
+        except (OSError, ValueError, NameError):
+            return 0.0
 
     def _activity_monitor():
         last_active = None
@@ -1082,13 +1123,35 @@ def main():
                         doing, problem = _describe[0]()
                     except Exception:
                         doing, problem = ("", None)
-                if problem and now - _reported.get(problem, 0) > 1800:
+                # Only when the same problem is still there a few seconds later and the
+                # screen has stopped changing: one passing line isn't a stop.
+                if problem != _seen[0]:
+                    _seen[0], _seen[1] = problem, now
+                if problem and not active and now - _seen[1] >= 5 and now - _reported.get(problem, 0) > 1800:
                     # say it once (per 30 min) where the agent was last asked
                     _reported[problem] = now
                     from wrapper_unix import problem_text
                     cur, _ = get_identity()
                     _post(server_port, cur, get_token(), _LAST_PLACE["channel"], _LAST_PLACE["thread"],
                           problem_text(problem, _app_name))
+                # Worked on a request, went quiet for 90 s, never answered: say so once.
+                if active:
+                    _idle_since[0] = None
+                elif last_active and _idle_since[0] is None:
+                    _idle_since[0] = now
+                if (_idle_since[0] and now - _idle_since[0] > 90 and not problem
+                        and _checked_work[0] != _work_at()):
+                    _checked_work[0] = _work_at()
+                    w_at = _checked_work[0]
+                    if w_at and now - w_at < 6 * 3600:
+                        cur, _ = get_identity()
+                        try:
+                            msgs = _read_channel(server_port, get_token(), _LAST_PLACE["channel"])
+                            if not _replied_since(msgs, cur, w_at):
+                                _post(server_port, cur, get_token(), _LAST_PLACE["channel"], _LAST_PLACE["thread"],
+                                      "I stopped without replying. Open my terminal to see where I am, or @ me again.")
+                        except Exception:
+                            pass
                 # Send on state change, periodically while active (refresh lease),
                 # or periodically while idle (keep presence alive)
                 IDLE_REPORT_INTERVAL = 8  # keep-alive while idle

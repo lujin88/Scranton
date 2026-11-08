@@ -66,7 +66,8 @@
             ${(r.shipped || []).length ? `<div class="sc-rp-list">${r.shipped.map((p) => `<a class="sc-rp-row" href="${esc(p.url)}" target="_blank" rel="noopener">
                 <span class="sc-rp-ic">${ic('git-pr', 18)}</span>
                 <span class="sc-rp-t"><b>${esc(p.title || p.url.replace(/^https:\/\/github\.com\//, ''))}</b><small>${esc(p.url.replace(/^https:\/\/github\.com\//, ''))}${p.by ? ' · ' + esc(label(p.by)) : ''}</small></span>
-                <span class="sc-rp-tag ${p.merged ? 'ok' : ''}">${p.merged ? 'Merged' : 'Open'}</span></a>`).join('')}</div>`
+                <span class="sc-rp-tag ${p.merged ? 'ok' : ''}"${p.checked === false ? ' title="Not checked on GitHub, taken from the chat"' : ''}>${p.merged ? 'Merged' : 'Open'}${p.checked === false ? '?' : ''}</span></a>`).join('')}</div>
+               ${c.unverified ? `<p class="sc-rp-muted">${c.unverified === (r.shipped || []).length ? 'GitHub couldn\'t be reached, so' : `For ${c.unverified} of these`} "Merged" is taken from the chat, not checked on GitHub (marked ?).</p>` : ''}`
                 : '<p class="sc-rp-muted">No pull requests in this period yet. They show up here when an agent posts a PR link.</p>'}
 
             <h2>Who worked</h2>

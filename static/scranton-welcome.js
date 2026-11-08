@@ -77,7 +77,7 @@
                         <span class="sc-wl-state">${x.done ? ic('check-fill', 20) : ic('right', 18)}</span>
                     </button>`).join('')}
                 </div>
-                <p class="sc-wl-rule">Code changes are merged after review. Design changes, publishing and anything that costs money wait for you.</p>
+                <p class="sc-wl-rule">Agents can change anything in their project folders. The real stop is on GitHub: protect <code>main</code> so design PRs need your approval.</p>
                 <div class="sc-wl-also">${(window.scMoreTools || []).map((t) => t.url
                     ? `<a href="${esc(t.url)}" target="_blank" rel="noopener">${ic(t.icon, 16)}<span><b>${esc(t.name)}</b> · ${esc(t.what)}</span></a>`
                     : `<span class="soon">${ic(t.icon, 16)}<span><b>${esc(t.name)}</b> · ${esc(t.what)} · soon</span></span>`).join('')}</div>

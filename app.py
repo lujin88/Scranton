@@ -519,6 +519,12 @@ def configure(cfg: dict, session_token: str = ""):
 
     _load_settings()
     _seed_team_schedules(cfg)  # after settings load, so "already seeded" is remembered
+    # Started fine: the rollback point from an update is no longer needed. A stale one would
+    # let a later failed restart (e.g. after Import) reset the code to an old version.
+    try:
+        (Path(__file__).parent / "data" / "run" / "prev_head").unlink(missing_ok=True)
+    except OSError:
+        pass
     _load_hats()
 
     # Apply saved loop guard setting
@@ -689,6 +695,11 @@ def configure(cfg: dict, session_token: str = ""):
                     full_text = f"{mention_str} {prompt}" if mention_str else prompt
                     # Scranton: missed while the Mac slept → say it's late, not pretend.
                     late = _time.time() - float(s.get("next_run", 0) or 0)
+                    if s.get("daily_at") and late > 3 * 3600:
+                        # Hours late (the Mac slept through it): an evening summary showing up
+                        # next morning is noise. Skip it; it runs again at its next time.
+                        schedules.mark_run(s["id"])
+                        continue
                     if s.get("daily_at") and late > 600:
                         full_text += f" (missed {s.get('daily_at')}, running now)"
                     # Mark it run first: a crash right after posting must not post it twice.

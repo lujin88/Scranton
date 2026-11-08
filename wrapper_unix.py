@@ -126,6 +126,7 @@ def inject(text: str, *, tmux_session: str, delay: float = 0.3):
         print(f"  WAITING: {tmux_session} shows a question; not typing into it", flush=True)
         return "question"
     ok = _inject(text, tmux_session=tmux_session, delay=delay)
+    _LAST_INJECTED[tmux_session] = _norm(text)
     if ok:
         # The prompt still sitting in the input box means Enter was swallowed
         # (e.g. the CLI was still drawing). Press it once more.
@@ -243,9 +244,11 @@ _NICE = {
 }
 _PROBLEMS = [
     ("limit", re.compile(r"usage limit|limit reached|hit your limit|rate.?limit|quota (?:exceeded|reached)|out of (?:credits|messages)", re.I),
-     "I stopped: my {app} plan has hit its usage limit. I'll continue when it resets, or switch me to another app in my profile."),
+     "I stopped: my {app} plan has hit its usage limit. @ me again after it resets, or switch me to another app in my profile."),
     ("login", re.compile(r"please (?:run )?/login|not logged in|log ?in again|invalid api key|authentication (?:failed|error)|token (?:has )?expired", re.I),
      "I stopped: {app} needs you to sign in again. Settings → Connections → Switch account."),
+    ("question", re.compile(r"(?!x)x"),
+     "I stopped: my terminal is waiting on a question. Open it to answer."),
     ("error", re.compile(r"\bAPI Error\b|Internal server error|overloaded_error|Connection error", re.I),
      "I hit an error from {app} and stopped. Open my terminal to see it, or restart me."),
 ]
@@ -259,14 +262,34 @@ def _short(path: str) -> str:
     return path.rsplit("/", 1)[-1][:48] if "/" in path else path[:48]
 
 
+_LAST_INJECTED: dict[str, str] = {}   # tmux session -> what we last typed (normalised)
+
+
+def _norm(t: str) -> str:
+    return re.sub(r"\s+", " ", t).strip().lower()
+
+
+def _echoes_prompt(line: str, injected: str) -> bool:
+    """True when a screen line is just part of the prompt we typed (the brief mentions
+    'usage limit', so its echo must never count as the app saying it)."""
+    core = _norm(re.sub(r"^[\s│|>❯›⏵·•●⏺]+", "", line))
+    return len(core) >= 12 and bool(injected) and core[:60] in injected
+
+
 def describe_screen(tmux_session: str) -> tuple[str, str | None]:
-    """(what it's doing in a few words, problem key or None) from the bottom of the screen."""
+    """(what it's doing in a few words, problem key or None) from the bottom of the screen.
+    A problem only counts when no spinner is showing and the line isn't our own prompt."""
     text = pane_text(tmux_session, 60)
     if not text:
         return "", None
     lines = [l for l in text.splitlines() if l.strip()]
-    bottom = "\n".join(lines[-10:])
+    injected = _LAST_INJECTED.get(tmux_session, "")
+    bottom = "\n".join(l for l in lines[-10:] if not _echoes_prompt(l, injected))
     problem = next((key for key, rx, _ in _PROBLEMS if rx.search(bottom)), None)
+    if problem and any(_SPINNER.match(l) for l in lines[-8:]):
+        problem = None   # still working: whatever it printed isn't where it stopped
+    if not problem and waiting_on_question(tmux_session):
+        problem = "question"   # e.g. a permission prompt in the middle of a task
     doing = ""
     for l in reversed(lines[-40:]):
         m = _ACTION.match(l)

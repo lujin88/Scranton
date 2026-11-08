@@ -27,7 +27,9 @@ KEEP = 14
 MAX_IMPORT = 1024 * 1024 * 1024  # 1 GB unpacked
 NAME_RE = re.compile(r"^Scranton chat history (\d{4}-\d{2}-\d{2})\.zip$")
 SKIP_FILES = {"registry.json", "mcp_cursors.json", "backup.json"}
-SKIP_DIRS = {"run", "logs", "import-pending", "import-old"}
+SKIP_DIRS = {"run", "logs", "import-pending", "import-old", "provider-config"}
+# Belt and braces: never copy a settings-type file that holds a credential.
+SECRET_RE = re.compile(rb'(?i)(bearer\s+[a-z0-9]|"authorization"|"(?:access_|api_|session_)?token"\s*:|"api[_-]?key"\s*:)')
 SKIP_SUFFIX = (".taking", ".lock", ".tmp", "_queue.jsonl", ".corrupt")
 README = """Scranton chat history
 =====================
@@ -109,7 +111,16 @@ def _files():
                 continue
             if rel.name.endswith(SKIP_SUFFIX):
                 continue
+            if prefix == "data" and p.suffix in (".json", ".toml", ".env", ".cfg", ".ini", ".yaml", ".yml") and _has_secret(p):
+                continue
             yield p, f"{prefix}/{rel.as_posix()}"
+
+
+def _has_secret(p: Path) -> bool:
+    try:
+        return bool(SECRET_RE.search(p.read_bytes()[:2_000_000]))
+    except OSError:
+        return True
 
 
 def write_zip(out) -> int:

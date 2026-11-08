@@ -434,7 +434,8 @@
 
     // "my terminal is waiting on a question" → a button straight to that agent's terminal
     function paintStuck(el, msg) {
-        if (!/my terminal is waiting on a question/i.test(String(msg.text || ''))) return;
+        // Every "I stopped…" post from a teammate gets a way to look at its terminal.
+        if (!/^(I stopped|I hit an error|I can't read this yet)/i.test(String(msg.text || '').trim())) return;
         const col = el.querySelector('.chat-bubble');
         if (!col || col.querySelector('.sc-stuck-btn')) return;
         const b = document.createElement('button');
