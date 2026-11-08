@@ -651,3 +651,9 @@ button.sc-mv-row:hover { background: var(--ds-hover); }
 .sc-mv-st { flex-shrink: 0; font-size: 13px; color: var(--ds-text-3); }
 .sc-mv-st.available { color: #7ee2a8; }
 .sc-mv-st.working { color: #8ab4f8; }
+
+/* Account menu: a value sits right next to its chevron ("Online ›"). The flex gap (12px) plus the
+   glyph's own 4px side bearing made it ~20px; -10px leaves a 2px box gap = ~6px visible. */
+#sc-account-menu button em + .sc-am-chev, .sc-am-sub button em + .sc-am-chev { margin-left: -10px !important; }
+#sc-account-menu button em, .sc-am-sub button em { color: var(--ds-text-2); font-style: normal; }
+#sc-pane-pill .sc-pill-chev { margin-left: -4px; }   /* glyph has 4px side bearing: keeps the visible gap at ~8px */
