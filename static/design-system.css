@@ -1036,3 +1036,16 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 .sc-ho-when.off { opacity: 0.5; }
 .sc-ho-when input { width: 64px; height: 32px; padding: 0 8px; border: 0; border-radius: var(--ds-r-control); background: var(--ds-field);
     color: var(--ds-text); font: inherit; box-shadow: 0 0 0 1px rgba(var(--ink), 0.12); }
+
+/* ================================================================ keyboard shortcuts (⌘/) */
+.sc-keys-dlg { position: fixed; left: 50%; top: 10vh; transform: translateX(-50%); width: min(520px, calc(100vw - 32px)); max-height: 80vh; overflow-y: auto;
+    padding: 16px 20px 20px; border-radius: var(--ds-r-card); background: var(--ds-overlay); box-shadow: 0 0 0 1px var(--ds-line-strong), 0 12px 40px rgba(0, 0, 0, 0.18); }
+.sc-keys-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.sc-keys-head b { font-size: var(--ds-fs-md); font-weight: 600; }
+.sc-keys-dlg h3 { margin: 16px 0 6px; font-size: var(--ds-fs-xs); font-weight: 500; color: var(--ds-text-2); }
+.sc-keys-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 34px; font-size: var(--ds-fs-sm); color: var(--ds-text); }
+.sc-keys-k { display: flex; align-items: center; gap: 3px; flex: none; }
+.sc-keys-k i { font-style: normal; color: var(--ds-text-3); margin: 0 4px; }
+.sc-keys-k kbd { min-width: 22px; height: 22px; padding: 0 6px; display: inline-grid; place-items: center; border-radius: 6px;
+    background: rgba(var(--ink), 0.06); color: var(--ds-text-2); font: 500 12px/1 var(--ds-font, inherit); }
+.sc-keys-dlg:focus { outline: none; }
