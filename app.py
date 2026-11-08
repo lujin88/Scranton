@@ -922,6 +922,14 @@ async def _handle_new_message(msg: dict):
     sender = msg.get("sender", "")
     channel = msg.get("channel", "general")
 
+    # Scranton: an agent can write to its DM before Lu ever opened it. Make the channel exist,
+    # so the message shows up (Activity, badge, history) instead of sitting unseen in the log.
+    if (channel.startswith("dm-") and channel not in room_settings.get("channels", [])
+            and channel[3:] in (config or {}).get("agents", {}) and _CHANNEL_NAME_RE.match(channel)):
+        room_settings["channels"].append(channel)
+        _save_settings()
+        await broadcast_settings()
+
     # Track last active channel for leave/join messages (skip system messages)
     global _last_active_channel
     if msg_type not in ("system", "leave", "join"):
@@ -1488,7 +1496,16 @@ async def websocket_endpoint(websocket: WebSocket):
             elif event.get("type") == "delete":
                 ids = event.get("ids", [])
                 if ids:
-                    deleted = store.delete([int(i) for i in ids])
+                    # Scranton: deleting a thread's first message takes its replies with it, so
+                    # they don't linger in search with nothing to open.
+                    want = {int(i) for i in ids}
+                    grew = True
+                    while grew:
+                        extra = {m["id"] for m in store.get_since(-1)
+                                 if m.get("reply_to") is not None and int(m["reply_to"]) in want and m["id"] not in want}
+                        grew = bool(extra)
+                        want |= extra
+                    deleted = store.delete(sorted(want))
                     if deleted:
                         data = json.dumps({"type": "delete", "ids": deleted})
                         dead = set()
@@ -1605,7 +1622,22 @@ async def websocket_endpoint(websocket: WebSocket):
                     room_settings["title"] = new["title"].strip() or "Scranton"
                 apply_room_subtitle(new)
                 if "username" in new and isinstance(new["username"], str):
-                    room_settings["username"] = new["username"].strip() or "user"
+                    old_user = room_settings.get("username", "user")
+                    new_user = new["username"].strip()[:20] or "user"
+                    agent_names = {n.lower() for n in (config or {}).get("agents", {})} | {
+                        str(a.get("label", "")).lower() for a in (config or {}).get("agents", {}).values()}
+                    if new_user.lower() in agent_names:
+                        new_user = old_user   # Scranton: can't take an agent's name
+                    room_settings["username"] = new_user
+                    if new_user != old_user and old_user != "user":
+                        # Scranton: your past messages are still yours under the new name.
+                        moved = await asyncio.to_thread(store.rename_sender, old_user, new_user)
+                        if moved:
+                            for c in list(ws_clients):
+                                try:
+                                    await c.send_text(json.dumps({"type": "scranton_reload", "reason": "renamed"}))
+                                except Exception:
+                                    pass
                 if "font" in new and new["font"] in ("mono", "serif", "sans"):
                     room_settings["font"] = new["font"]
                 if "max_agent_hops" in new:
@@ -1787,8 +1819,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 import mcp_bridge
                 mcp_bridge.migrate_cursors_rename(old_name, new_name)
                 _save_settings()
-                await broadcast_settings()
-                # Tell clients to migrate DOM elements
+                # Tell clients to migrate DOM elements. Scranton: before the new settings, so a tab
+                # viewing the old name follows it instead of falling back to #general.
                 rename_event = json.dumps({
                     "type": "channel_renamed",
                     "old_name": old_name,
@@ -1799,6 +1831,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         await c.send_text(rename_event)
                     except Exception:
                         pass
+                await broadcast_settings()
 
             elif event.get("type") == "channel_delete":
                 name = (event.get("name") or "").strip().lower()
@@ -2574,10 +2607,11 @@ async def scranton_report(days: int = 7):
     # Same answer for a minute unless a message or the estimate changed: the page re-asks often.
     key = (days, owner, len(msgs), msgs[-1]["id"] if msgs else -1, _sc_report.settings().get("minutes_per_pr"))
     hit = _report_cache.get("v")
-    if hit and hit[0] == key and time.time() - hit[1] < 60:
+    import time as _t
+    if hit and hit[0] == key and _t.time() - hit[1] < 60:
         return JSONResponse(hit[2])
     data = await asyncio.to_thread(_sc_report.build, msgs, team, owner, days)
-    _report_cache["v"] = (key, time.time(), data)
+    _report_cache["v"] = (key, _t.time(), data)
     return JSONResponse(data)
 
 

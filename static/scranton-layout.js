@@ -201,7 +201,7 @@
         if (title) new MutationObserver(() => render()).observe(title, { childList: true, characterData: true, subtree: true });
         (window.scOnTeamChange || (window.scOnTeamChange = [])).push(() => { if (isOpen()) render(); });
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && isOpen() && !document.getElementById('sc-settings') && !document.getElementById('sc-dialog')) toggleInfo(false);
+            if (e.key === 'Escape' && isOpen() && !window.scEscTaken) toggleInfo(false);
         });
         render();
     }

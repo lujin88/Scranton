@@ -122,8 +122,18 @@
     }
     async function onChange(e) {
         if (e.target.id === 'sc-rp-hours') {
-            const h = parseFloat(e.target.value);
-            await api('/api/scranton/report/settings', { minutes_per_pr: h > 0 ? Math.round(h * 60) : null });
+            const raw = e.target.value.trim();
+            const h = parseFloat(raw);
+            // Empty clears it; anything else must be a real number of hours, or nothing changes.
+            if (raw && !(h >= 0.25 && h <= 40)) {
+                e.target.setAttribute('aria-invalid', 'true');
+                if (window.scToast) window.scToast('Use a number between 0.25 and 40 hours');
+                return;
+            }
+            e.target.removeAttribute('aria-invalid');
+            const r = await api('/api/scranton/report/settings', { minutes_per_pr: raw ? Math.round(h * 60) : null });
+            if (r && r.error) { if (window.scToast) window.scToast(r.error); return; }
+            if (window.scToast) window.scToast(raw ? 'Saved' : 'Cleared');
             render();
         }
     }

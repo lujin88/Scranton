@@ -162,7 +162,7 @@
         const title = document.getElementById('sc-pane-title');
         if (title) new MutationObserver(() => close()).observe(title, { childList: true, characterData: true, subtree: true });
         (window.scOnTeamChange || []).push(render);
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.body.classList.contains('sc-welcome-open') && !document.getElementById('sc-settings')) close(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.body.classList.contains('sc-welcome-open') && !window.scEscTaken) close(); });
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(init, 300));
     else setTimeout(init, 300);

@@ -2308,7 +2308,7 @@ const SLASH_COMMANDS = [
 let slashMenuIndex = 0;
 let slashMenuVisible = false;
 let mentionMenuIndex = 0;
-let mentionMenuVisible = false;
+let mentionMenuVisible = false; window._scLastMentionQuery = null;
 let mentionMenuStart = -1;  // cursor position of the '@'
 
 function updateSlashMenu(text) {
@@ -2392,7 +2392,7 @@ function updateMentionMenu() {
     // Don't show if slash menu is active
     if (slashMenuVisible) {
         menu.classList.add('hidden');
-        mentionMenuVisible = false;
+        mentionMenuVisible = false; window._scLastMentionQuery = null;
         return;
     }
 
@@ -2409,7 +2409,7 @@ function updateMentionMenu() {
     if (atPos < 0 || (atPos > 0 && /\w/.test(text[atPos - 1]))) {
         // No @ found, or @ is mid-word (e.g. email)
         menu.classList.add('hidden');
-        mentionMenuVisible = false;
+        mentionMenuVisible = false; window._scLastMentionQuery = null;
         return;
     }
 
@@ -2423,7 +2423,7 @@ function updateMentionMenu() {
 
     if (matches.length === 0) {
         menu.classList.add('hidden');
-        mentionMenuVisible = false;
+        mentionMenuVisible = false; window._scLastMentionQuery = null;
         return;
     }
 
@@ -2432,8 +2432,13 @@ function updateMentionMenu() {
         const used = JSON.parse(localStorage.getItem('scranton-at-count') || '{}');
         const here = used[window.activeChannel] || {}, all = used._all || {};
         const score = (n) => (here[n] || 0) * 10 + (all[n] || 0);
-        matches.sort((a, b) => score(b.name) - score(a.name));
+        // Names that start with what you typed come before ones that only contain it.
+        const starts = (c) => (c.name.toLowerCase().startsWith(query) || c.label.toLowerCase().startsWith(query)) ? 1 : 0;
+        matches.sort((a, b) => (starts(b) - starts(a)) || (score(b.name) - score(a.name)));
     } catch (_) { /* storage blocked */ }
+    // A new query starts at the top: an old highlighted row could make Enter pick someone else.
+    if (query !== window._scLastMentionQuery) mentionMenuIndex = 0;
+    window._scLastMentionQuery = query;
     menu.innerHTML = `<div class="sc-mm-head">${query ? 'Matching “' + escapeHtml(query) + '”' : 'Type a name to search'}</div>`;
     mentionMenuIndex = Math.min(mentionMenuIndex, matches.length - 1);
 
@@ -2480,7 +2485,7 @@ function selectMention(name) {
     input.setSelectionRange(newPos, newPos);
     input.focus();
     document.getElementById('mention-menu').classList.add('hidden');
-    mentionMenuVisible = false;
+    mentionMenuVisible = false; window._scLastMentionQuery = null;
 }
 
 // --- Input ---
@@ -2514,7 +2519,7 @@ function setupInput() {
             }
             if (e.key === 'Escape') {
                 menu.classList.add('hidden');
-                mentionMenuVisible = false;
+                mentionMenuVisible = false; window._scLastMentionQuery = null;
                 return;
             }
         }
@@ -2625,7 +2630,12 @@ function sendMessage() {
         const lower = text.toLowerCase();
         const missing = [...activeMentions].filter(n => !lower.includes(`@${n}`));
         if (missing.length > 0) {
-            text = missing.map(n => `@${n}`).join(' ') + ' ' + text;
+            const tags = missing.map(n => `@${n}`).join(' ');
+            // Scranton: a "> who: text" quote must stay the first line, or it isn't drawn as one.
+            const nl = text.indexOf('\n');
+            text = text.startsWith('> ') && nl > 0
+                ? `${text.slice(0, nl + 1)}${tags} ${text.slice(nl + 1)}`
+                : `${tags} ${text}`;
         }
     }
 

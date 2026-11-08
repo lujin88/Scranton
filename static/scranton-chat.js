@@ -34,6 +34,8 @@
     const labelOf = (n) => (window.scLabelOf ? window.scLabelOf(String(n).toLowerCase()) : n);
     const avatarOf = (n) => {
         if (String(n).toLowerCase() === me().toLowerCase()) {
+            // Built fresh (not copied from the sidebar, which can still show the default "U")
+            if (window.scMyAvatarHtml) return window.scMyAvatarHtml();
             const el = document.getElementById('sc-me-avatar');
             return el ? el.innerHTML : esc(me().charAt(0));
         }
@@ -199,6 +201,8 @@
                     if (replies.has(Number(did))) closeThread(Number(did));
                 }
             }
+            // Your name changed and your past messages moved with it: redraw them as yours.
+            if (event && event.type === 'scranton_reload') { setTimeout(() => location.reload(), 300); return; }
             const r = origHandle.apply(this, arguments);
             if (event && (event.type === 'delete' || event.type === 'clear') && activeThread != null) renderThread();
             return r;
@@ -260,6 +264,27 @@
         catch (_) { toast('Copy failed'); }
     }
 
+    window.scToast = (text) => toast(text);
+
+    // Unsent text is kept per conversation: switching away or reloading doesn't lose it.
+    window.scDraft = (() => {
+        const KEY = 'scranton-drafts';
+        const all = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (_) { return {}; } };
+        const put = (o) => { try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (_) { /* storage blocked */ } };
+        const box = () => document.getElementById('input');
+        return {
+            save(ch) { const i = box(); if (!i || !ch) return; const o = all(); if (i.value.trim()) o[ch] = i.value; else delete o[ch]; put(o); },
+            load(ch) { const i = box(); if (!i) return; i.value = all()[ch] || ''; i.dispatchEvent(new Event('input', { bubbles: true })); },
+            clear(ch) { const o = all(); delete o[ch]; put(o); },
+        };
+    })();
+    {
+        let t = null;
+        document.addEventListener('input', (e) => {
+            if (e.target && e.target.id === 'input') { clearTimeout(t); t = setTimeout(() => window.scDraft.save(window.activeChannel), 400); }
+        });
+        setTimeout(() => { const i = document.getElementById('input'); if (i && !i.value) window.scDraft.load(window.activeChannel); }, 1500);
+    }
     function toast(text) {
         const t = document.createElement('div');
         t.className = 'sc-toast';
@@ -330,7 +355,7 @@
                 toast('Marked unread');
             }
             if (k === 'delete') {
-                if (confirm('Delete this message? This can\'t be undone.') && window.ws && window.ws.readyState === WebSocket.OPEN) {
+                if (confirm((() => { const n = [...byId.values()].filter((x) => x && x.reply_to != null && Number(x.reply_to) === Number(id)).length; return n ? `Delete this message and its ${n} repl${n === 1 ? 'y' : 'ies'}? This can't be undone.` : 'Delete this message? This can\'t be undone.'; })()) && window.ws && window.ws.readyState === WebSocket.OPEN) {
                     window.ws.send(JSON.stringify({ type: 'delete', ids: [id] }));
                 }
             }
@@ -641,6 +666,7 @@ window.scNormalizeMentions = function (text) {
         }
         const sent = input ? input.value : '';
         const r = orig.apply(this, arguments);
+        if (input && !input.value.trim() && window.scDraft) window.scDraft.clear(window.activeChannel);
         try { suggestTracking(sent); } catch (_) { /* never block sending */ }
         return r;
     };

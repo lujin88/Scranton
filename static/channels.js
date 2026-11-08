@@ -201,12 +201,16 @@ function _showSidebarRenameDialog(oldName) {
         const newName = input.value.trim().toLowerCase();
         if (!newName || !/^[a-z0-9][a-z0-9\-]{0,19}$/.test(newName)) return;
         if (newName !== oldName) {
-            window.ws.send(JSON.stringify({ type: 'channel_rename', old_name: oldName, new_name: newName }));
-            if (window.activeChannel === oldName) {
-                window._setActiveChannel(newName);
-                localStorage.setItem('agentchattr-channel', newName);
-                Store.set('activeChannel', newName);
+            // Scranton: a taken name is refused by the server; say so here instead of switching
+            // to it (the next message used to land in the other channel).
+            if (window.channelList.includes(newName) || newName.startsWith('dm-')) {
+                input.setAttribute('aria-invalid', 'true');
+                if (window.scToast) window.scToast(newName.startsWith('dm-') ? 'Names starting with dm- are for direct messages' : `#${newName} already exists`);
+                input.focus();
+                return;
             }
+            // The page follows the rename when the server confirms it (channel_renamed).
+            window.ws.send(JSON.stringify({ type: 'channel_rename', old_name: oldName, new_name: newName }));
         }
         cleanup();
     };
@@ -392,7 +396,10 @@ function showChannelCreateDialog() {
 function _submitInlineCreate(input, wrapper) {
     const name = input.value.trim().toLowerCase();
     if (!name || !/^[a-z0-9][a-z0-9\-]{0,19}$/.test(name)) return;
-    if (window.channelList.includes(name)) { input.focus(); return; }
+    if (window.channelList.includes(name) || name.startsWith('dm-')) {
+        if (window.scToast) window.scToast(name.startsWith('dm-') ? 'Names starting with dm- are for direct messages' : `#${name} already exists`);
+        input.focus(); return;
+    }
     window._setPendingChannelSwitch(name);
     window.ws.send(JSON.stringify({ type: 'channel_create', name }));
     wrapper.remove();
@@ -436,12 +443,16 @@ function showChannelRenameDialog(oldName) {
         const newName = input.value.trim().toLowerCase();
         if (!newName || !/^[a-z0-9][a-z0-9\-]{0,19}$/.test(newName)) return;
         if (newName !== oldName) {
-            window.ws.send(JSON.stringify({ type: 'channel_rename', old_name: oldName, new_name: newName }));
-            if (window.activeChannel === oldName) {
-                window._setActiveChannel(newName);
-                localStorage.setItem('agentchattr-channel', newName);
-                Store.set('activeChannel', newName);
+            // Scranton: a taken name is refused by the server; say so here instead of switching
+            // to it (the next message used to land in the other channel).
+            if (window.channelList.includes(newName) || newName.startsWith('dm-')) {
+                input.setAttribute('aria-invalid', 'true');
+                if (window.scToast) window.scToast(newName.startsWith('dm-') ? 'Names starting with dm- are for direct messages' : `#${newName} already exists`);
+                input.focus();
+                return;
             }
+            // The page follows the rename when the server confirms it (channel_renamed).
+            window.ws.send(JSON.stringify({ type: 'channel_rename', old_name: oldName, new_name: newName }));
         }
         cleanup();
     };

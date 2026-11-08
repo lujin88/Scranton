@@ -140,7 +140,7 @@
             <div class="sc-quiet" id="sc-catchup"></div>`;
     }
     function quietView(q) {
-        return `<label class="sc-switch-row"><input type="checkbox" id="sc-q-on"${q.enabled ? ' checked' : ''}><span class="sc-switch"></span><span>On</span></label>
+        return `<label class="sc-switch-row"><input type="checkbox" id="sc-q-on"${q.enabled ? ' checked' : ''}><span class="sc-switch"></span><span>${q.enabled ? 'On' : 'Off'}</span></label>
             <label class="sc-field sc-time"><span>From</span><input type="time" id="sc-q-from" value="${esc(q.from)}"></label>
             <label class="sc-field sc-time"><span>To</span><input type="time" id="sc-q-to" value="${esc(q.to)}"></label>
             <span class="sc-st-saved" id="sc-q-saved"></span>`;
@@ -165,8 +165,10 @@
             label: el.querySelector('.sc-sc-label').value, text: el.querySelector('.sc-sc-text').value }));
     }
     async function saveShortcuts(rerender) {
-        const r = await api('/api/scranton/shortcuts', { items: readShortcuts() });
-        if (Array.isArray(r)) { scItems = r; flash('sc-sc-saved', 'Saved.'); }
+        const items = readShortcuts();
+        const r = await api('/api/scranton/shortcuts', { items });
+        const incomplete = items.filter((i) => !i.label.trim() !== !i.text.trim()).length;
+        if (Array.isArray(r)) { scItems = r; flash('sc-sc-saved', incomplete ? 'Needs a name and a message to be saved.' : 'Saved.'); }
         if (rerender && root && section === 'shortcuts') root.querySelector('.sc-st-body').innerHTML = shortcutsView(scItems);
     }
 
@@ -587,7 +589,7 @@
         if (e.target.id && e.target.id.startsWith('sc-new-')) return;
         if (e.target.id === 'sc-bk-on' || e.target.id === 'sc-bk-folder') {
             const b = await api('/api/scranton/backup', e.target.id === 'sc-bk-on' ? { enabled: e.target.checked } : { folder: e.target.value });
-            if (b.error) { flash('sc-bk-saved', b.error); return; }
+            if (b.ok === false) { flash('sc-bk-saved', b.error); return; }
             if (root && section === 'history') root.querySelector('.sc-st-body').innerHTML = historyView(b);
             flash('sc-bk-saved', 'Saved.');
             return;
@@ -614,6 +616,8 @@
             const q = { enabled: root.querySelector('#sc-q-on').checked, from: root.querySelector('#sc-q-from').value, to: root.querySelector('#sc-q-to').value };
             const r = await api('/api/scranton/quiet', q);
             if (window.scSetQuiet && r && r.from) window.scSetQuiet(r);
+            const ql = root.querySelector('#sc-q-on')?.parentElement.querySelector('span:last-child');
+            if (ql && r && r.from) ql.textContent = r.enabled ? 'On' : 'Off';
             flash('sc-q-saved', r && r.from ? 'Saved.' : (r && r.error) || 'Couldn\'t save.');
             return;
         }
@@ -659,6 +663,9 @@
     function saveProfile() {
         const name = root.querySelector('#sc-pf-name')?.value.trim();
         const st = root.querySelector('#sc-pf-status')?.value;
+        if (!name) { flash('sc-pf-saved', 'Add a name first.'); root.querySelector('#sc-pf-name')?.focus(); return; }
+        const taken = Object.entries(team()).some(([h, t]) => h.toLowerCase() === name.toLowerCase() || String(t.label || '').toLowerCase() === name.toLowerCase());
+        if (taken) { flash('sc-pf-saved', 'An agent already has that name.'); return; }
         if (name && name !== me() && window.ws && window.ws.readyState === WebSocket.OPEN) {
             window.ws.send(JSON.stringify({ type: 'update_settings', data: { username: name } }));
         }

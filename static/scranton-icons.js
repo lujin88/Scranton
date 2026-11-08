@@ -46,4 +46,15 @@
             if (opener && opener.isConnected && typeof opener.focus === 'function') opener.focus();
         };
     };
+
+    // Esc closes one thing: the topmost. Decided before any Esc handler runs (capture phase),
+    // because the first handler removes its popup and the next one would then close the panel too.
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        const a = document.activeElement;
+        const mm = document.getElementById('mention-menu');
+        window.scEscTaken = !!(document.querySelector('#sc-settings, #sc-dialog, #sc-account-menu, #sc-members-panel, .sc-pop, #sc-shortcut-menu, #sc-attach-menu')
+            || (mm && !mm.classList.contains('hidden'))
+            || (a && a.closest && a.closest('#sc-thread, #sc-info')));
+    }, true);
 })();

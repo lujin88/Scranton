@@ -555,3 +555,12 @@ body.sc-in-dm #mention-toggles-row > #sc-shortcut-btn { display: grid !important
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+/* Phone: cards sit under the top bar, never over the message box */
+@media (max-width: 760px) {
+    #sc-banners:not(.in-sidebar) { top: calc(60px + env(safe-area-inset-top)) !important; bottom: auto !important; left: 8px !important; right: 8px !important; width: auto !important; }
+}
+/* Phone: Settings' close button gets its own row instead of sitting on the page's buttons */
+@media (max-width: 760px) {
+    .sc-st-main { padding-top: 56px !important; }
+    .sc-st-x { top: 8px !important; right: 8px !important; }
+}

@@ -302,12 +302,27 @@
         const origSwitch = switchChannel;
         switchChannel = function (name) {
             window.scCloseInbox();
-            if (name !== window.activeChannel && window.scClearQuote) window.scClearQuote();   // a quote belongs to its conversation
+            const changed = name !== window.activeChannel;
+            if (changed && window.scClearQuote) window.scClearQuote();   // a quote belongs to its conversation
+            if (changed && window.scDraft) window.scDraft.save(window.activeChannel);
             const r = origSwitch.apply(this, arguments);
+            if (changed && window.scDraft) window.scDraft.load(name);
             if (typeof renderChannelSidebar === 'function') renderChannelSidebar();
             updateTitle();
+            // Back / swipe-back goes to the previous conversation instead of leaving Scranton.
+            if (changed && !fromHistory) {
+                try { history.pushState({ scChannel: name }, '', location.pathname + location.search); } catch (_) {}
+            }
             return r;
         };
+        let fromHistory = false;
+        try { history.replaceState({ scChannel: window.activeChannel || 'general' }, '', location.href); } catch (_) {}
+        window.addEventListener('popstate', (e) => {
+            const ch = e.state && e.state.scChannel;
+            if (!ch || !window.channelList || !window.channelList.includes(ch)) return;
+            fromHistory = true;
+            try { switchChannel(ch); } finally { fromHistory = false; }
+        });
     }
 
     function updateTitle() {

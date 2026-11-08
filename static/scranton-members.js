@@ -331,7 +331,11 @@
             const p = document.getElementById('sc-members-panel');
             if (p && !p.contains(e.target) && !e.target.closest('#sc-members-btn')) closePanel(true);
         });
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(false); });
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape' || !document.getElementById('sc-members-panel')) return;
+            closePanel(false);
+            document.getElementById('sc-members-btn')?.focus();   // back to where you were
+        });
         window.addEventListener('resize', () => closePanel(true));
         (window.scOnTeamChange || []).push(renderHead, makeDraggable, () => { if (typeof buildMentionToggles === 'function') buildMentionToggles(); });
         // channel switches and DM list re-renders

@@ -39,7 +39,7 @@ class BackupTest(unittest.TestCase):
             self.assertNotIn(bad, n)
 
     def test_backup_now_and_keep_14(self):
-        self.dest.mkdir()
+        self.dest.mkdir(exist_ok=True)
         for i in range(20):
             (self.dest / bk.file_name(date(2026, 1, 1) + timedelta(days=i))).write_bytes(b"x")
         (self.dest / "mine.zip").write_bytes(b"keep")
@@ -97,3 +97,14 @@ class BackupTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FolderCheckTest(unittest.TestCase):
+    def test_unwritable_folder_is_refused_now(self):
+        with tempfile.TemporaryDirectory() as d:
+            bk.setup(Path(d) / "data", Path(d) / "up")
+            (Path(d) / "data").mkdir()
+            blocker = Path(d) / "file"
+            blocker.write_text("x")
+            with self.assertRaises(ValueError):
+                bk.set_settings(folder=str(blocker / "sub"))

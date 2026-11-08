@@ -17,6 +17,8 @@ import threading
 import time
 from pathlib import Path
 
+from fastapi import Request  # module level: with "from __future__ import annotations" FastAPI must resolve it by name
+
 _APP_NAMES = {"claude": "Claude", "codex": "ChatGPT (Codex)", "agent": "Cursor", "cursor-agent": "Cursor", "gemini": "Gemini"}
 
 ROOT = Path(__file__).resolve().parent
@@ -251,7 +253,6 @@ def dismiss(names: list[str], config: dict | None = None) -> None:
 
 def install(app, get_config):
     """Register the routes on the FastAPI app and start the update checker."""
-    from fastapi import Request
     from fastapi.responses import JSONResponse
 
     @app.get("/api/scranton/status")

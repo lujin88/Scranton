@@ -96,7 +96,18 @@ def set_settings(enabled: bool | None = None, folder: str | None = None) -> dict
         folder = folder.strip()
         if folder and not Path(folder).expanduser().is_absolute():
             raise ValueError("Use a full folder path, like /Users/you/Documents/Backups")
+        if folder:
+            # Check now that Scranton can write there, not at tomorrow's backup.
+            target = Path(folder).expanduser()
+            try:
+                target.mkdir(parents=True, exist_ok=True)
+                probe = target / ".scranton-write-test"
+                probe.write_text("ok")
+                probe.unlink()
+            except OSError as e:
+                raise ValueError(f"Scranton can't write to {target}: {e.strerror or e}")
         s["folder"] = folder
+        s["error"] = ""   # a new folder starts clean
     _save(s)
     return settings()
 
