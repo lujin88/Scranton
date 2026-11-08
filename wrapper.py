@@ -505,6 +505,7 @@ def _remember_work(queue_file: Path, name: str, places, thread_root, channel) ->
 
 
 # Posts the wrapper makes by itself. They aren't the agent answering the request.
+_ASKED = [None]   # () -> the question on the agent's screen, set in main() on macOS/Linux
 AUTO_POSTS = ("I stopped", "I can't read this yet", "I hit an error", "I'm picking up")
 
 
@@ -876,8 +877,14 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                             trigger_flag[0] = False
                         if blocked and not stuck_since:
                             stuck_since = time.time()
+                            asked = ""
+                            try:
+                                asked = _ASKED[0]() if _ASKED[0] else ""
+                            except Exception:
+                                asked = ""
                             _post(server_port, current_name, _token, channel, thread_root,
-                                  "I can't read this yet: my terminal is waiting on a question. "
+                                  "I can't read this yet: my terminal is waiting on a question"
+                                  + (f": “{asked}”" if asked else "") + ". "
                                   "Open my terminal to answer it, and I'll pick this up right after.")
                             _PROBLEM_POSTED["question"] = time.time()
                         if not blocked and failures == 3:
@@ -1315,6 +1322,8 @@ def main():
         from wrapper_unix import describe_screen, is_working
         _describe[0] = lambda: describe_screen(unix_session_name)
         _HANDOVER["busy"] = lambda: is_working(unix_session_name)
+        from wrapper_unix import question_text
+        _ASKED[0] = lambda: question_text(unix_session_name)
         _set_activity_checker(get_activity_checker(
             unix_session_name, trigger_flag=_trigger_flag,
             provider=_provider_from_command(command),

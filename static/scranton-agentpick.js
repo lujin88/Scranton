@@ -1,6 +1,7 @@
-// Scranton: when your message @s exactly one agent, a button with their face appears in the
-// message box toolbar. It opens a small panel to switch that agent's model and thinking effort,
-// or restart / stop it (the Buzz pattern). Same settings as Settings → Agents → them.
+// Scranton: a button in the message box toolbar, always there. It opens a small panel to switch
+// an agent's model and thinking effort, or restart / stop it (the Buzz pattern). When your message
+// @s exactly one agent the button shows their face and opens straight to them; otherwise it opens
+// a list of the team to pick from. Same settings as Settings → Agents → them.
 (function () {
     'use strict';
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -31,10 +32,11 @@
         const input = document.getElementById('input');
         const row = document.getElementById('mention-toggles-row');
         if (!input || !row) return;
+        if (!Object.keys(team()).length) { btn?.remove(); btn = null; current = null; closePop(); return; }
         const hits = mentioned(input.value);
-        const h = hits.length === 1 ? hits[0] : null;
-        if (!h) { btn?.remove(); btn = null; current = null; closePop(); return; }
-        if (btn && current === h) return;
+        const h = hits.length === 1 ? hits[0] : '';
+        if (btn && btn.isConnected && current === h) return;
+        if (current !== h && !pop?.dataset.pinned) closePop();
         current = h;
         if (!btn) {
             btn = document.createElement('button');
@@ -42,31 +44,53 @@
             btn.id = 'sc-agentpick-btn';
             btn.setAttribute('aria-haspopup', 'dialog');
             btn.addEventListener('click', (e) => { e.stopPropagation(); pop ? closePop() : openPop(); });
-            row.querySelector('.sc-shortcut-btn, #sc-shortcut-btn')?.after(btn) || row.prepend(btn);
-            if (!btn.isConnected) row.prepend(btn);
+            // after + and ⚡, so those two sit in the same place as in a thread's reply box
+            const anchor = row.querySelector('#sc-shortcut-btn, .sc-shortcut-btn') || row.querySelector('#sc-attach-btn');
+            if (anchor) anchor.after(btn); else row.prepend(btn);
         }
-        btn.title = `${label(h)}: model and effort`;
+        btn.title = h ? `${label(h)}: model and effort` : 'Agent model and effort';
         btn.setAttribute('aria-label', btn.title);
-        btn.innerHTML = window.scAvatarHtml ? window.scAvatarHtml(h) : esc(label(h)).slice(0, 1);
+        btn.classList.toggle('generic', !h);
+        // Remix equalizer-line when no single agent is @'d
+        btn.innerHTML = h ? (window.scAvatarHtml ? window.scAvatarHtml(h) : esc(label(h)).slice(0, 1))
+            : '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.17 18a3.001 3.001 0 0 1 5.66 0H22v2H11.83a3.001 3.001 0 0 1-5.66 0H2v-2h4.17Zm6-7a3.001 3.001 0 0 1 5.66 0H22v2h-4.17a3.001 3.001 0 0 1-5.66 0H2v-2h10.17Zm-6-7a3.001 3.001 0 0 1 5.66 0H22v2H11.83a3.001 3.001 0 0 1-5.66 0H2V4h4.17ZM9 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm6 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm-6 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg>';
     }
 
     function closePop() { pop?.remove(); pop = null; btn?.setAttribute('aria-expanded', 'false'); }
 
-    async function openPop() {
-        const h = current;
-        if (!h) return;
+    function openList() {
+        closePop();
+        pop = document.createElement('div');
+        pop.id = 'sc-agentpick';
+        pop.setAttribute('role', 'dialog');
+        pop.setAttribute('aria-label', 'Choose an agent');
+        const hs = Object.keys(team());
+        pop.innerHTML = `<p class="sc-ap-title">Model and effort</p><ul class="sc-ap-list">${hs.map((h) => {
+            const st = (window.scAgentState && window.scAgentState(h)) || 'offline';
+            return `<li><button type="button" data-h="${esc(h)}"><span class="sc-ap-av sm">${window.scAvatarHtml ? window.scAvatarHtml(h) : ''}</span><span class="sc-ap-li-name">${esc(label(h))}</span><small class="${esc(st)}">${STATE[st] || st}</small></button></li>`;
+        }).join('')}</ul>`;
+        pop.onclick = (e) => { const b = e.target.closest('[data-h]'); if (b) { e.stopPropagation(); openPop(b.dataset.h); } };
+        document.body.appendChild(pop);
+        place();
+        btn?.setAttribute('aria-expanded', 'true');
+    }
+
+    async function openPop(pick) {
+        const h = pick || current;
+        if (!h) { openList(); return; }
         closePop();
         pop = document.createElement('div');
         pop.id = 'sc-agentpick';
         pop.setAttribute('role', 'dialog');
         pop.setAttribute('aria-label', `${label(h)} settings`);
+        if (pick) pop.dataset.pinned = h;
         pop.innerHTML = '<p class="sc-ap-loading">Loading…</p>';
         document.body.appendChild(pop);
         place();
         btn?.setAttribute('aria-expanded', 'true');
         let p = null;
         try { const r = await fetch(`/api/scranton/teammate/${encodeURIComponent(h)}`, { headers: H() }); if (r.ok) p = await r.json(); } catch (_) { /* below */ }
-        if (!pop || current !== h) return;
+        if (!pop || (pop.dataset.pinned || current) !== h) return;
         if (!p || !p.handle) { pop.innerHTML = '<p class="sc-ap-loading">Couldn\'t load this teammate.</p>'; return; }
         render(h, p, false);
     }
@@ -78,6 +102,7 @@
         const efforts = p.efforts || [];
         pop.innerHTML = `
             <div class="sc-ap-head">
+                ${pop.dataset.pinned ? `<button type="button" class="sc-ap-tool sc-ap-back" data-a="back" title="All agents" aria-label="All agents"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.828 12l4.95 4.95-1.414 1.414L8 12l6.364-6.364 1.414 1.414z"/></svg></button>` : ''}
                 <span class="sc-ap-av">${window.scAvatarHtml ? window.scAvatarHtml(h) : ''}</span>
                 <span class="sc-ap-name"><b>${esc(label(h))}</b><small class="${esc(st)}">${STATE[st] || st}${p.provider_name ? ' · ' + esc(p.provider_name) : ''}</small></span>
                 ${st !== 'offline' ? `<button type="button" class="sc-ap-tool" data-a="restart" title="Restart" aria-label="Restart">${ic('refresh')}</button>
@@ -102,6 +127,7 @@
         pop.onclick = async (e) => {
             const a = e.target.closest('[data-a]')?.dataset.a;
             if (!a) return;
+            if (a === 'back') { e.stopPropagation(); openList(); return; }
             e.target.closest('[data-a]').disabled = true;
             await fetch(`/api/scranton/teammate/${encodeURIComponent(h)}`, { method: 'POST', headers: H(), body: JSON.stringify({ action: a }) }).catch(() => null);
             window.scToast && window.scToast({ restart: `Restarting ${label(h)}…`, stop: `${label(h)} stopped.`, start: `Starting ${label(h)}…` }[a]);

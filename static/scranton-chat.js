@@ -539,12 +539,22 @@
                     ${b.question ? `<div class="sc-choice-q">${b.num ? esc(b.num) + '. ' : ''}${esc(b.question)}</div>` : ''}
                     ${b.options.map((o) => `<button type="button" class="sc-choice${picked === o.key ? ' on' : ''}" data-k="${esc(o.key)}"${picked ? ' disabled' : ''}>
                         <span class="sc-choice-key">${esc(o.key)}</span><span>${esc(o.text)}</span></button>`).join('')}
+                    <div class="sc-choice-foot"><button type="button" class="sc-choice-own" data-own>${picked ? 'Change my answer' : 'None of these: write my own'}</button></div>
                 </div>`;
             }).join('');
         };
         paint();
         wrap._paint = paint;
         wrap.addEventListener('click', (e) => {
+            const own = e.target.closest('[data-own]');
+            if (own) {
+                e.stopPropagation();
+                const qi = Number(own.closest('[data-q]').dataset.q);
+                const block = blocks[qi];
+                const tag = blocks.length > 1 || block.num ? `${block.num || qi + 1}` : '';
+                window.scAnswerOwn(msg, tag);
+                return;
+            }
             const b = e.target.closest('.sc-choice');
             if (!b || b.disabled) return;
             e.stopPropagation();
@@ -685,6 +695,23 @@
         setTimeout(() => document.getElementById('sc-thread-input')?.focus(), 30);
     }
     window.scOpenThread = openThread;
+    // "None of these" / "Change my answer": open the thread with "@agent 2：" typed, so you
+    // write your own answer (or a different one) in your words. Agents read it like a click.
+    window.scAnswerOwn = (msgOrId, tag) => {
+        const msg = typeof msgOrId === 'object' ? msgOrId : byId.get(Number(msgOrId));
+        if (!msg) return;
+        const root = rootOf(msg) ?? Number(msg.id);
+        openThread(Number(root));
+        const sender = String(msg.sender || '').split('-')[0];
+        setTimeout(() => {
+            const t = document.getElementById('sc-thread-input');
+            if (!t) return;
+            t.value = window.scShowLabels(`@${sender} `) + (tag ? tag + '：' : '');
+            t.dispatchEvent(new Event('input', { bubbles: true }));
+            t.focus();
+            t.setSelectionRange(t.value.length, t.value.length);
+        }, 60);
+    };
     // Close whatever the right panel shows (also when you leave the channel for Activity or Report).
     window.scCloseRightPanel = () => {
         openThreads.splice(0); activeThread = null;
@@ -1000,6 +1027,15 @@ window.scNormalizeMentions = function (text) {
     let v = String(text);
     for (const [l, h] of pairs) v = v.split('@' + l).join('@' + h);
     return v;
+};
+// The other way round, for anything we put into a message box: "@pm" shows as "@项目经理",
+// the same name you see everywhere else. Sending turns it back.
+window.scShowLabels = function (text) {
+    const team = (window.scGetTeam && window.scGetTeam()) || {};
+    return String(text ?? '').replace(/@([A-Za-z0-9_-]+)(?![\w-])/g, (all, h) => {
+        const t = team[h.toLowerCase()] || team[h];
+        return t && t.label ? '@' + t.label : all;
+    });
 };
 (function () {
     if (typeof sendMessage !== 'function') return;

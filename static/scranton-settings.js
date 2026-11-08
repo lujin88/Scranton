@@ -165,7 +165,7 @@
         return head + `<div class="sc-sc-list">${(Array.isArray(items) ? items : []).map((it, i) => `
             <div class="sc-sc-item" data-sc="${i}">
                 <div><input type="text" class="sc-sc-label" maxlength="40" value="${esc(it.label)}" aria-label="Name" placeholder="Name">
-                <textarea class="sc-sc-text" aria-label="Message" placeholder="Message, e.g. @pm …">${esc(it.text)}</textarea></div>
+                <textarea class="sc-sc-text" aria-label="Message" placeholder="Message, e.g. @项目经理 …">${esc(window.scShowLabels ? window.scShowLabels(it.text) : it.text)}</textarea></div>
                 <button type="button" class="sc-sc-del" data-a="sc-del" aria-label="Delete" title="Delete">${icon('delete', 18)}</button>
             </div>`).join('')}
             <div class="sc-hist-row"><button type="button" class="sc-btn" data-a="sc-add">${icon('add', 16)} Add shortcut</button><span class="sc-st-saved" id="sc-sc-saved"></span></div>

@@ -105,6 +105,25 @@ def waiting_on_question(tmux_session: str) -> bool:
     return bool(_QUESTION_RE.search(_bottom(pane_text(tmux_session, 30), 6)))
 
 
+_BOX = re.compile(r"^[\s│|╭╮╰╯─━┃>❯›•·*]+|[\s│|╭╮╰╯─━┃]+$")
+
+
+def question_text(tmux_session: str) -> str:
+    """The question the screen is asking, in one line, so the chat can say what it is.
+    The last line in the bottom 14 that ends with "?", else the line that matched."""
+    lines = [_BOX.sub("", l).strip() for l in pane_text(tmux_session, 40).splitlines()]
+    lines = [l for l in lines if l][-14:]
+    asked = [l for l in lines if l.endswith(("?", "？")) and len(l) > 6]
+    hit = asked[-1] if asked else next((l for l in reversed(lines) if _QUESTION_RE.search(l)), "")
+    # "Do you want to proceed?" alone says little: add what it's about (the line above, e.g. the command)
+    if hit and len(hit) < 40 and hit in lines:
+        i = lines.index(hit)
+        about = next((l for l in reversed(lines[max(0, i - 3):i]) if not l.lower().endswith("command")), "")
+        if about:
+            hit = f"{hit} ({about})"
+    return hit[:160]
+
+
 _INPUT_LINE = re.compile(r"^\s*[│|]?\s*[>❯›]\s?(.*)$")
 
 

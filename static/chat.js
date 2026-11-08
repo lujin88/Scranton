@@ -537,7 +537,7 @@ function handleServerEvent(event) {
                 const choicesEl = existing.querySelector('.decision-choices');
                 const meta = updated.metadata || {};
                 if (choicesEl && meta.resolved) {
-                    choicesEl.innerHTML = `<div class="decision-resolved">You chose: <strong>${escapeHtml(meta.chosen || '')}</strong></div>`;
+                    choicesEl.innerHTML = `<div class="decision-resolved">You chose: <strong>${escapeHtml(meta.chosen || '')}</strong></div><button type="button" class="sc-choice-own" onclick="window.scAnswerOwn && scAnswerOwn(${updated.id}, ''); event.stopPropagation();">Change my answer</button>`;
                 }
             }
         }
@@ -1059,11 +1059,11 @@ function appendMessage(msg, options = {}) {
         const choicesList = meta.choices || [];
         if (msg.type === 'decision' && choicesList.length > 0) {
             if (meta.resolved) {
-                choicesHtml = `<div class="decision-choices"><div class="decision-resolved">You chose: <strong>${escapeHtml(meta.chosen || '')}</strong></div></div>`;
+                choicesHtml = `<div class="decision-choices"><div class="decision-resolved">You chose: <strong>${escapeHtml(meta.chosen || '')}</strong></div><button type="button" class="sc-choice-own" onclick="window.scAnswerOwn && scAnswerOwn(${msg.id}, ''); event.stopPropagation();">Change my answer</button></div>`;
             } else {
                 choicesHtml = '<div class="decision-choices">' + choicesList.map(c =>
                     `<button class="decision-choice" onclick="resolveDecision(${msg.id}, '${escapeHtml(c).replace(/'/g, "\\'")}')">${escapeHtml(c)}</button>`
-                ).join('') + '</div>';
+                ).join('') + `<button type="button" class="sc-choice-own" onclick="window.scAnswerOwn && scAnswerOwn(${msg.id}, ''); event.stopPropagation();">None of these: write my own</button></div>`;
             }
         }
         el.innerHTML = `<div class="todo-strip"></div>${isSelf ? '' : avatarHtml}<div class="chat-bubble" style="--bubble-color: ${senderColor}">${replyHtml}<div class="bubble-header"><span class="msg-sender" style="color: ${senderColor}">${escapeHtml(msg.sender)}</span>${rolePillHtml}<span class="msg-time">${msg.time || ''}</span><span class="msg-num">#${msg.id}</span></div><div class="msg-text">${textHtml}</div>${choicesHtml}${attachmentsHtml}<button class="convert-job-pill" onclick="startJobFromMessage(${msg.id}); event.stopPropagation();" title="Convert to job">convert to job</button><button class="bubble-copy" onclick="copyMessage(${msg.id}, event)" title="Copy message"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div><div class="msg-actions"><button class="reply-btn" onclick="startReply(${msg.id}, event)">reply</button><button class="todo-hint" onclick="todoCycle(${msg.id}); event.stopPropagation();">${statusLabel}</button><button class="delete-btn" onclick="deleteClick(${msg.id}, event)" title="Delete">del</button></div>`;

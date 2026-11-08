@@ -172,7 +172,7 @@
         const input = document.getElementById('input');
         if (!input) return;
         const sep = input.value && !input.value.endsWith(' ') ? ' ' : '';
-        input.value = `${input.value}${sep}@${name} `;
+        input.value = `${input.value}${sep}${window.scShowLabels ? window.scShowLabels('@' + name) : '@' + name} `;
         input.focus();
         closeDrawers();
     }
@@ -236,36 +236,15 @@
         const btn = document.createElement('button');
         btn.id = 'sc-attach-btn';
         btn.type = 'button';
-        btn.title = 'Attach files (or drag them in, or paste with ⌘V)';
+        btn.title = `Attach files (${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+'}U, or drag them in, or paste)`;
         btn.setAttribute('aria-label', 'Attach files');
         btn.innerHTML = window.scIcon ? window.scIcon('add', 18) : '+';
         const file = document.createElement('input');
         file.type = 'file'; file.multiple = true; file.hidden = true; file.id = 'sc-attach-file';
-        let pop = null;
-        const close = () => { if (pop) { pop.remove(); pop = null; btn.setAttribute('aria-expanded', 'false'); } };
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (pop) { close(); return; }
-            pop = document.createElement('div');
-            pop.id = 'sc-attach-menu';
-            const mac = /Mac|iPhone|iPad/.test(navigator.platform);
-            pop.innerHTML = `<button type="button" data-a="files">${window.scIcon ? window.scIcon('attach', 18) : ''}<span>Upload files</span><kbd>${mac ? '⌘' : 'Ctrl+'}U</kbd></button>`;
-            document.body.appendChild(pop);
-            const r = btn.getBoundingClientRect();
-            pop.style.left = `${r.left}px`;
-            pop.style.bottom = `${window.innerHeight - r.top + 8}px`;
-            btn.setAttribute('aria-expanded', 'true');
-            pop.addEventListener('click', (ev) => {
-                const a = ev.target.closest('[data-a]')?.dataset.a;
-                if (!a) return;
-                close();
-                file.click();
-            });
-        });
-        document.addEventListener('click', (e) => { if (pop && !pop.contains(e.target)) close(); });
+        // One click opens the file picker, same as the + in a thread (a menu with one item is a wasted click).
+        btn.addEventListener('click', (e) => { e.stopPropagation(); file.click(); });
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') close();
-            if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'u') { e.preventDefault(); close(); file.click(); }
+            if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'u') { e.preventDefault(); file.click(); }
         });
         file.addEventListener('change', async () => {
             const files = Array.from(file.files || []);
@@ -328,7 +307,8 @@
                 const it = items[+b.dataset.i];
                 const input = getInput();
                 if (!it || !input) return;
-                input.value = input.value.trim() ? `${input.value.trim()}\n${it.text}` : it.text;
+                const shown = window.scShowLabels ? window.scShowLabels(it.text) : it.text;
+                input.value = input.value.trim() ? `${input.value.trim()}\n${shown}` : shown;
                 input.dispatchEvent(new Event('input', { bubbles: true }));
                 input.focus();
                 input.setSelectionRange(input.value.length, input.value.length);
