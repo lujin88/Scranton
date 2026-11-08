@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -90,7 +91,12 @@ def apply_update() -> dict:
         old_head = _git("rev-parse", "HEAD").stdout.strip()
         p = _git("pull", "--ff-only", "--quiet", "origin", branch, timeout=120)
         if p.returncode != 0:
-            return {"ok": False, "error": (p.stderr or "git pull failed").strip().splitlines()[-1][:200]}
+            err = (p.stderr or "git pull failed").strip()
+            if re.search(r"fast-forward|diverg|unrelated histories", err, re.I):
+                return {"ok": False, "error": "This copy and GitHub have different histories, so it can't update by itself. "
+                                              "In Terminal: cd ~/Scranton && git fetch origin && git reset --hard origin/"
+                                              f"{branch} && ./scranton.sh restart-server (your chats in data/ aren't touched)."}
+            return {"ok": False, "error": err.splitlines()[-1][:200]}
         # Dependencies may have changed. If they won't install, go back before restarting.
         py = ROOT / ".venv" / "bin" / "python"
         if py.exists():
