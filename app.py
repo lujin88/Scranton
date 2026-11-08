@@ -1,6 +1,7 @@
 """agentchattr — FastAPI web UI + agent auto-trigger."""
 
 from safe_io import atomic_write, quarantine
+import os
 import asyncio
 import json
 import re as _re
@@ -449,9 +450,18 @@ def configure(cfg: dict, session_token: str = ""):
         # Backward compatibility for existing installs.
         log_path = legacy_log_path
 
+    # Scranton: an imported chat history is put in place before it's loaded.
+    raw_upload_dir = cfg.get("images", {}).get("upload_dir", "./uploads")
+    try:
+        _sc_backup.apply_pending(data_dir, raw_upload_dir)
+    except Exception as e:
+        print(f"  Import of chat history didn't finish: {e}")
+    _sc_backup.setup(data_dir, raw_upload_dir)
+    if not os.environ.get("PYTEST_CURRENT_TEST"):
+        _sc_backup.start_daily()
+
     store = MessageStore(str(log_path))
     # Initialize store upload dir from config
-    raw_upload_dir = cfg.get("images", {}).get("upload_dir", "./uploads")
     store.upload_dir = Path(raw_upload_dir)
     
     # Rules store — migrates from legacy decisions.json automatically
@@ -2538,6 +2548,49 @@ async def scranton_report_settings(request: Request):
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
 
+@app.get("/api/scranton/backup")
+async def scranton_backup_get():
+    return JSONResponse(_sc_backup.settings())
+
+
+@app.post("/api/scranton/backup")
+async def scranton_backup_set(request: Request):
+    b = await request.json()
+    try:
+        return JSONResponse(_sc_backup.set_settings(
+            enabled=b.get("enabled") if "enabled" in b else None,
+            folder=b.get("folder") if "folder" in b else None))
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+
+
+@app.post("/api/scranton/backup/now")
+async def scranton_backup_now():
+    return JSONResponse(await asyncio.to_thread(_sc_backup.backup_now))
+
+
+@app.get("/api/scranton/backup/export")
+async def scranton_backup_export():
+    from fastapi.responses import Response
+    raw = await asyncio.to_thread(_sc_backup.export_bytes)
+    name = _sc_backup.file_name()
+    return Response(raw, media_type="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@app.post("/api/scranton/backup/import")
+async def scranton_backup_import(file: UploadFile = File(...)):
+    raw = await file.read(512 * 1024 * 1024 + 1)
+    if len(raw) > 512 * 1024 * 1024:
+        return JSONResponse({"ok": False, "error": "This file is larger than 512 MB."}, status_code=400)
+    try:
+        result = await asyncio.to_thread(_sc_backup.stage_import, raw)
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    _scranton_ops._restart_server_soon()
+    return JSONResponse(result)
+
+
 @app.get("/api/scranton/quiet")
 async def scranton_quiet_get():
     return JSONResponse(_sc_team.quiet_hours())
@@ -2927,6 +2980,7 @@ async def rename_agent_label(name: str, request: Request):
 
 _sc_doing: dict[str, str] = {}
 import scranton_report as _sc_report  # noqa: E402
+import scranton_backup as _sc_backup  # noqa: E402
 
 
 async def _broadcast_json(payload: dict):

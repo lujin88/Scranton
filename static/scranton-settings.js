@@ -3,6 +3,7 @@
 //   Agents       every AI teammate: what it runs on, status, start/stop; click → agent page
 //                with tabs Overview · Role card · Activity · Settings (model, permissions, autostart)
 //   Connections  Claude / ChatGPT / Cursor: signed in or not, Connect opens the official sign-in
+//   Chat history daily backup to a folder, export / import the whole history as one .zip
 //   Updates      check for a new version
 (function () {
     const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -24,6 +25,7 @@
         chat: 'M6.45455 19L2 22.5V4C2 3.44772 2.44772 3 3 3H21C21.5523 3 22 3.44772 22 4V18C22 18.5523 21.5523 19 21 19H6.45455ZM5.76282 17H20V5H4V18.3851L5.76282 17Z',
         close: 'M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z',
         back: 'M10.8284 12.0007L15.7782 16.9504L14.364 18.3646L8 12.0007L14.364 5.63672L15.7782 7.05093L10.8284 12.0007Z',
+        history: 'M12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12H4C4 16.4183 7.58172 20 12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C9.25022 4 6.82447 5.38734 5.38451 7.50024L8 7.5V9.5H2V3.5H4L3.99989 5.99918C5.82434 3.57075 8.72873 2 12 2ZM13 7L12.9998 11.585L16.2426 14.8284L14.8284 16.2426L10.9998 12.413L11 7H13Z',
         right: 'M13.1717 12.0007L8.22192 7.05093L9.63614 5.63672L16.0001 12.0007L9.63614 18.3646L8.22192 16.9504L13.1717 12.0007Z',
     };
     const icon = (k, s = 18) => (window.scIcon ? window.scIcon({ chat: 'feedback' }[k] || k, s) : '');
@@ -33,7 +35,7 @@
 
     const NAV = [
         ['Account', [['profile', 'Profile', 'user']]],
-        ['Workspace', [['agents', 'Agents', 'robot'], ['connections', 'Connections', 'plug']]],
+        ['Workspace', [['agents', 'Agents', 'robot'], ['connections', 'Connections', 'plug'], ['history', 'Chat history', 'time']]],
     ];
 
     let root = null;
@@ -96,6 +98,7 @@
         }
         if (section === 'connections') { body.innerHTML = '<div class="sc-st-loading">Checking sign-ins…</div>'; body.innerHTML = connectionsView(await api('/api/scranton/connections')); }
         if (section === 'updates') body.innerHTML = updatesView();
+        if (section === 'history') { body.innerHTML = historyView(null); const b = await api('/api/scranton/backup'); if (root && section === 'history') body.innerHTML = historyView(b); }
         if (section === 'agents' && agentOpen) {
             const p = await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}`);
             if (root && section === 'agents' && agentOpen === p.handle) body.innerHTML = agentView(p);
@@ -133,6 +136,63 @@
             <label class="sc-field sc-time"><span>From</span><input type="time" id="sc-q-from" value="${esc(q.from)}"></label>
             <label class="sc-field sc-time"><span>To</span><input type="time" id="sc-q-to" value="${esc(q.to)}"></label>
             <span class="sc-st-saved" id="sc-q-saved"></span>`;
+    }
+
+    // ---------------------------------------------------------------- Chat history
+    const when = (t) => {
+        if (!t) return 'Not yet';
+        const d = new Date(t * 1000);
+        const today = new Date().toDateString() === d.toDateString();
+        return (today ? 'Today' : d.toLocaleDateString([], { month: 'short', day: 'numeric' })) + ', ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
+    function historyView(b) {
+        const head = `<header class="sc-st-head"><h2>Chat history</h2><p>Your messages live on this Mac. Keep a copy so you don't lose them.</p></header>`;
+        if (!b) return head + '<div class="sc-st-loading">Loading…</div>';
+        const folder = b.folder || b.default_folder || '';
+        const pending = b.pending_import ? `<div class="sc-hist-note">An imported chat history is waiting. It goes in place when Scranton restarts.</div>` : '';
+        return head + pending + `
+            <header class="sc-st-sub"><h3>Daily backup</h3><p>Once a day Scranton saves a copy of every message, file and setting into a folder. The last 14 days are kept.</p></header>
+            <div class="sc-hist">
+                <label class="sc-switch-row"><input type="checkbox" id="sc-bk-on"${b.enabled ? ' checked' : ''}><span class="sc-switch"></span><span>${b.enabled ? 'On' : 'Off'}</span></label>
+                <label class="sc-field"><span>Folder</span><input type="text" id="sc-bk-folder" value="${esc(folder)}" spellcheck="false">
+                    <small>${folder.includes('CloudDocs') ? 'In iCloud Drive, so it\'s also safe if this Mac breaks.' : 'Tip: a folder in iCloud Drive or Dropbox keeps a copy off this Mac.'}</small></label>
+                <div class="sc-hist-row"><span class="sc-tbl-dim">Last backup: ${esc(when(b.last))}</span>
+                    <span class="sc-st-saved" id="sc-bk-saved"></span>
+                    <button type="button" class="sc-btn sm" data-a="backup-now">Back up now</button></div>
+                ${b.error ? `<div class="sc-hist-err">${esc(b.error)}</div>` : ''}
+            </div>
+            <header class="sc-st-sub"><h3>Export chat history</h3><p>Download all your chats as one file: every message in every channel, the files and pictures sent in chat, and your teammates, channels and schedules. Keep it, or use it to move Scranton to another Mac. Passwords and sign-ins are not in it.</p></header>
+            <div class="sc-hist-row"><button type="button" class="sc-btn" data-a="export">Export chat history</button><span class="sc-st-saved" id="sc-ex-saved"></span></div>
+            <header class="sc-st-sub"><h3>Import chat history</h3><p>Put back chats from an exported file or a daily backup. This replaces the chats here; Scranton first saves a backup of what's here now, then restarts.</p></header>
+            <div class="sc-hist-row"><button type="button" class="sc-btn" data-a="import">Import chat history…</button><span class="sc-st-saved" id="sc-im-saved"></span></div>`;
+    }
+    async function exportHistory() {
+        flash('sc-ex-saved', 'Preparing…');
+        const r = await fetch('/api/scranton/backup/export', { headers: { 'X-Session-Token': window.SESSION_TOKEN } });
+        if (!r.ok) { flash('sc-ex-saved', 'Couldn\'t export.'); return; }
+        const name = (/filename="([^"]+)"/.exec(r.headers.get('content-disposition') || '') || [])[1] || 'Scranton chat history.zip';
+        const url = URL.createObjectURL(await r.blob());
+        const a = document.createElement('a');
+        a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        flash('sc-ex-saved', 'Downloaded.');
+    }
+    function importHistory() {
+        const inp = document.createElement('input');
+        inp.type = 'file'; inp.accept = '.zip,application/zip';
+        inp.onchange = async () => {
+            const f = inp.files && inp.files[0];
+            if (!f) return;
+            if (!confirm(`Replace the chats here with "${f.name}"?\n\nScranton saves a backup of what's here now first, then restarts.`)) return;
+            flash('sc-im-saved', 'Checking the file…');
+            const fd = new FormData(); fd.append('file', f);
+            const r = await fetch('/api/scranton/backup/import', { method: 'POST', headers: { 'X-Session-Token': window.SESSION_TOKEN }, body: fd })
+                .then((x) => x.json()).catch(() => ({ error: 'Couldn\'t upload the file.' }));
+            if (!r.ok) { flash('sc-im-saved', r.error || 'Couldn\'t import.'); return; }
+            flash('sc-im-saved', 'Restarting Scranton…');
+            setTimeout(() => location.reload(), 6000);
+        };
+        inp.click();
     }
 
     // ---------------------------------------------------------------- Agents
@@ -355,6 +415,15 @@
         if (a === 'upload') { window.scChangePicture && window.scChangePicture(); waitForPicture(); return; }
         if (a === 'remove-photo') { try { localStorage.removeItem('scranton-me-avatar'); } catch (_) {} window.scSaveAvatar && window.scSaveAvatar(''); window.scRenderMe && window.scRenderMe(); render(); return; }
         if (a === 'save-profile') { saveProfile(); return; }
+        if (a === 'export') { exportHistory(); return; }
+        if (a === 'import') { importHistory(); return; }
+        if (a === 'backup-now') {
+            flash('sc-bk-saved', 'Backing up…');
+            const b = await api('/api/scranton/backup/now', {});
+            if (root && section === 'history') root.querySelector('.sc-st-body').innerHTML = historyView(b);
+            flash('sc-bk-saved', b.error ? '' : 'Saved.');
+            return;
+        }
         if (a === 'back') { agentOpen = null; editing = false; pickingAvatar = false; render(); return; }
         if (a === 'edit') { editing = true; render(); return; }
         if (a === 'pick-avatar') { pickingAvatar = !pickingAvatar; render(); return; }
@@ -476,6 +545,13 @@
             return;
         }
         if (e.target.id && e.target.id.startsWith('sc-new-')) return;
+        if (e.target.id === 'sc-bk-on' || e.target.id === 'sc-bk-folder') {
+            const b = await api('/api/scranton/backup', e.target.id === 'sc-bk-on' ? { enabled: e.target.checked } : { folder: e.target.value });
+            if (b.error) { flash('sc-bk-saved', b.error); return; }
+            if (root && section === 'history') root.querySelector('.sc-st-body').innerHTML = historyView(b);
+            flash('sc-bk-saved', 'Saved.');
+            return;
+        }
         if (e.target.id === 'sc-d-on') {
             const r = await api('/api/scranton/daily', { enabled: e.target.checked });
             const lbl = e.target.parentElement.querySelector('span:last-child');
