@@ -49,6 +49,7 @@
         const c = r.counts || {};
         const w = r.waiting || {};
         const maxH = Math.max(1, ...(r.work || []).map((x) => x.hours));
+        const anyHours = (r.work || []).some((x) => x.hours > 0);   // all 0 h: empty bars are noise
         s.innerHTML = `<div class="sc-rp">
             <header class="sc-rp-head">
                 <h1>Report</h1>
@@ -74,8 +75,8 @@
             ${(r.work || []).length ? `<div class="sc-rp-list">${r.work.map((x) => `<div class="sc-rp-row static">
                 <span class="sc-rp-av">${window.scAvatarHtml ? window.scAvatarHtml(x.agent) : ''}</span>
                 <span class="sc-rp-t"><b>${esc(label(x.agent))}</b><small>${x.replies} message${x.replies === 1 ? '' : 's'}</small></span>
-                <span class="sc-rp-bar"><i style="width:${Math.round((x.hours / maxH) * 100)}%"></i></span>
-                <span class="sc-rp-num">${x.hours} h</span></div>`).join('')}</div>
+                ${anyHours ? `<span class="sc-rp-bar"><i style="width:${Math.round((x.hours / maxH) * 100)}%"></i></span>
+                <span class="sc-rp-num">${x.hours} h</span>` : ''}</div>`).join('')}</div>
                 <p class="sc-rp-note">Hours are measured from when each agent's terminal was busy. Busy isn't always productive: a stuck agent counts too.</p>`
                 : '<p class="sc-rp-muted">No agent work measured yet. Scranton starts counting from now on.</p>'}
 

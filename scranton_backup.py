@@ -2,6 +2,8 @@
 
 - Every day one .zip goes into a folder Lu picks (iCloud Drive "Scranton Backups" when
   iCloud is there). The newest 14 stay; older Scranton backups in that folder are removed.
+  Pictures and files are copied once into "Scranton files" beside them, not into every zip,
+  so 14 days don't mean 14 copies of every screenshot.
 - "Export chat history" downloads the same .zip.
 - "Import chat history" checks a .zip, backs up what is here now, and puts the imported
   files in place the next time Scranton starts (the server holds the history in memory).
@@ -42,6 +44,12 @@ It does not hold passwords or agent sign-ins.
 
 To put it back: Scranton > Settings > Chat history > Import chat history.
 """
+
+DAILY_NOTE = """
+In daily backups the pictures and files are kept once, in the folder "Scranton files" next to
+these .zip files, instead of in every day's copy. "Export chat history" puts everything in one file.
+"""
+FILES_DIR = "Scranton files"
 
 _lock = threading.Lock()
 _data = Path("./data")
@@ -98,9 +106,11 @@ def folder() -> Path:
     return Path(f).expanduser() if f else default_folder()
 
 
-def _files():
+def _files(with_uploads: bool = True):
     """(path on disk, name in the zip) for everything that belongs in a backup."""
     for base, prefix in ((_data, "data"), (_uploads, "uploads")):
+        if prefix == "uploads" and not with_uploads:
+            continue
         if not base.is_dir():
             continue
         for p in sorted(base.rglob("*")):
@@ -123,13 +133,13 @@ def _has_secret(p: Path) -> bool:
         return True
 
 
-def write_zip(out) -> int:
+def write_zip(out, with_uploads: bool = True) -> int:
     """Write the backup into a path or file object. Returns the number of files."""
     n = 0
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("README.txt", README)
-        z.writestr("scranton-backup.json", json.dumps({"version": 1, "made": time.time()}))
-        for p, name in _files():
+        z.writestr("README.txt", README if with_uploads else README + DAILY_NOTE)
+        z.writestr("scranton-backup.json", json.dumps({"version": 1, "made": time.time(), "uploads": with_uploads}))
+        for p, name in _files(with_uploads):
             try:
                 z.write(p, name)
                 n += 1
@@ -158,14 +168,33 @@ def backup_now() -> dict:
             dest.mkdir(parents=True, exist_ok=True)
             target = dest / file_name()
             tmp = target.with_name(target.name + ".tmp")
-            write_zip(tmp)
+            write_zip(tmp, with_uploads=False)
             tmp.replace(target)
+            _mirror_uploads(dest / FILES_DIR)
             _prune(dest)
             s.update(last=time.time(), last_file=str(target), error="")
         except OSError as e:
             s["error"] = f"Couldn't save to {dest}: {e.strerror or e}"
         _save(s)
     return settings()
+
+
+def _mirror_uploads(to: Path):
+    """Pictures and files sent in chat, copied once (new or changed files only). Nothing is
+    removed from here when it's deleted in Scranton: this is the safety copy."""
+    if not _uploads.is_dir():
+        return
+    for p in _uploads.rglob("*"):
+        if not p.is_file() or p.is_symlink():
+            continue
+        target = to / p.relative_to(_uploads)
+        try:
+            if target.exists() and target.stat().st_size == p.stat().st_size:
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(p, target)
+        except OSError:
+            continue
 
 
 def _prune(dest: Path):

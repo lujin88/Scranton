@@ -117,7 +117,7 @@
         const offline = inCh.filter((h) => state(h) === 'offline');
         p.innerHTML = `
             <div class="sc-mp-head">
-                <div class="sc-mp-title"><b>#${esc(ch)}</b><span>${draft.size + 1} people · you and ${draft.size} of ${all.length} teammates</span></div>
+                <div class="sc-mp-title"><b>#${esc(ch)}</b><span>${draft.size + 1} people · ${all.filter((h) => state(h) !== 'offline').length} running</span></div>
                 <button type="button" class="sc-mp-link" data-selectall="1">${draft.size === all.length ? 'Clear all' : 'Select all'}</button>
             </div>
             <ul class="sc-mp-list">
@@ -130,7 +130,7 @@
                     <input type="checkbox" value="${esc(h)}"${draft.has(h) ? ' checked' : ''}>
                     <span class="sc-mp-check" aria-hidden="true">${window.scIcon ? window.scIcon('check', 16) : ''}</span>
                     <span class="sc-mp-av ${esc(state(h))}">${avatar(h)}<span class="team-dot"></span></span>
-                    <span class="sc-mp-who"><b>${esc(label(h))}</b><small>${esc(stateText(h))}</small></span>
+                    <span class="sc-mp-who"><b>${esc(label(h))}</b>${state(h) === 'offline' ? '' : `<small>${esc(stateText(h))}</small>`}</span>
                     ${inCh.includes(h) && draft.has(h) && state(h) === 'offline' ? `<button type="button" class="sc-mp-btn start" data-start="${esc(h)}">Start</button>` : ''}
                 </label></li>`).join('')}</ul>
             <div class="sc-mp-foot">
@@ -140,7 +140,7 @@
                     <button type="button" class="sc-mp-btn primary" data-done="1"${changes ? '' : ' disabled'}>${changes ? `Done · ${adds.length ? `+${adds.length}` : ''}${adds.length && removes.length ? ' ' : ''}${removes.length ? `−${removes.length}` : ''}` : 'Done'}</button>
                 </span>
             </div>
-            <p class="sc-mp-note">Added teammates start automatically. You can also drag people here from Direct messages.</p>`;
+`;
         const list = p.querySelector('.sc-mp-list');
         if (list) list.scrollTop = scroll;
         const btn = document.getElementById('sc-members-btn');

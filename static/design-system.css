@@ -533,3 +533,11 @@ body.sc-in-dm #mention-toggles-row > #sc-shortcut-btn { display: grid !important
 .sc-sc-item textarea { field-sizing: content; max-height: 260px; min-height: 72px; resize: vertical; margin-top: var(--ds-2); line-height: 1.5; font-size: 13px; }
 .sc-sc-item .sc-sc-del { align-self: start; width: 36px; height: 36px; border: 0; border-radius: var(--ds-r-control); background: transparent; color: var(--ds-text-3); display: grid; place-items: center; }
 .sc-sc-item .sc-sc-del:hover { background: var(--ds-hover); color: #f47067; }
+/* Phone: the details panel covers the whole screen instead of leaving a strip of chat */
+@media (max-width: 760px) {
+    body.sc-info-open #sc-info { position: fixed !important; inset: 0 !important; width: 100vw !important; max-width: none !important; z-index: 60; border: 0 !important; }
+}
+/* Members: Start shows on the row you point at; offline is the dot, not a label on every row */
+.sc-mp-row .sc-mp-btn.start { opacity: 0; transition: opacity .12s; }
+.sc-mp-row:hover .sc-mp-btn.start, .sc-mp-row:focus-within .sc-mp-btn.start { opacity: 1; }
+@media (hover: none) { .sc-mp-row .sc-mp-btn.start { opacity: 1; } }

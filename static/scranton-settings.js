@@ -181,7 +181,7 @@
         const folder = b.folder || b.default_folder || '';
         const pending = b.pending_import ? `<div class="sc-hist-note">An imported chat history is waiting. It goes in place when Scranton restarts.</div>` : '';
         return head + pending + `
-            <header class="sc-st-sub"><h3>Daily backup</h3><p>Once a day Scranton saves a copy of every message, file and setting into a folder. The last 14 days are kept.</p></header>
+            <header class="sc-st-sub"><h3>Daily backup</h3><p>Once a day Scranton saves your messages and settings into a folder and keeps the last 14 days. Pictures and files are copied once, into "Scranton files" in the same folder.</p></header>
             <div class="sc-hist">
                 <label class="sc-switch-row"><input type="checkbox" id="sc-bk-on"${b.enabled ? ' checked' : ''}><span class="sc-switch"></span><span>${b.enabled ? 'On' : 'Off'}</span></label>
                 <label class="sc-field"><span>Folder</span><input type="text" id="sc-bk-folder" value="${esc(folder)}" spellcheck="false">

@@ -24,14 +24,19 @@
 
     function steps() {
         const hasPic = (LS.get('scranton-me-avatar', '') || '').startsWith('data:image/');
+        const myName = String((window.scMe && window.scMe()) || '');
+        const pmHandle = team()[PM] ? PM : Object.keys(team())[0];
+        // Ticked from what really happened, so it's the same on the phone as on the Mac.
+        const pmAnswered = !!pmHandle && Array.from((window.scMsgs && window.scMsgs.values()) || [])
+            .some((m) => m && m.channel === `dm-${pmHandle}` && String(m.sender || '').split('-')[0] === pmHandle);
         const pm = team()[PM] ? PM : Object.keys(team())[0];
         return [
             { id: 'apps', icon: 'plug', title: 'Connect your apps', text: 'Claude, ChatGPT or Cursor. Your plans, no API keys.',
                 done: connected === true, go: () => window.scOpenSettings && window.scOpenSettings('connections') },
             { id: 'me', icon: 'user-smile', title: 'Add your name and photo', text: 'So your agents know who they work for.',
-                done: hasPic || LS.get('scranton-welcome-me', '') === '1', go: () => { LS.set('scranton-welcome-me', '1'); window.scOpenSettings && window.scOpenSettings('profile'); } },
+                done: hasPic || (myName && !/^(user|you)$/i.test(myName)), go: () => { window.scOpenSettings && window.scOpenSettings('profile'); } },
             { id: 'meet', icon: 'chat-smile', title: `Say hi to ${esc(pm ? label(pm) : 'your project manager')}`, text: 'Your project manager plans the work and hands it to the team.',
-                done: LS.get('scranton-welcome-meet', '') === '1', go: () => { LS.set('scranton-welcome-meet', '1'); close(); pm && window.scOpenDm && window.scOpenDm(pm); } },
+                done: pmAnswered, go: () => { close(); pm && window.scOpenDm && window.scOpenDm(pm); } },
             { id: 'task', icon: 'task', title: 'Give the first task', text: `In #${PROJECT}, @ someone and say what you need.`,
                 done: LS.get('scranton-welcome-task', '') === '1', go: () => {
                     close();

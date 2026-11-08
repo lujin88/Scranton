@@ -47,6 +47,9 @@ class BackupTest(unittest.TestCase):
         self.assertFalse(s["error"])
         ours = [p for p in self.dest.iterdir() if bk.NAME_RE.match(p.name)]
         self.assertEqual(len(ours), 14)
+        today = self.names((self.dest / bk.file_name()).read_bytes())
+        self.assertNotIn("uploads/a.png", today)            # pictures aren't in every daily zip…
+        self.assertTrue((self.dest / "Scranton files" / "a.png").exists())   # …they're kept once
         self.assertTrue((self.dest / bk.file_name()).exists())
         self.assertTrue((self.dest / "mine.zip").exists())
         self.assertFalse(bk.due())
