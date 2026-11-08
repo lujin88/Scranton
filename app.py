@@ -1086,7 +1086,10 @@ async def _handle_new_message(msg: dict):
                            "errors": ["Invalid JSON in session block"], "valid": False},
             )
 
+    was_paused = router.is_paused(channel)
     raw_targets = router.get_targets(sender, text, channel)
+    if router.is_paused(channel) != was_paused:
+        await broadcast_status()   # paused by the loop guard, or a message from you let them go on
     # Scranton: a DM whose handle isn't a teammate would route nowhere silently.
     if (channel.startswith("dm-") and not raw_targets and msg_type == "chat"
             and sender.lower() == str(room_settings.get("username", "")).lower()
@@ -1200,7 +1203,9 @@ async def broadcast(msg: dict):
 
 async def broadcast_status():
     status = agents.get_status()
-    status["paused"] = any(router.is_paused(ch) for ch in room_settings.get("channels", ["general"]))
+    paused = [ch for ch in room_settings.get("channels", ["general"]) if router.is_paused(ch)]
+    status["paused"] = bool(paused)
+    status["paused_channels"] = paused   # Scranton: the page shows the pause card only where it's true
     data = json.dumps({"type": "status", "data": status})
     dead = set()
     for client in list(ws_clients):
@@ -2629,7 +2634,7 @@ async def scranton_channel_about(name: str):
         for a in m.get("attachments") or []:
             if isinstance(a, dict) and str(a.get("url", "")).startswith("/uploads/"):
                 files.append({"name": str(a.get("name") or "file")[:200], "url": a["url"], "size": a.get("size"),
-                              "kind": a.get("kind"), "by": m.get("sender"), "time": m.get("timestamp"), "msg": m.get("id")})
+                              "by": m.get("sender"), "time": m.get("timestamp"), "msg": m.get("id")})
     return JSONResponse({"name": name, "topic": meta.get("topic", ""), "description": meta.get("description", ""),
                          "started": first, "files": files[-20:][::-1]})
 
@@ -2639,7 +2644,12 @@ async def scranton_channel_about_set(name: str, request: Request):
     name = name.strip().lower()
     if name not in room_settings.get("channels", []):
         return JSONResponse({"error": "no such channel"}, status_code=404)
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        body = None
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "expected {topic, description}"}, status_code=400)
     meta = room_settings.setdefault("channel_meta", {}).setdefault(name, {})
     for key, limit in (("topic", 250), ("description", 1000)):
         if key in body:
@@ -2655,7 +2665,7 @@ async def scranton_dm_activity():
     last = {}
     for m in store.get_since(-1):
         ch = str(m.get("channel") or "")
-        if ch.startswith("dm-") and m.get("type", "chat") == "chat":
+        if ch.startswith("dm-") and m.get("type", "chat") == "chat" and m.get("sender") != "system":
             last[ch] = max(last.get(ch, 0), float(m.get("timestamp") or 0))
     return JSONResponse(last)
 
@@ -2734,12 +2744,15 @@ async def scranton_grok_say(request: Request):
         reply_to = None
     if reply_to is not None and not store.get_by_id(reply_to):
         reply_to = None
-    text = window_text(text)
+    if _re.match(r"^(?:@\S+\s+)*/", text):
+        # /continue, /clear, /roastreview… are yours: Grok relays words, it doesn't run commands.
+        return JSONResponse({"ok": False, "error": "Grok can't send commands (text starting with /). Ask Lu."}, status_code=400)
+    text = _grok_handles(text)
     msg = store.add(_sc_grok.HANDLE, text, channel=channel, reply_to=reply_to)
     return JSONResponse({"ok": True, "id": msg["id"]})
 
 
-def window_text(text: str) -> str:
+def _grok_handles(text: str) -> str:
     """Grok writes @项目经理 like Lu does; turn labels into handles so they reach the agent."""
     for h, a in ((config or {}).get("agents") or {}).items():
         lab = str(a.get("label") or "")
@@ -2911,9 +2924,23 @@ def _sc_tmux_session(name: str) -> str:
                 if d.get("base") == name and d.get("state", "active") == "active"]
     except Exception:
         live = []
-    if name in live:
-        return f"agentchattr-{name}"
-    return f"agentchattr-{sorted(live)[0]}" if live else f"agentchattr-{name}"
+    # A wrapper's terminal keeps the name it started with, even if the registry later renamed
+    # it (claude -> claude-1), so use the first candidate whose terminal really exists.
+    import subprocess as _sp
+    for cand in ([name] if name in live else []) + sorted(live) + [name]:
+        try:
+            if _sp.run(["tmux", "has-session", "-t", f"=agentchattr-{cand}"], capture_output=True, timeout=3).returncode == 0:
+                return f"agentchattr-{cand}"
+        except Exception:
+            break
+    try:
+        out = _sp.run(["tmux", "ls", "-F", "#S"], capture_output=True, text=True, timeout=3).stdout.split()
+        found = sorted(s for s in out if _re.fullmatch(rf"agentchattr-{_re.escape(name)}(-\d+)?", s))
+        if found:
+            return found[0]
+    except Exception:
+        pass
+    return f"agentchattr-{name}"
 
 
 @app.get("/api/scranton/teammate/{name}/screen")

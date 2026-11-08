@@ -117,6 +117,15 @@ class SessionReclaimTests(unittest.TestCase):
         fresh = self.reg.register("claude")
         self.assertEqual(fresh["name"], "claude")
 
+    def test_fresh_register_only_frees_slot1(self):
+        """Two instances both gone: the fresh one takes 'claude'; 'claude-2' stays reserved."""
+        self.reg.register("claude"); self.reg.register("claude")       # claude-1, claude-2
+        self.reg.deregister("claude-2", reclaimable=True)
+        self.reg.deregister("claude", reclaimable=True)     # claude-1 was renamed back to "claude"
+        fresh = self.reg.register("claude")
+        self.assertEqual(fresh["name"], "claude")
+        self.assertNotEqual(self.reg.register("claude")["name"], "claude-2")
+
     def test_reservation_still_holds_while_another_instance_is_live(self):
         """With a live sibling, a reserved slot is still kept for its owner to reclaim."""
         self.reg.register("claude")

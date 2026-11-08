@@ -95,6 +95,8 @@ fetch('/api/scranton/quiet', { headers: { 'X-Session-Token': SESSION_TOKEN } }).
 
 // --- Scranton: sent-but-not-confirmed messages -------------------------------
 let scPending = null;   // { text, channel, timer }
+// Commands the server acts on without storing them as your message (so there's no echo).
+const SC_SILENT_CMD = /^\/(continue|clear|hatmaking|artchallenge|roastreview|poetry)\b/i;
 function scAwaitEcho(text, channel) {
     if (scPending) clearTimeout(scPending.timer);
     try { localStorage.setItem('scranton-unsent', JSON.stringify({ text, channel, t: Date.now() })); } catch (_) {}
@@ -139,7 +141,7 @@ setTimeout(() => {
     try {
         const u = JSON.parse(localStorage.getItem('scranton-unsent') || 'null');
         // Commands (/continue…) never echo back, so an old saved one isn't a lost message.
-        if (u && String(u.text || '').trim().startsWith('/')) { localStorage.removeItem('scranton-unsent'); return; }
+        if (u && SC_SILENT_CMD.test(String(u.text || '').trim())) { localStorage.removeItem('scranton-unsent'); return; }
         if (u && Date.now() - u.t < 3600e3 && !scPending) scNotSent(u.text, u.channel);
     } catch (_) {}
 }, 4000);
@@ -627,6 +629,7 @@ function handleServerEvent(event) {
         updateTodoState(d.id, d.status);
     } else if (event.type === 'status') {
         updateStatus(event.data);
+        if (window.scSetPaused) window.scSetPaused(event.data && event.data.paused_channels);
     } else if (event.type === 'typing') {
         updateTyping(event.agent, event.active);
     } else if (event.type === 'settings') {
@@ -766,6 +769,7 @@ function connectWebSocket() {
         console.log('WebSocket connected');
         // Scranton: after a server restart (e.g. an update), reload if the page is out of date.
         if (window.scCheckBuild) window.scCheckBuild();
+        if (window.scReloadDmActivity) window.scReloadDmActivity();
         if (reconnectTimer) {
             clearTimeout(reconnectTimer);
             reconnectTimer = null;
@@ -2660,7 +2664,7 @@ function sendMessage() {
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(payload));
         // Commands (/continue, /clear…) aren't stored as your message, so there's no echo to wait for.
-        if (!String(text || '').trim().startsWith('/')) scAwaitEcho(text, activeChannel);
+        if (!SC_SILENT_CMD.test(String(text || '').trim())) scAwaitEcho(text, activeChannel);
     } else {
         scNotSent(text, activeChannel);
         return;
@@ -2729,6 +2733,11 @@ function setupDragDrop() {
         if (!files) return;
 
         const target = document.elementFromPoint(e.clientX, e.clientY) || e.target;
+        // Scranton: dropped on the open thread → they go with the thread reply
+        if (target.closest('#sc-thread') && !target.closest('#sc-info') && window.scAddThreadFiles) {
+            await window.scAddThreadFiles(Array.from(files));
+            return;
+        }
         const inJob = target.closest('#jobs-panel') &&
             !document.getElementById('jobs-conversation-view').classList.contains('hidden');
         await uploadFiles(Array.from(files), Boolean(inJob));

@@ -63,6 +63,9 @@
             mirror.style.left = box.offsetLeft + 'px';
             mirror.style.top = box.offsetTop + 'px';
             mirror.style.width = box.offsetWidth + 'px';
+            // a visible scrollbar narrows the text area; keep the same wrap width
+            mirror.style.paddingRight = (parseFloat(cs.paddingRight) + (box.offsetWidth - box.clientWidth
+                - parseFloat(cs.borderLeftWidth) - parseFloat(cs.borderRightWidth))) + 'px';
             mirror.style.height = box.offsetHeight + 'px';
             mirror.style.display = box.offsetParent ? '' : 'none';
         }
@@ -73,7 +76,7 @@
         }
         ['input', 'change', 'focus', 'keyup'].forEach((e) => box.addEventListener(e, sync));
         box.addEventListener('scroll', () => { mirror.scrollTop = box.scrollTop; });
-        if (window.ResizeObserver) new ResizeObserver(place).observe(box);
+        if (window.ResizeObserver) { const ro = new ResizeObserver(place); ro.observe(box); ro.observe(host); }
         window.addEventListener('resize', place);
         // Code that sets .value directly (send clears the box, chips insert names) fires no event.
         const desc = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
@@ -93,7 +96,4 @@
         if (t) attach(t);
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
-    // The thread box is built later; catch it when it appears.
-    new MutationObserver(() => { const t = document.getElementById('sc-thread-input'); if (t && !t._scHl) attach(t); })
-        .observe(document.body, { childList: true, subtree: true });
 })();

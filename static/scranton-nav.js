@@ -310,13 +310,13 @@
     }
     window.scNoteDmMessage = (msg) => {
         const ch = String(msg && msg.channel || '');
-        if (!ch.startsWith('dm-') || (msg.type && msg.type !== 'chat')) return;
+        if (!ch.startsWith('dm-') || (msg.type && msg.type !== 'chat') || msg.sender === 'system') return;
         const t = Number(msg.timestamp) || Date.now() / 1000;
         if ((dmActivity[ch] || 0) >= t) return;
-        const isNew = !dmActivity[ch];
         dmActivity[ch] = t;
-        if (isNew) renderDms();
+        renderDms();   // most recent first, so a new message moves that person up
     };
+    window.scReloadDmActivity = loadDmActivity;
     loadDmActivity();
 
     // Keep dm-* channels out of the Channels list; refresh DMs alongside.

@@ -94,9 +94,7 @@ def main():
 
     # Mount static files
     from fastapi.staticfiles import StaticFiles
-    from fastapi.responses import HTMLResponse
-
-    from fastapi.responses import JSONResponse
+    from fastapi.responses import HTMLResponse, JSONResponse
     static_dir = ROOT / "static"
 
     def _build_id():

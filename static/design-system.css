@@ -27,8 +27,10 @@
 }
 :root[data-theme="light"] {
     color-scheme: light;
-    --tone-0e: #f7f7f7; --tone-10: #f5f5f5; --tone-12: #ffffff; --tone-1a: #ffffff;
-    --tone-1c: #f4f4f4; --tone-1f: #f1f1f1; --tone-20: #ebebeb; --tone-21: #f1f1f1;
+    /* Sampled from Grok Bot light: sidebar f5, conversation and panels fc, agent bubbles f0,
+       selected row e4, cards white with a hairline. */
+    --tone-0e: #f5f5f5; --tone-10: #f5f5f5; --tone-12: #fcfcfc; --tone-1a: #fcfcfc;
+    --tone-1c: #f4f4f4; --tone-1f: #ffffff; --tone-20: #e4e4e4; --tone-21: #f0f0f0;
     --tone-22: #ededed; --tone-23: #ececec; --tone-24: #eaeaea; --tone-26: #e8e8e8;
     --tone-2a: #e4e4e4; --tone-2c: #ffffff; --tone-2e: #e0e0e0; --tone-33: #dcdcdc;
     --tone-3a: #d4d4d4; --tone-3c: #e9e9e9; --tone-40: #cccccc; --tone-4a: #d6d6d6;
@@ -75,7 +77,7 @@
     /* ---- Text ---- */
     --ds-text: var(--tone-f5);
     --ds-text-2: var(--tone-a7);        /* secondary: meta, handles, hints */
-    --ds-text-3: var(--tone-70);        /* tertiary: timestamps, disabled */
+    --ds-text-3: var(--tone-8a);        /* tertiary: timestamps, disabled (#8a8a8a: AA on the dark surfaces) */
 
     /* ---- Accent (Grok blue): actions, unread, on-states, your messages ---- */
     --ds-accent: #4c8df6;
@@ -449,7 +451,7 @@ body.sc-report-open #sc-empty-room { display: none; }
 /* ================================================================ design review fixes (v2.1) */
 /* Contrast (WCAG AA): tertiary text 5:1 on the surface; filled buttons use a deeper blue so
    white text passes. The lighter blue stays for links, icons and on-states. */
-:root { --ds-text-3: var(--tone-8a); --ds-accent-fill: #2f6fde; --ds-accent-fill-hover: #3b7ae8; }
+:root { --ds-accent-fill: #2f6fde; --ds-accent-fill-hover: #3b7ae8; }
 .sc-btn.primary, .sc-mp-btn.primary { background: var(--ds-accent-fill) !important; color: #fff !important; }
 .sc-btn.primary:hover, .sc-mp-btn.primary:hover { background: var(--ds-accent-fill-hover) !important; }
 
@@ -837,19 +839,17 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 .sc-dm-empty .sc-dm-avatar { display: grid; place-items: center; border-radius: 50%; background: var(--ds-hover); color: var(--ds-text-2); }
 #sc-dm-pop { max-height: min(420px, 70vh); overflow-y: auto; }
 
-/* Loop-guard pause: a card with the two answers, not a sentence with a command in it */
-.message.sc-pause-msg { display: flex; justify-content: center; background: none !important; }
-.sc-pause { max-width: 520px; width: 100%; padding: var(--ds-4); border-radius: var(--ds-r-card); background: var(--ds-raised);
-    box-shadow: 0 0 0 1px rgba(var(--ink), 0.06); color: var(--ds-text); font-size: var(--ds-fs-md); }
-.sc-pause-h { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; color: var(--ds-warn-text); }
-.sc-pause-h b { color: var(--ds-text); font-weight: 600; }
-.sc-pause p { margin: 0; color: var(--ds-text-2); line-height: 1.5; }
-.sc-pause-act { display: flex; gap: 8px; margin-top: var(--ds-3); }
-.sc-pause.done { padding: var(--ds-2) var(--ds-4); }
-.sc-pause.done > p:not(.sc-pause-done) { display: none; }
-.sc-pause.done .sc-pause-done { margin-top: 2px; }
+/* Loop-guard pause: a one-line note in the conversation, the decision docked above the box */
+.message.sc-pause-note { display: flex; justify-content: center; }
+.message.sc-pause-note .msg-text { display: inline-flex; align-items: center; gap: 6px; color: var(--ds-warn-text) !important; }
+#sc-pause-dock { display: flex; align-items: center; gap: 12px; max-width: var(--ds-read-w); margin: 0 auto 8px; padding: 10px 10px 10px 14px;
+    border-radius: var(--ds-r-card); background: var(--ds-raised); box-shadow: 0 0 0 1px rgba(var(--ink), 0.08), 0 4px 16px rgba(0, 0, 0, 0.06); }
+.sc-pd-ic { color: var(--ds-warn-text); display: grid; place-items: center; }
+.sc-pd-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.sc-pd-text b { font-weight: 600; font-size: var(--ds-fs-md); color: var(--ds-text); }
+.sc-pd-text small { font-size: var(--ds-fs-sm); color: var(--ds-text-2); }
+@media (max-width: 760px) { #sc-pause-dock { flex-wrap: wrap; } .sc-pd-text { flex-basis: calc(100% - 40px); } }
 #input.sc-has-suggest::placeholder { color: var(--ds-text-2); }
-.sc-pause, .sc-pause p { text-align: left; }
 #channel-sidebar-top { padding: 0 10px !important; }
 #channel-sidebar-top > * { margin: 6px 0; }
 /* Grok Bot: the tool icons sit close to the first row */
@@ -908,3 +908,27 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 :root[data-theme="light"] #input-row:focus-within, :root[data-theme="light"] #sc-thread .sc-thread-compose:focus-within {
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.16), 0 2px 10px rgba(0, 0, 0, 0.06) !important; }
 :root[data-theme="dark"] #input-row:focus-within { background: var(--ds-field) !important; }
+
+
+/* ================================================================ light mode, Grok Bot details */
+:root[data-theme="light"] {
+    --ds-accent-soft: #232323;          /* your bubble: near-black with white text, as in Grok Bot */
+    --ds-accent-chip: rgba(255, 255, 255, 0.16);
+}
+:root[data-theme="light"] .message.self .msg-text, :root[data-theme="light"] .sc-tmsg.self .sc-tmsg-body { color: #fff !important; }
+:root[data-theme="light"] .message.self .msg-text a { color: #9cc0fa !important; }
+:root[data-theme="light"] .message.self .msg-text .mention { background: rgba(255, 255, 255, 0.16) !important; color: #fff !important; }
+:root[data-theme="light"] .message.self .msg-text code { background: rgba(255, 255, 255, 0.12) !important; color: #fff !important; }
+/* hairlines where two light areas meet */
+:root[data-theme="light"] #channel-sidebar { box-shadow: inset -1px 0 0 #e4e4e4; }
+:root[data-theme="light"] #sc-thread { box-shadow: inset 1px 0 0 #eaeaea; }
+/* cards on the light panels: white with a hairline */
+:root[data-theme="light"] .sc-ch-card, :root[data-theme="light"] #sc-pause-dock, :root[data-theme="light"] #sc-dm-pop,
+:root[data-theme="light"] .sc-st-card, :root[data-theme="light"] .sc-info-list { background: #fff !important; box-shadow: 0 0 0 1px #ededed !important; }
+:root[data-theme="light"] .sc-ch-tabs button[aria-selected="true"] { border-bottom-color: #141414; }
+/* sidebar tool icons: white circles, as in Grok Bot */
+:root[data-theme="light"] #sc-side-tools .sc-tool { background: #fff !important; border-radius: 50% !important; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.04); }
+
+/* Messages fade out as they scroll under the floating header (Grok Bot), both themes */
+#timeline { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 88px); mask-image: linear-gradient(to bottom, transparent 0, #000 88px); }
+:root[data-theme="light"] .sc-btn:not(.primary):not(.danger) { background: #fff !important; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12) !important; }

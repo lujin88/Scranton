@@ -258,7 +258,6 @@
         }
     }
 
-    function linkFor(id) { return `${location.origin}${location.pathname}#msg-${id}`; }
 
     async function copyText(t, label) {
         try { await navigator.clipboard.writeText(t); toast(`${label} copied`); }
@@ -348,10 +347,7 @@
             const k = b.dataset.k;
             closePops();
             if (k === 'copy') copyText(String(m.text || ''), 'Message');
-            if (k === 'link') copyText(linkFor(id), 'Link');
             if (k === 'forward') openForward(anchor, id);
-            if (k === 'thread') openThread(rootOf(m) ?? id);
-            if (k === 'reply') quoteReply(id);
             if (k === 'unread') {
                 const ch = m.channel || 'general';
                 if (window.channelUnread) window.channelUnread[ch] = (window.channelUnread[ch] || 0) + 1;
@@ -377,7 +373,6 @@
             if (act === 'react') openEmoji(tool, id);
             if (act === 'reply') quoteReply(id);
             if (act === 'thread') openThread(m ? (rootOf(m) ?? id) : id);
-            if (act === 'link') copyText(linkFor(id), 'Link');
             if (act === 'forward') openForward(tool, id);
             if (act === 'more') openMore(tool, id);
             return;
@@ -575,65 +570,66 @@
         col.querySelector('.msg-text')?.after(wrap);
     }
 
-    // Loop guard: "The agents passed this back and forth N times, so I paused them…" becomes a
-    // card that says what happened and offers the two answers as buttons. It turns into a
-    // one-line note once someone lets them continue (a later "… let the agents continue.").
+    // Loop guard. In the conversation the notice is a one-line note; the decision is a card
+    // docked above the message box (Higgsfield / Cofounder pattern), shown only while the
+    // server says this channel is paused. Any message from you also lets them go on.
     const PAUSE_RE = /passed this back and forth (\d+) times, so I paused them/i;
-    const pausedAt = new Map();   // channel -> id of the latest unanswered pause
+    let pausedChannels = new Set();
+    const keptPaused = new Set();   // channels where you chose "Keep paused" for this pause
+    const pauseHops = new Map();    // channel -> hand-offs, from the latest notice
     function paintPause(el, msg) {
-        const text = String(msg.text || '');
-        const ch = msg.channel || 'general';
-        if (/let the agents continue\.$/.test(text)) {
-            for (const [c, pid] of pausedAt) if (c === ch && pid < Number(msg.id)) { pausedAt.delete(c); resolvePause(pid, 'continued'); }
-            updateComposerHint();
-            return;
+        const m = PAUSE_RE.exec(String(msg.text || ''));
+        if (!m || el.classList.contains('sc-pause-note')) return;
+        pauseHops.set(msg.channel || 'general', Number(m[1]));
+        el.classList.add('sc-pause-note');
+        el.innerHTML = `<span class="msg-text">${window.scIcon ? window.scIcon('hourglass', 14) : ''} Agents paused after ${Number(m[1])} hand-offs without you</span>`;
+    }
+    window.scSetPaused = (list) => {
+        if (!Array.isArray(list)) return;
+        const now = new Set(list);
+        for (const ch of keptPaused) if (!now.has(ch)) keptPaused.delete(ch);   // that pause is over
+        pausedChannels = now;
+        renderPauseDock();
+    };
+    function renderPauseDock() {
+        const ch = window.activeChannel || 'general';
+        const show = pausedChannels.has(ch) && !keptPaused.has(ch);
+        let dock = document.getElementById('sc-pause-dock');
+        updateComposerHint(show);
+        if (!show) { dock?.remove(); return; }
+        if (!dock) {
+            dock = document.createElement('div');
+            dock.id = 'sc-pause-dock';
+            dock.setAttribute('role', 'status');
+            const row = document.getElementById('input-row');
+            row?.parentElement?.insertBefore(dock, row);
+            dock.addEventListener('click', (e) => {
+                const a = e.target.closest('[data-pa]')?.dataset.pa;
+                const c = window.activeChannel || 'general';
+                if (a === 'go' && window.ws && window.ws.readyState === WebSocket.OPEN) {
+                    window.ws.send(JSON.stringify({ type: 'message', text: '/continue', sender: me(), channel: c, attachments: [] }));
+                    e.target.closest('[data-pa]').disabled = true;
+                }
+                if (a === 'keep') { keptPaused.add(c); renderPauseDock(); }
+            });
         }
-        const m = PAUSE_RE.exec(text);
-        if (!m || el.querySelector('.sc-pause')) return;
-        const id = Number(msg.id);
-        let kept = false;
-        try { kept = (JSON.parse(localStorage.getItem('scranton-pause-kept') || '[]')).includes(id); } catch (_) {}
-        el.classList.add('sc-pause-msg');
-        el.innerHTML = `<div class="sc-pause" data-pause="${id}">
-            <div class="sc-pause-h">${window.scIcon ? window.scIcon('hourglass', 18) : ''}<b>Agents paused</b></div>
-            <p>They handed this back and forth ${Number(m[1])} times without you, so I stopped them before they use up your plan on a loop. Read the last few messages, then choose.</p>
-            <div class="sc-pause-act"><button type="button" class="sc-btn primary sm" data-pa="go">Let them continue</button><button type="button" class="sc-btn sm" data-pa="keep">Keep paused</button></div>
-            <p class="sc-pause-done" hidden></p></div>`;
-        el.querySelector('.sc-pause').addEventListener('click', (e) => {
-            const a = e.target.closest('[data-pa]')?.dataset.pa;
-            if (!a) return;
-            if (a === 'go' && window.ws && window.ws.readyState === WebSocket.OPEN) {
-                window.ws.send(JSON.stringify({ type: 'message', text: '/continue', sender: me(), channel: ch, attachments: [] }));
-            }
-            if (a === 'keep') {
-                try { const k = JSON.parse(localStorage.getItem('scranton-pause-kept') || '[]'); k.push(id); localStorage.setItem('scranton-pause-kept', JSON.stringify(k.slice(-50))); } catch (_) {}
-                pausedAt.delete(ch); resolvePause(id, 'kept'); updateComposerHint();
-            }
-        });
-        if (kept) { resolvePause(id, 'kept'); return; }
-        if (!pausedAt.has(ch) || pausedAt.get(ch) < id) pausedAt.set(ch, id);
-        updateComposerHint();
+        const n = pauseHops.get(ch);
+        dock.innerHTML = `<span class="sc-pd-ic">${window.scIcon ? window.scIcon('hourglass', 18) : ''}</span>
+            <span class="sc-pd-text"><b>Agents are paused here</b><small>They went back and forth${n ? ` ${n} times` : ''} without you. Check the last messages first.</small></span>
+            <button type="button" class="sc-btn sm" data-pa="keep">Keep paused</button>
+            <button type="button" class="sc-btn primary sm" data-pa="go">Let them continue</button>`;
     }
-    function resolvePause(id, how) {
-        const card = document.querySelector(`.sc-pause[data-pause="${id}"]`);
-        if (!card) return;
-        card.classList.add('done');
-        card.querySelector('.sc-pause-act')?.setAttribute('hidden', '');
-        const done = card.querySelector('.sc-pause-done');
-        done.hidden = false;
-        done.textContent = how === 'continued' ? 'Resumed.' : 'Kept paused. Type /continue whenever you want them to go on.';
-    }
-    // The likely next step goes in the empty message box as a hint; Tab types it (like ChatGPT).
-    function updateComposerHint() {
+    window.scRenderPauseDock = renderPauseDock;
+    // While paused, the empty message box suggests /continue; Tab types it (like ChatGPT).
+    function updateComposerHint(paused) {
         const input = document.getElementById('input');
         if (!input) return;
+        if (paused === undefined) paused = pausedChannels.has(window.activeChannel || 'general') && !keptPaused.has(window.activeChannel || 'general');
         if (!input.placeholder.startsWith('/continue')) input.dataset.scBasePh = input.placeholder;
-        const paused = pausedAt.has(window.activeChannel || 'general');
         input.dataset.scSuggest = paused ? '/continue' : '';
-        input.placeholder = paused ? '/continue   (Tab) let the agents go on' : input.dataset.scBasePh;
-        input.classList.toggle('sc-has-suggest', paused);
+        input.placeholder = paused ? '/continue   (Tab) let the agents go on' : (input.dataset.scBasePh || input.placeholder);
     }
-    window.scUpdateComposerHint = updateComposerHint;
+    window.scUpdateComposerHint = () => renderPauseDock();
     document.addEventListener('keydown', (e) => {
         const input = document.getElementById('input');
         if (e.key !== 'Tab' || e.shiftKey || document.activeElement !== input) return;
@@ -725,6 +721,7 @@
         if (activeThread == null) infoActive = infoTab != null;
         panel.classList.toggle('sc-info-active', infoActive);
         renderThreadChips();
+        renderThreadAtts();
         const infoBtn = infoTab != null
             ? `<button type="button" class="sc-ttab${infoActive ? ' active' : ''}" data-info="1" title="Details"><span class="sc-ttab-label">${esc(infoTab)}</span><span class="sc-ttab-x" data-close-info="1" title="Close">✕</span></button>`
             : '';
@@ -751,20 +748,35 @@
     }
 
     // Files waiting to go with the thread reply (same cards as the main box).
-    const threadAtts = [];
+    // One list per thread: files added in thread A never ride along with a reply in thread B.
+    var threadAttsBy = new Map();   // var: renderThread can run before this line on start-up
+    var threadUploads = 0;
+    function attsFor(root) {
+        if (!threadAttsBy) threadAttsBy = new Map();
+        if (!threadAttsBy.has(root)) threadAttsBy.set(root, []);
+        return threadAttsBy.get(root);
+    }
     function renderThreadAtts() {
         const box = document.getElementById('sc-thread-atts');
         if (!box || typeof createAttachmentPreview !== 'function') return;
         box.innerHTML = '';
-        threadAtts.forEach((a, i) => box.appendChild(createAttachmentPreview(a, () => { threadAtts.splice(i, 1); renderThreadAtts(); })));
+        const list = attsFor(activeThread);
+        list.forEach((a, i) => box.appendChild(createAttachmentPreview(a, () => { list.splice(i, 1); renderThreadAtts(); })));
     }
     async function addThreadFiles(files) {
-        for (const f of files) {
-            try { threadAtts.push(await uploadAttachment(f)); }
-            catch (err) { window.scToast ? window.scToast(err.message || 'Upload failed') : alert(err.message); }
-        }
-        renderThreadAtts();
+        const root = activeThread;
+        if (root == null) return;
+        threadUploads++;
+        try {
+            for (const f of files) {
+                try { attsFor(root).push(await uploadAttachment(f)); }
+                catch (err) { window.scToast ? window.scToast(err.message || 'Upload failed') : alert(err.message); }
+                if (root === activeThread) renderThreadAtts();
+            }
+        } finally { threadUploads--; }
     }
+    window.scAddThreadFiles = addThreadFiles;
+    window.scThreadHasFiles = () => [...threadAttsBy.values()].some((l) => l.length) || threadUploads > 0;
     // @ chips under the reply box: who's in this thread (they're who you'd answer).
     function renderThreadChips() {
         const wrap = document.querySelector('#sc-thread .sc-thread-chips');
@@ -805,7 +817,9 @@
         const root = byId.get(activeThread);
         if (!input || !root) return;
         let text = window.scNormalizeMentions ? window.scNormalizeMentions(input.value.trim()) : input.value.trim();
-        if (!text && !threadAtts.length) return;
+        if (threadUploads > 0) { window.scToast && window.scToast('Still uploading…'); return; }
+        const atts = attsFor(Number(root.id));
+        if (!text && !atts.length) return;
         // A reply without an @ goes to the teammate you're talking with in this thread:
         // the last teammate who replied, else the starter, else whoever the root @'d.
         if (!/(^|\s)@[\w-]+/.test(text)) {
@@ -821,10 +835,10 @@
             if (target) text = `@${target} ${text}`;
         }
         if (window.ws && window.ws.readyState === WebSocket.OPEN) {
-            window.ws.send(JSON.stringify({ type: 'message', text, sender: me(), channel: root.channel || 'general', reply_to: Number(root.id), attachments: threadAtts.slice() }));
+            window.ws.send(JSON.stringify({ type: 'message', text, sender: me(), channel: root.channel || 'general', reply_to: Number(root.id), attachments: atts.slice() }));
             input.value = '';
             input.style.height = '';
-            threadAtts.splice(0); renderThreadAtts();
+            atts.splice(0); renderThreadAtts();
         }
     }
 
@@ -934,10 +948,7 @@
         }
         input.addEventListener('paste', (e) => {
             const files = Array.from(e.clipboardData?.files || []);
-            if (files.length) { e.preventDefault(); addThreadFiles(files); }
-        });
-        panel.querySelector('.sc-thread-compose').addEventListener('drop', (e) => {
-            const files = Array.from(e.dataTransfer?.files || []);
+            // stop it here, or the page-wide paste handler uploads the same files to the main box too
             if (files.length) { e.preventDefault(); e.stopPropagation(); addThreadFiles(files); }
         });
         document.getElementById('sc-thread-send').addEventListener('click', sendThreadReply);

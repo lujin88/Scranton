@@ -381,7 +381,9 @@
         } catch (_) { return; }
         if (!now || now === mine) return;
         const typing = ['input', 'sc-thread-input'].some((id) => { const el = document.getElementById(id); return el && el.value.trim(); });
-        const busy = typing || document.querySelector('#sc-settings, .sc-modal-open, [aria-modal="true"]:not([hidden])');
+        const files = document.querySelector('#attachments .attachment-preview') || (window.scThreadHasFiles && window.scThreadHasFiles());
+        const busy = typing || files || document.getElementById('sc-ch-edit')
+            || document.querySelector('#sc-settings, .sc-modal-open, [aria-modal="true"]:not([hidden])');
         if (!busy) { location.reload(); return; }
         if (buildAsked) return;
         buildAsked = true;

@@ -96,6 +96,8 @@
     window.scToggleInfo = toggleInfo;
 
     async function render() {
+        // Don't rebuild under someone typing (status changes re-render the panel every few seconds).
+        if (document.getElementById('sc-ch-edit')) return;
         const p = panel();
         const on = isOpen() && !document.body.classList.contains('sc-inbox-open');
         document.body.classList.toggle('sc-info-open', on);
@@ -143,14 +145,20 @@
 
     let infoTab = 'about';
     let aboutData = null;
+    let aboutStale = false;
     function fmtDate(ts) { try { return new Date(ts * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }); } catch (_) { return ''; } }
     function fmtSize(n) { return !Number.isFinite(n) ? '' : n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`; }
     async function fillAbout(ch, editing) {
         const body = document.getElementById('sc-ch-body');
         if (!body) return;
-        if (!editing) aboutData = await api(`/api/scranton/channel/${encodeURIComponent(ch)}/about`);
-        const d = aboutData || {};
+        // Fetch once per channel; refresh after a save or a channel switch (not on every status tick).
+        if (!editing && (!aboutData || aboutData.name !== ch || aboutStale)) {
+            const got = await api(`/api/scranton/channel/${encodeURIComponent(ch)}/about`);
+            if (got && got.name === ch) { aboutData = got; aboutStale = false; }
+        }
         if ((window.activeChannel || 'general') !== ch || !document.getElementById('sc-ch-body')) return;
+        if (!editing && document.getElementById('sc-ch-edit')) return;   // an edit started while we were fetching
+        const d = (aboutData && aboutData.name === ch) ? aboutData : {};
         const row = (key, title, value, empty, canEdit = true) => editing === key
             ? `<div class="sc-ch-row editing"><div class="sc-ch-rt">${title}</div>
                 ${key === 'description' ? `<textarea id="sc-ch-edit" rows="4" maxlength="1000">${esc(value)}</textarea>` : `<input id="sc-ch-edit" value="${esc(value)}" maxlength="${key === 'name' ? 20 : 250}">`}
@@ -206,17 +214,28 @@
         if (i === 'edit-save') {
             const key = t.closest('[data-key]').dataset.key;
             const v = (document.getElementById('sc-ch-edit') || {}).value || '';
+            const ed = document.getElementById('sc-ch-edit');
             if (key === 'name') {
                 const nn = v.trim().toLowerCase().replace(/^#/, '');
-                if (nn && nn !== ch && window.ws && window.ws.readyState === WebSocket.OPEN) {
+                if (nn === ch) return fillAbout(ch);
+                // Same rule as the server: lowercase letters, digits, - and _, up to 20.
+                if (!/^[a-z0-9][a-z0-9_-]{0,19}$/.test(nn) || nn.startsWith('dm-')) {
+                    window.scToast && window.scToast('Use lowercase letters, numbers, - or _ (up to 20).'); ed?.focus(); return;
+                }
+                if ((window.channelList || []).includes(nn)) { window.scToast && window.scToast(`#${nn} already exists.`); ed?.focus(); return; }
+                if (window.ws && window.ws.readyState === WebSocket.OPEN) {
                     window.ws.send(JSON.stringify({ type: 'channel_rename', old_name: ch, new_name: nn }));
                 }
-                return fillAbout(ch);
+                ed?.remove();   // the panel follows the rename when the server confirms it
+                return;
             }
-            await fetch(`/api/scranton/channel/${encodeURIComponent(ch)}/about`, {
+            const r = await fetch(`/api/scranton/channel/${encodeURIComponent(ch)}/about`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-Token': window.SESSION_TOKEN },
                 body: JSON.stringify({ [key]: v }),
-            }).catch(() => {});
+            }).catch(() => null);
+            if (!r || !r.ok) { window.scToast && window.scToast("Couldn't save. Is Scranton running?"); return; }
+            aboutStale = true;
+            ed?.remove();
             return fillAbout(ch);
         }
         if (i === 'more') {
