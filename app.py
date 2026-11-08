@@ -234,6 +234,12 @@ def _add_members(ch: str, names: list[str]) -> list[str]:
     return added
 
 
+# Texts that shipped before Scranton remembered what it seeded, so old installs still update.
+_OLD_SCHEDULE_TEXTS = {
+    "daily-summary": "每日总结：今天做完了什么（附 PR 链接）｜卡在哪、谁卡住了｜等 Lu 决定的事｜明天先做什么。只写真实发生的，不超过 10 行，最后 @Lu。",
+}
+
+
 def _seed_team_schedules(cfg: dict):
     """Scranton: [[team.schedules]] in config.toml become recurring posts, e.g. the 21:00
     "@pm daily backup" that harness-core asks for. Each one is created once (keyed by its
@@ -268,6 +274,22 @@ def _seed_team_schedules(cfg: dict):
                 schedules.set_fields(s["id"], prompt=new)
                 room_settings.setdefault("seeded_schedule_ids", {})["daily-backup"] = s["id"]
                 changed = True
+    # Config text changed since it was seeded: update the post, unless Lu edited it in the UI.
+    texts = room_settings.setdefault("seeded_schedule_texts", {})
+    live = {s.get("id"): s for s in schedules.list_all()}
+    for item in (cfg or {}).get("team", {}).get("schedules", []) or []:
+        sid = str(item.get("id", "")).strip()
+        text = str(item.get("text", "")).strip()
+        sched = live.get((room_settings.get("seeded_schedule_ids", {}) or {}).get(sid))
+        if not sid or not text or not sched:
+            continue
+        base = texts.get(sid) or _OLD_SCHEDULE_TEXTS.get(sid, text)
+        if sched.get("prompt") == base and base != text:
+            schedules.set_fields(sched["id"], prompt=text)
+            changed = True
+        if texts.get(sid) != text and sched.get("prompt") in (base, text):
+            texts[sid] = text
+            changed = True
     if changed:
         room_settings["seeded_schedules"] = sorted(seeded)
         _save_settings()
@@ -2499,6 +2521,23 @@ async def scranton_daily_set(request: Request):
     return JSONResponse({"ok": True, "enabled": on})
 
 
+@app.get("/api/scranton/report")
+async def scranton_report(days: int = 7):
+    days = max(1, min(int(days), 31))
+    owner = str(room_settings.get("username") or config.get("team", {}).get("owner", "Lu"))
+    team = {n: a for n, a in config.get("agents", {}).items()}
+    return JSONResponse(await asyncio.to_thread(_sc_report.build, store.get_since(0), team, owner, days))
+
+
+@app.post("/api/scranton/report/settings")
+async def scranton_report_settings(request: Request):
+    b = await request.json()
+    try:
+        return JSONResponse(_sc_report.set_minutes_per_pr(b.get("minutes_per_pr")))
+    except (ValueError, TypeError) as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+
+
 @app.get("/api/scranton/quiet")
 async def scranton_quiet_get():
     return JSONResponse(_sc_team.quiet_hours())
@@ -2887,6 +2926,7 @@ async def rename_agent_label(name: str, request: Request):
 
 
 _sc_doing: dict[str, str] = {}
+import scranton_report as _sc_report  # noqa: E402
 
 
 async def _broadcast_json(payload: dict):
@@ -2927,6 +2967,8 @@ async def heartbeat(agent_name: str, request: Request):
             was_active = mcp_bridge._activity.get(current_name, False)
             mcp_bridge.set_active(current_name, active_val)
             _activity_changed = was_active != active_val
+        if "active" in body:
+            _sc_report.note_active(current_name, bool(body["active"]))
         # Scranton: a few words on what it's doing ("Reading page.tsx"), for "X is working · …"
         if "doing" in body:
             doing = str(body.get("doing") or "")[:80] if body.get("active") else ""

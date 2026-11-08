@@ -102,6 +102,8 @@
 
     function open() {
         if (window.scCloseInbox) window.scCloseInbox();
+        document.getElementById('sc-report')?.classList.add('hidden');
+        document.body.classList.remove('sc-report-open');
         section().classList.remove('hidden');
         document.body.classList.add('sc-welcome-open');
         checkConnections().then(render);

@@ -1,0 +1,138 @@
+// Scranton: Report — what got done this week, measured. No invented numbers:
+// "time you'd have spent" only shows when you set your own estimate.
+(function () {
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const ic = (n, s) => (window.scIcon ? window.scIcon(n, s || 18) : '');
+    const api = (path, body) => fetch(path, {
+        method: body ? 'POST' : 'GET',
+        headers: { 'X-Session-Token': window.SESSION_TOKEN, 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+    }).then((r) => r.json());
+    const label = (h) => (window.scLabelOf ? window.scLabelOf(h) : h);
+    let days = 7;
+
+    function section() {
+        let s = document.getElementById('sc-report');
+        if (!s) {
+            s = document.createElement('section');
+            s.id = 'sc-report';
+            s.className = 'hidden';
+            s.setAttribute('aria-label', 'Report');
+            document.getElementById('sc-center')?.appendChild(s);
+            s.addEventListener('click', onClick);
+            s.addEventListener('change', onChange);
+        }
+        return s;
+    }
+
+    function sideRow() {
+        if (document.getElementById('sc-report-row')) return;
+        const row = document.createElement('button');
+        row.id = 'sc-report-row';
+        row.type = 'button';
+        row.className = 'sc-side-row';
+        row.innerHTML = `${ic('chart', 18)}<span class="sc-side-label">Report</span>`;
+        row.onclick = () => open();
+        const after = document.getElementById('sc-inbox-row');
+        after?.after(row);
+    }
+
+    const ago = (t) => {
+        const m = Math.round((Date.now() / 1000 - t) / 60);
+        return m < 60 ? `${m} min` : m < 1440 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} d`;
+    };
+
+    async function render() {
+        const s = section();
+        s.innerHTML = '<div class="sc-rp"><p class="sc-rp-muted">Loading…</p></div>';
+        const r = await api(`/api/scranton/report?days=${days}`);
+        const c = r.counts || {};
+        const w = r.waiting || {};
+        const maxH = Math.max(1, ...(r.work || []).map((x) => x.hours));
+        s.innerHTML = `<div class="sc-rp">
+            <header class="sc-rp-head">
+                <h1>Report</h1>
+                <div class="sc-rp-range" role="tablist">${[[7, 'This week'], [30, '30 days']].map(([d, l]) => `<button type="button" role="tab" data-days="${d}" aria-selected="${days === d}">${l}</button>`).join('')}</div>
+            </header>
+
+            <div class="sc-rp-stats">
+                <div><b>${c.merged ?? 0}</b><span>PRs merged</span></div>
+                <div><b>${c.prs ?? 0}</b><span>PRs opened or mentioned</span></div>
+                <div><b>${c.agent_hours ?? 0} h</b><span>Agents working</span></div>
+                <div><b>${w.avg_minutes == null ? '–' : w.avg_minutes < 60 ? w.avg_minutes + ' min' : Math.round(w.avg_minutes / 6) / 10 + ' h'}</b><span>Your average answer time</span></div>
+            </div>
+
+            <h2>Done</h2>
+            ${(r.shipped || []).length ? `<div class="sc-rp-list">${r.shipped.map((p) => `<a class="sc-rp-row" href="${esc(p.url)}" target="_blank" rel="noopener">
+                <span class="sc-rp-ic">${ic('git-pr', 18)}</span>
+                <span class="sc-rp-t"><b>${esc(p.title || p.url.replace(/^https:\/\/github\.com\//, ''))}</b><small>${esc(p.url.replace(/^https:\/\/github\.com\//, ''))}${p.by ? ' · ' + esc(label(p.by)) : ''}</small></span>
+                <span class="sc-rp-tag ${p.merged ? 'ok' : ''}">${p.merged ? 'Merged' : 'Open'}</span></a>`).join('')}</div>`
+                : '<p class="sc-rp-muted">No pull requests in this period yet. They show up here when an agent posts a PR link.</p>'}
+
+            <h2>Who worked</h2>
+            ${(r.work || []).length ? `<div class="sc-rp-list">${r.work.map((x) => `<div class="sc-rp-row static">
+                <span class="sc-rp-av">${window.scAvatarHtml ? window.scAvatarHtml(x.agent) : ''}</span>
+                <span class="sc-rp-t"><b>${esc(label(x.agent))}</b><small>${x.replies} message${x.replies === 1 ? '' : 's'}</small></span>
+                <span class="sc-rp-bar"><i style="width:${Math.round((x.hours / maxH) * 100)}%"></i></span>
+                <span class="sc-rp-num">${x.hours} h</span></div>`).join('')}</div>
+                <p class="sc-rp-note">Hours are measured from when each agent's terminal was busy. Busy isn't always productive: a stuck agent counts too.</p>`
+                : '<p class="sc-rp-muted">No agent work measured yet. Scranton starts counting from now on.</p>'}
+
+            <h2>Waiting on you</h2>
+            ${(w.open || []).length ? `<div class="sc-rp-list">${w.open.map((o) => `<button type="button" class="sc-rp-row" data-msg="${esc(o.id)}" data-ch="${esc(o.channel)}">
+                <span class="sc-rp-ic">${ic('hourglass', 18)}</span>
+                <span class="sc-rp-t"><b>${esc(label(o.by))} · #${esc(o.channel)}</b><small>${esc(o.text)}</small></span>
+                <span class="sc-rp-num">${ago(o.since)}</span></button>`).join('')}</div>`
+                : '<p class="sc-rp-muted">Nothing open. Everything an agent @-ed you about has an answer.</p>'}
+
+            <h2>Your estimate</h2>
+            <div class="sc-rp-est">
+                <label>One merged PR used to take me <input type="number" id="sc-rp-hours" min="0.25" max="40" step="0.25" value="${r.settings && r.settings.minutes_per_pr ? r.settings.minutes_per_pr / 60 : ''}" placeholder="–"> hours</label>
+                ${r.estimate ? `<p>By your estimate, this period's ${c.merged} merged PRs would have taken you about <b>${r.estimate.hours} h</b>.</p>` : '<p class="sc-rp-muted">Optional. Scranton doesn\'t guess this for you.</p>'}
+            </div>
+        </div>`;
+    }
+
+    function open() {
+        if (window.scCloseInbox) window.scCloseInbox();
+        document.getElementById('sc-welcome')?.classList.add('hidden');
+        section().classList.remove('hidden');
+        document.getElementById('sc-report-row')?.classList.add('active');
+        document.body.classList.add('sc-report-open');
+        render();
+    }
+    function close() {
+        section().classList.add('hidden');
+        document.getElementById('sc-report-row')?.classList.remove('active');
+        document.body.classList.remove('sc-report-open');
+    }
+    window.scOpenReport = open;
+
+    async function onClick(e) {
+        const d = e.target.closest('[data-days]');
+        if (d) { days = Number(d.dataset.days); render(); return; }
+        const m = e.target.closest('[data-msg]');
+        if (m) {
+            close();
+            if (m.dataset.ch !== window.activeChannel && typeof switchChannel === 'function') switchChannel(m.dataset.ch);
+            setTimeout(() => { location.hash = ''; location.hash = `#msg-${m.dataset.msg}`; }, 150);
+        }
+    }
+    async function onChange(e) {
+        if (e.target.id === 'sc-rp-hours') {
+            const h = parseFloat(e.target.value);
+            await api('/api/scranton/report/settings', { minutes_per_pr: h > 0 ? Math.round(h * 60) : null });
+            render();
+        }
+    }
+
+    function init() {
+        sideRow(); section();
+        const title = document.getElementById('sc-pane-title');
+        if (title) new MutationObserver(() => close()).observe(title, { childList: true, characterData: true, subtree: true });
+        document.getElementById('sc-inbox-row')?.addEventListener('click', close);
+        document.getElementById('sc-start-row')?.addEventListener('click', close);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(init, 400));
+    else setTimeout(init, 400);
+})();
