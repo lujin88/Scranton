@@ -237,6 +237,7 @@ def _add_members(ch: str, names: list[str]) -> list[str]:
 
 # Texts that shipped before Scranton remembered what it seeded, so old installs still update.
 _OLD_SCHEDULE_TEXTS = {
+    "daily-plan": "今日计划：按 handoff.md「下一步」和各人手上的活，列出今天每个人做什么（谁｜做什么｜要不要等 Lu），最后一行写今天需要 @Lu 决定的事（没有就写没有）。不超过 10 行。",
     "daily-summary": "每日总结：今天做完了什么（附 PR 链接）｜卡在哪、谁卡住了｜等 Lu 决定的事｜明天先做什么。只写真实发生的，不超过 10 行，最后 @Lu。",
 }
 
@@ -457,6 +458,8 @@ def configure(cfg: dict, session_token: str = ""):
     except Exception as e:
         print(f"  Import of chat history didn't finish: {e}")
     _sc_backup.setup(data_dir, raw_upload_dir)
+    _sc_presence.setup(data_dir)
+    _sc_shortcuts.setup(data_dir)
     if not os.environ.get("PYTEST_CURRENT_TEST"):
         _sc_backup.start_daily()
 
@@ -2559,6 +2562,49 @@ async def scranton_report_settings(request: Request):
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
 
+def _pm_channel() -> str:
+    """Where the project manager plans the day: the daily-plan schedule's channel."""
+    for item in (config or {}).get("team", {}).get("schedules", []) or []:
+        if item.get("id") == "daily-plan" and item.get("channel"):
+            return str(item["channel"])
+    return "general"
+
+
+@app.post("/api/scranton/presence")
+async def scranton_presence(request: Request):
+    """The page pings this while Lu is looking. Back after 2+ hours: ask the PM for one list."""
+    away = _sc_presence.seen()
+    if away and "pm" in ((config or {}).get("agents") or {}):
+        owner = room_settings.get("username") or "Lu"
+        store.add("Scranton", _sc_presence.catch_up_text(owner, away), channel=_pm_channel())
+        return JSONResponse({"ok": True, "caught_up": True})
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/scranton/shortcuts")
+async def scranton_shortcuts_get():
+    return JSONResponse(_sc_shortcuts.load())
+
+
+@app.post("/api/scranton/shortcuts")
+async def scranton_shortcuts_set(request: Request):
+    try:
+        return JSONResponse(_sc_shortcuts.save((await request.json()).get("items")))
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+
+
+@app.get("/api/scranton/catchup")
+async def scranton_catchup_get():
+    return JSONResponse(_sc_presence.settings())
+
+
+@app.post("/api/scranton/catchup")
+async def scranton_catchup_set(request: Request):
+    b = await request.json()
+    return JSONResponse(_sc_presence.set_enabled(bool(b.get("enabled", True))))
+
+
 @app.get("/api/scranton/backup")
 async def scranton_backup_get():
     return JSONResponse(_sc_backup.settings())
@@ -2992,6 +3038,8 @@ async def rename_agent_label(name: str, request: Request):
 _sc_doing: dict[str, str] = {}
 import scranton_report as _sc_report  # noqa: E402
 import scranton_backup as _sc_backup  # noqa: E402
+import scranton_presence as _sc_presence  # noqa: E402
+import scranton_shortcuts as _sc_shortcuts  # noqa: E402
 
 
 async def _broadcast_json(payload: dict):

@@ -207,4 +207,17 @@
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
     else init();
+
+    // ---------------------------------------------------------------- presence
+    // Tell the server Lu is looking (at most once a minute). Back after a long break,
+    // the project manager sends everything that needs her in one list.
+    let lastPing = 0;
+    function ping() {
+        if (document.hidden || Date.now() - lastPing < 60000) return;
+        lastPing = Date.now();
+        fetch('/api/scranton/presence', { method: 'POST', headers: { 'X-Session-Token': window.SESSION_TOKEN, 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
+    }
+    document.addEventListener('visibilitychange', ping);
+    ['pointerdown', 'keydown'].forEach((ev) => document.addEventListener(ev, ping, { passive: true }));
+    setTimeout(ping, 3000);
 })();

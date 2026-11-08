@@ -35,7 +35,7 @@
 
     const NAV = [
         ['Account', [['profile', 'Profile', 'user']]],
-        ['Workspace', [['agents', 'Agents', 'robot'], ['connections', 'Connections', 'plug'], ['history', 'Chat history', 'time']]],
+        ['Workspace', [['agents', 'Agents', 'robot'], ['connections', 'Connections', 'plug'], ['shortcuts', 'Shortcuts', 'flashlight'], ['history', 'Chat history', 'time']]],
     ];
 
     let root = null;
@@ -82,6 +82,9 @@
             if (slot && q && q.from) slot.innerHTML = quietView(q);
             const d = await api('/api/scranton/daily');
             const ds = root && root.querySelector('#sc-daily');
+            const cu = await api('/api/scranton/catchup');
+            const cs = root && root.querySelector('#sc-catchup');
+            if (cs && cu) cs.innerHTML = `<label class="sc-switch-row"><input type="checkbox" id="sc-cu-on"${cu.enabled ? ' checked' : ''}><span class="sc-switch"></span><span>${cu.enabled ? 'On' : 'Off'}</span></label><span class="sc-st-saved" id="sc-cu-saved"></span>`;
             if (ds && d) ds.innerHTML = `<label class="sc-switch-row"><input type="checkbox" id="sc-d-on"${d.enabled ? ' checked' : ''}><span class="sc-switch"></span><span>${d.enabled ? 'On' : 'Off'}${(d.times || []).length ? ' · ' + d.times.map(esc).join(' and ') : ''}</span></label><span class="sc-st-saved" id="sc-d-saved"></span>`;
         }
         if (section === 'agents' && agentOpen === '__new') {
@@ -98,6 +101,7 @@
         }
         if (section === 'connections') { body.innerHTML = '<div class="sc-st-loading">Checking sign-ins…</div>'; body.innerHTML = connectionsView(await api('/api/scranton/connections')); }
         if (section === 'updates') body.innerHTML = updatesView();
+        if (section === 'shortcuts') { body.innerHTML = shortcutsView(null); scItems = await api('/api/scranton/shortcuts'); if (root && section === 'shortcuts') body.innerHTML = shortcutsView(scItems); }
         if (section === 'history') { body.innerHTML = historyView(null); const b = await api('/api/scranton/backup'); if (root && section === 'history') body.innerHTML = historyView(b); }
         if (section === 'agents' && agentOpen) {
             const p = await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}`);
@@ -129,13 +133,39 @@
             <header class="sc-st-sub"><h3>Quiet hours</h3><p>Agents keep working but don't @ you, unless something is high-risk or broken. No sounds.</p></header>
             <div class="sc-quiet" id="sc-quiet"></div>
             <header class="sc-st-sub"><h3>Daily plan and summary</h3><p>Your project manager posts the day's plan in the morning and a summary in the evening, a weekly report on Sundays.</p></header>
-            <div class="sc-quiet" id="sc-daily"></div>`;
+            <div class="sc-quiet" id="sc-daily"></div>
+            <header class="sc-st-sub"><h3>When you're back</h3><p>Nobody stops to wait for you. Questions are saved up, and after 2 hours or more away your project manager sends them in one list you can answer in one reply.</p></header>
+            <div class="sc-quiet" id="sc-catchup"></div>`;
     }
     function quietView(q) {
         return `<label class="sc-switch-row"><input type="checkbox" id="sc-q-on"${q.enabled ? ' checked' : ''}><span class="sc-switch"></span><span>On</span></label>
             <label class="sc-field sc-time"><span>From</span><input type="time" id="sc-q-from" value="${esc(q.from)}"></label>
             <label class="sc-field sc-time"><span>To</span><input type="time" id="sc-q-to" value="${esc(q.to)}"></label>
             <span class="sc-st-saved" id="sc-q-saved"></span>`;
+    }
+
+    // ---------------------------------------------------------------- Shortcuts
+    let scItems = [];
+    function shortcutsView(items) {
+        const head = `<header class="sc-st-head"><h2>Shortcuts</h2><p>Messages you send often. Pick one from <span class="sc-inline-ic">${icon('flashlight', 14)}</span> under the message box; it goes into the box so you can check it, then press Enter.</p></header>`;
+        if (!items) return head + '<div class="sc-st-loading">Loading…</div>';
+        return head + `<div class="sc-sc-list">${(Array.isArray(items) ? items : []).map((it, i) => `
+            <div class="sc-sc-item" data-sc="${i}">
+                <div><input type="text" class="sc-sc-label" maxlength="40" value="${esc(it.label)}" aria-label="Name" placeholder="Name">
+                <textarea class="sc-sc-text" aria-label="Message" placeholder="Message, e.g. @pm …">${esc(it.text)}</textarea></div>
+                <button type="button" class="sc-sc-del" data-a="sc-del" aria-label="Delete" title="Delete">${icon('delete', 18)}</button>
+            </div>`).join('')}
+            <div class="sc-hist-row"><button type="button" class="sc-btn" data-a="sc-add">${icon('add', 16)} Add shortcut</button><span class="sc-st-saved" id="sc-sc-saved"></span></div>
+        </div>`;
+    }
+    function readShortcuts() {
+        return Array.from(root.querySelectorAll('.sc-sc-item')).map((el) => ({
+            label: el.querySelector('.sc-sc-label').value, text: el.querySelector('.sc-sc-text').value }));
+    }
+    async function saveShortcuts(rerender) {
+        const r = await api('/api/scranton/shortcuts', { items: readShortcuts() });
+        if (Array.isArray(r)) { scItems = r; flash('sc-sc-saved', 'Saved.'); }
+        if (rerender && root && section === 'shortcuts') root.querySelector('.sc-st-body').innerHTML = shortcutsView(scItems);
     }
 
     // ---------------------------------------------------------------- Chat history
@@ -416,6 +446,13 @@
         if (a === 'remove-photo') { try { localStorage.removeItem('scranton-me-avatar'); } catch (_) {} window.scSaveAvatar && window.scSaveAvatar(''); window.scRenderMe && window.scRenderMe(); render(); return; }
         if (a === 'save-profile') { saveProfile(); return; }
         if (a === 'export') { exportHistory(); return; }
+        if (a === 'sc-add') {
+            scItems = readShortcuts().concat([{ label: '', text: '' }]);
+            root.querySelector('.sc-st-body').innerHTML = shortcutsView(scItems);
+            const last = root.querySelectorAll('.sc-sc-label'); last[last.length - 1]?.focus();
+            return;
+        }
+        if (a === 'sc-del') { t.closest('.sc-sc-item')?.remove(); saveShortcuts(true); return; }
         if (a === 'import') { importHistory(); return; }
         if (a === 'backup-now') {
             flash('sc-bk-saved', 'Backing up…');
@@ -550,6 +587,17 @@
             if (b.error) { flash('sc-bk-saved', b.error); return; }
             if (root && section === 'history') root.querySelector('.sc-st-body').innerHTML = historyView(b);
             flash('sc-bk-saved', 'Saved.');
+            return;
+        }
+        if (e.target.classList && (e.target.classList.contains('sc-sc-label') || e.target.classList.contains('sc-sc-text'))) {
+            saveShortcuts(false);   // empty ones are dropped on save
+            return;
+        }
+        if (e.target.id === 'sc-cu-on') {
+            const r = await api('/api/scranton/catchup', { enabled: e.target.checked });
+            const lbl = e.target.parentElement.querySelector('span:last-child');
+            if (lbl) lbl.textContent = r && r.enabled ? 'On' : 'Off';
+            flash('sc-cu-saved', 'Saved.');
             return;
         }
         if (e.target.id === 'sc-d-on') {

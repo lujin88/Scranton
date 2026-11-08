@@ -275,6 +275,56 @@
         chips.appendChild(file);
     }
 
+    // Shortcuts (Settings → Shortcuts): messages Lu sends often, one click from the composer.
+    // Picking one puts it in the box so she can check or edit it, then Enter sends.
+    function addShortcutButton(chips) {
+        if (!chips || document.getElementById('sc-shortcut-btn')) return;
+        const btn = document.createElement('button');
+        btn.id = 'sc-shortcut-btn';
+        btn.type = 'button';
+        btn.title = 'Shortcuts';
+        btn.setAttribute('aria-label', 'Shortcuts');
+        btn.setAttribute('aria-haspopup', 'menu');
+        btn.innerHTML = window.scIcon ? window.scIcon('flashlight', 18) : '⚡';
+        let pop = null;
+        const close = () => { if (pop) { pop.remove(); pop = null; btn.setAttribute('aria-expanded', 'false'); } };
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (pop) { close(); return; }
+            const items = await fetch('/api/scranton/shortcuts', { headers: { 'X-Session-Token': window.SESSION_TOKEN } })
+                .then((r) => r.json()).catch(() => []);
+            pop = document.createElement('div');
+            pop.id = 'sc-shortcut-menu';
+            pop.setAttribute('role', 'menu');
+            const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+            pop.innerHTML = (Array.isArray(items) ? items : []).map((it, i) =>
+                `<button type="button" role="menuitem" data-i="${i}"><span>${esc(it.label)}</span></button>`).join('')
+                + `<button type="button" role="menuitem" data-edit="1" class="sc-sc-edit">${window.scIcon ? window.scIcon('edit', 16) : ''}<span>Edit shortcuts</span></button>`;
+            document.body.appendChild(pop);
+            const r = btn.getBoundingClientRect();
+            pop.style.left = `${r.left}px`;
+            pop.style.bottom = `${window.innerHeight - r.top + 8}px`;
+            btn.setAttribute('aria-expanded', 'true');
+            pop.addEventListener('click', (ev) => {
+                const b = ev.target.closest('button');
+                if (!b) return;
+                close();
+                if (b.dataset.edit) { window.scOpenSettings && window.scOpenSettings('shortcuts'); return; }
+                const it = items[+b.dataset.i];
+                const input = document.getElementById('input');
+                if (!it || !input) return;
+                input.value = input.value.trim() ? `${input.value.trim()}\n${it.text}` : it.text;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.focus();
+                input.setSelectionRange(input.value.length, input.value.length);
+            });
+        });
+        document.addEventListener('click', (e) => { if (pop && !pop.contains(e.target)) close(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+        const attach = document.getElementById('sc-attach-btn');
+        if (attach) attach.after(btn); else chips.insertBefore(btn, chips.firstChild);
+    }
+
     function init() {
         // Channels always live in the sidebar.
         if (typeof setChannelSidebarMode === 'function') setChannelSidebarMode('sidebar', true);
@@ -285,6 +335,7 @@
         const row = document.getElementById('input-row');
         if (chips && row && chips.parentElement !== row) row.appendChild(chips);
         addAttachButton(chips);
+        addShortcutButton(chips);
         renderTeam();
         loadTeam();
 
