@@ -162,9 +162,9 @@
     // An @Lu further down ("…then send it to @Lu") is talk about you, not to you.
     function addressedToMe(m) {
         if (isDm(m.channel)) return true;
-        const lead = (/^\s*(?:@[\w-]+[\s,，、]*)+/.exec(String(m.text || '')) || [''])[0];
-        return mentionsMe(lead);
+        return mentionsMe(leadOf(m.text));
     }
+    const leadOf = (text) => (/^\s*(?:@[\w-]+[\s,，、]*)+/.exec(String(text || '')) || [''])[0];
 
     function mentionsMe(text) {
         const name = me().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -201,7 +201,10 @@
             return;
         }
         const kinds = new Set();
-        if (mentionsMe(msg.text)) kinds.add('mention');
+        // Only when the message opens with @Lu, like the "needs you" count. "@Lu" further down is talk
+        // about you, often "静默时段不 @Lu" (Lu, 11-09: why are these under Mentions?). They stay in All.
+        if (mentionsMe(leadOf(msg.text))) kinds.add('mention');
+        else if (mentionsMe(msg.text)) kinds.add('about');
         if (isDm(msg.channel)) kinds.add('dm');
         if (msg.reply_to != null && myMsgIds.has(Number(msg.reply_to))) kinds.add('reply');
         if (kinds.size) {

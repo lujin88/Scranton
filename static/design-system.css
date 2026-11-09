@@ -1392,3 +1392,20 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-edit-bar span { margin-right: auto; font-size: 12px; color: var(--ds-text-2); }
 .sc-edited { margin-left: 6px; font-size: 11px; color: var(--ds-text-2); }
 .sc-edit-offer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; color: var(--ds-text-2); }
+
+/* Activity on a phone (Lu, 11-09: the text was a narrow column next to a wide time column).
+   The time and the dot sit on the name row, the text gets the full width; filters on one tidy grid. */
+@media (max-width: 760px) {
+    #sc-inbox .sc-inbox-item { position: relative; gap: 10px !important; }
+    #sc-inbox .sc-inbox-side { position: absolute; top: 10px; right: 8px; padding-top: 0; gap: 6px; }
+    #sc-inbox .sc-inbox-meta { padding-right: 112px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #sc-inbox .sc-inbox-time { font-size: 12px; }
+    #sc-inbox .sc-inbox-filters { display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 8px !important; }
+    #sc-inbox .sc-inbox-filters .sc-tabs { grid-column: 1 / -1; overflow-x: auto; scrollbar-width: none; }
+    #sc-inbox .sc-inbox-filters .sc-from { margin-left: 0 !important; min-width: 0; }
+    #sc-inbox .sc-inbox-filters .sc-from { font-size: 0 !important; gap: 0 !important; }
+    #sc-inbox .sc-inbox-filters .sc-from select { min-width: 0; width: 100%; font-size: 14px !important; }
+    #sc-inbox .sc-inbox-group-top { flex-wrap: nowrap; gap: 8px; }
+    #sc-inbox .sc-inbox-group-top > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #sc-inbox .sc-inbox-markall { flex-shrink: 0; white-space: nowrap; }
+}
