@@ -39,7 +39,13 @@
     // "Please merge #93": done once GitHub says merged (or closed). Lu doesn't report back.
     const PR_RE = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
     const prUrls = (m) => [...new Set(String(m.text || '').match(PR_RE) || [])];
-    const prState = {};   // url -> OPEN | MERGED | CLOSED
+    // url -> OPEN | MERGED | CLOSED. Merged/closed never change back, so they're kept across reloads:
+    // otherwise every reload counted all of today's merged PRs as "Merge on GitHub" until GitHub answered.
+    const prState = (() => { try { return JSON.parse(LS.get('scranton-pr-final', '{}')) || {}; } catch (_) { return {}; } })();
+    const savePrFinal = () => {
+        const keep = Object.entries(prState).filter(([, st]) => st === 'MERGED' || st === 'CLOSED').slice(-400);
+        LS.set('scranton-pr-final', JSON.stringify(Object.fromEntries(keep)));
+    };
     // "可以合 / 合并 / merge", not any 合 (合适, 合作, 综合 aren't asks to merge).
     const MERGE_RE = /可以合|请合|去合|合并|合进|合一下|合吧|合了吗|\bmerge/i;
     // A PR handed to you to merge (not a question with options that happens to link one):
@@ -57,7 +63,8 @@
     };
     const prDone = (m) => { const u = prUrls(m); return u.length > 0 && u.every((x) => prState[x] === 'MERGED' || prState[x] === 'CLOSED'); };
     async function refreshPrs() {
-        if (document.hidden) return;
+        // Also when hidden: the Mac app's Dock badge counts these while its window is in the back.
+        // (Cheap: the server keeps open PRs for 3 min and merged ones for a day.)
         // Only PRs that could still count (recent, not marked done), newest first, all of them in
         // batches of 20. (Before: the first 20 found, which were old ones, so today's never got checked.)
         const want = new Set();
@@ -77,7 +84,7 @@
                 for (const [u, st] of Object.entries(got)) if (st && prState[u] !== st) { prState[u] = st; changed = true; }
             } catch (_) { break; }   /* offline: try again next round */
         }
-        if (changed) scheduleRender();
+        if (changed) { savePrFinal(); scheduleRender(); }
     }
     // Ask soon after a PR link shows up or Activity opens (at page load the history may not be in yet,
     // so a single check 3 s in found nothing and the next one was 2 minutes later), then every minute.
