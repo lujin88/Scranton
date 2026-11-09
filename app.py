@@ -5,6 +5,7 @@ import os
 import asyncio
 import json
 import re as _re
+import time as _time_feed
 _VIA_RE = _re.compile(r"[a-z][a-z0-9 -]{0,19}")   # "via Claude": who sent a message on your behalf
 import sys
 import threading
@@ -64,6 +65,7 @@ room_settings: dict = {
 }
 
 HISTORY_CAP = 1000  # messages per channel sent when a page opens
+INITIAL_HISTORY = 150   # ...of which the page gets this many now; older ones load on scroll-up
 
 # Channel validation
 _CHANNEL_NAME_RE = _re.compile(r'^[a-z0-9][a-z0-9\-]{0,19}$')
@@ -1463,9 +1465,24 @@ async def websocket_endpoint(websocket: WebSocket):
     # search still covers everything.
     count = HISTORY_CAP if limit_val == "all" else min(int(limit_val), HISTORY_CAP)
     
+    # Scranton (Lu, 11-10: phone and Mac app took ~5 s to open): the page opens with the newest
+    # INITIAL_HISTORY per channel; scrolling up loads the rest, and Activity gets its own list
+    # (/api/scranton/inbox-feed), so nothing that needs Lu is missed.
+    count = min(count, INITIAL_HISTORY)
     history = []
     for ch in room_settings["channels"]:
         history.extend(store.get_recent(count, channel=ch))
+    # A thread whose first message is older than that still shows where it started.
+    have = {m.get("id") for m in history}
+    for m in list(history):
+        rt, hops = m.get("reply_to"), 0
+        while rt is not None and rt not in have and hops < 20:
+            root = store.get_by_id(int(rt))
+            if not root:
+                break
+            have.add(root["id"])
+            history.append({**root, "_extra": True})
+            rt, hops = root.get("reply_to"), hops + 1
     
     # Sort history by timestamp to interleave messages from different channels correctly
     history.sort(key=lambda m: m.get("timestamp", 0))
@@ -2900,6 +2917,28 @@ async def scranton_team_permissions_set(request: Request):
         return JSONResponse(_sc_team.set_team_permissions(str((body or {}).get("permissions", ""))))
     except (ValueError, AttributeError) as e:
         return JSONResponse({"error": str(e) or "permissions is full or ask"}, status_code=400)
+
+
+@app.get("/api/scranton/inbox-feed")
+async def scranton_inbox_feed(days: int = 7):
+    """What Activity needs, without loading every message: from the last `days`, your own messages
+    (to know what you answered) and teammates' messages that @ you, reply to you or are DMs."""
+    days = max(1, min(int(days), 30))
+    since = _time_feed.time() - days * 86400
+    owner = str(room_settings.get("username", "") or "").lower()
+    tag = _re.compile(r"(^|[^\w])@(" + _re.escape(owner) + r"|lu)(?![\w-])", _re.I) if owner else None
+    mine, out = set(), []
+    for m in store.get_since(-1):
+        if float(m.get("timestamp") or 0) < since:
+            continue
+        who = str(m.get("sender", "")).lower()
+        text = str(m.get("text") or "")
+        if who == owner:
+            mine.add(m.get("id")); out.append(m)
+        elif (str(m.get("channel", "")).startswith("dm-") or m.get("reply_to") in mine
+              or (tag and tag.search(text)) or (who == "system" and text.startswith("Loop guard:"))):
+            out.append(m)
+    return JSONResponse({"messages": out[-3000:]})
 
 
 @app.get("/api/scranton/older")

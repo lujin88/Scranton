@@ -215,6 +215,17 @@
         }
     }
 
+    // The page opens with only the newest messages of each channel, so Activity gets its own list:
+    // everything from the last 7 days that's to you, a reply to you, a DM, or yours (Lu, 11-10).
+    window.scAfterHistory = async () => {
+        try {
+            const r = await fetch('/api/scranton/inbox-feed?days=7', { headers: { 'X-Session-Token': window.SESSION_TOKEN } });
+            if (!r.ok) return;
+            const { messages } = await r.json();
+            for (const m of messages || []) consider(m);
+        } catch (_) { /* offline: Activity shows what the page has */ }
+    };
+
     // Called when the team list arrives: classify messages that came in before it.
     function recheckPending() {
         const again = pendingUnknown.splice(0);

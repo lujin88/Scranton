@@ -518,7 +518,8 @@ function renderHistoryBatch() {
     const container = document.getElementById('messages');
     container.appendChild(fragment);
     for (const el of breadcrumbs) window._collapseJobBreadcrumbs?.(container, el);
-    if (autoScroll) scrollToBottom(true);
+    // Scroll once when history is in, not after every batch: each scroll made the browser lay out
+    // the whole growing page again (Lu, 11-10: ~5 s to open on a phone).
     if (pendingHistory.length) {
         scheduleHistoryRender();
     } else if (historyReceived) {
@@ -529,6 +530,7 @@ function renderHistoryBatch() {
         pendingLiveEvents = [];
         for (const event of events) handleServerEvent(event);
         if (autoScroll) scrollToBottom(true);
+        try { window.scAfterHistory && window.scAfterHistory(); } catch (_) { /* never break */ }
     }
 }
 
@@ -540,6 +542,8 @@ function handleServerEvent(event) {
         return;
     }
     if (event.type === 'history') {
+        // Thread starts older than the opening window: shown, but not where "older" begins.
+        for (const m of event.messages) if (m && m._extra) (window.scExtraIds = window.scExtraIds || new Set()).add(Number(m.id));
         pendingHistory.push(...event.messages);
         scheduleHistoryRender();
         return;

@@ -1,4 +1,4 @@
-// Scranton: scroll up to load older messages. The page gets the last 1000 per channel
+// Scranton: scroll up to load older messages. The page gets the last 150 per channel
 // when it opens; the rest come 100 at a time from /api/scranton/older, rendered with the
 // normal renderer off-screen, then put at the top without moving what you're reading.
 (function () {
@@ -10,6 +10,7 @@
         let min = Infinity;
         document.querySelectorAll(`#messages .message[data-channel="${CSS.escape(ch)}"]`).forEach((el) => {
             const id = Number(el.dataset.id);
+            if (window.scExtraIds && window.scExtraIds.has(id)) return;   // an old thread start, not the window's edge
             if (Number.isFinite(id) && id < min) min = id;
         });
         return Number.isFinite(min) ? min : null;
@@ -38,6 +39,11 @@
             if (!data || (window.activeChannel || 'general') !== ch) return;
             if (!data.more) done.add(ch);
             if (!data.messages.length) return;
+            // An old thread start shown early sits at the top; once this batch reaches it, draw it in its place.
+            const lo = Math.min(...data.messages.map((m) => Number(m.id)));
+            for (const id of [...(window.scExtraIds || [])]) {
+                if (id >= lo) { window.scExtraIds.delete(id); document.getElementById(`message-${id}`)?.remove(); }
+            }
             const tmp = document.createElement('div');
             // the day-divider logic remembers the last date it drew; render the batch from scratch
             // and put the live value back, or the next new message gets a second "Today"
