@@ -381,7 +381,7 @@ PL
         codesign --force --deep -s - "$tmp/Scranton.app" >/dev/null 2>&1 || true   # ad-hoc: built on this Mac
         mkdir -p "$HOME/Applications"
         # The previous build goes to the Trash (recoverable), not deleted.
-        if [ -d "$APP" ]; then mv "$APP" "$HOME/.Trash/Scranton $(date +%Y-%m-%d %H.%M.%S).app"; fi
+        if [ -d "$APP" ]; then mv "$APP" "$HOME/.Trash/Scranton $(date "+%Y-%m-%d %H.%M.%S").app"; fi
         mv "$tmp/Scranton.app" "$APP"
         rm -r "$tmp"
         echo "Installed: $APP"
