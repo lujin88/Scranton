@@ -1132,6 +1132,7 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 .sc-choice { color: var(--ds-text) !important; }
 .sc-choice-key { width: 26px; height: 26px; border-radius: 7px; font-weight: 500; box-shadow: 0 0 0 1px rgba(var(--ink), 0.08); }
 :root[data-theme="light"] .sc-choice-key { background: #f4f4f4; }
+.sc-choice.on .sc-choice-key, :root[data-theme="light"] .sc-choice.on .sc-choice-key { background: var(--ds-accent-fill); color: #fff; box-shadow: none; }
 .sc-choice-other { cursor: text; }
 .sc-choice-other input { flex: 1; min-width: 0; height: 30px; border: 0; outline: none; background: transparent; color: var(--ds-text); font: inherit; font-size: 14px; padding: 0; }
 .sc-choice-other input::placeholder { color: var(--ds-text-3); }
@@ -1224,3 +1225,11 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 /* In a thread the reply bubble is already the card: no second box inside it. */
 .sc-tmsg-body .sc-choice-card { background: none !important; box-shadow: none !important; padding: 2px 0 0 !important; }
 .sc-tmsg-body .sc-choice-q { margin-left: 0; }
+
+/* Server unreachable: one quiet pill at the top centre (same float recipe as the other floating controls). */
+#sc-offline { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 1000; display: none;
+    align-items: center; gap: 10px; padding: 8px 16px; border-radius: 999px; font-size: 13px; color: var(--ds-text);
+    background: var(--tone-2c); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(var(--ink), 0.08); }
+#sc-offline.sc-on { display: flex; }
+#sc-offline code { font-size: 12px; padding: 1px 6px; border-radius: 6px; background: rgba(var(--ink), 0.08); }
+.sc-offline-dot { width: 8px; height: 8px; border-radius: 50%; background: #ff9f0a; flex-shrink: 0; }

@@ -9,6 +9,8 @@
 #   ./scranton.sh check            are the CLIs installed and logged in?
 #   ./scranton.sh restart-server   restart only the server (teammates keep working)
 #   ./scranton.sh grok …           for Grok Bot: post / read as 幕僚长 (Grok) (docs/grok-bot.md)
+#   ./scranton.sh install-service  let macOS keep the server running (restarts it if it stops, starts at login)
+#   ./scranton.sh uninstall-service
 #
 # Teammates run in background tmux sessions, so they keep working when you
 # close the terminal. Logs: data/logs/. Pids: data/run/.
@@ -59,10 +61,34 @@ pid_alive() {  # pid_alive <pidfile>: alive AND really ours (pids get reused aft
     ps -p "$p" -o command= 2>/dev/null | grep -Eq '(wrapper|run)\.py'
 }
 
+# The server as a macOS login service (launchd): if anything stops it, macOS starts it
+# again within seconds, and it starts when you log in. Installed only by install-service.
+LABEL="com.scranton.server"
+PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+DOMAIN="gui/$(id -u)"
+service_installed() { [ -f "$PLIST" ] && command -v launchctl >/dev/null 2>&1; }
+service_loaded() { launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1; }
+wait_port() {  # wait_port <up|down> <tries of 0.5 s>
+    i=0
+    while [ "$i" -lt "$2" ]; do
+        if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then [ "$1" = up ] && return 0
+        else [ "$1" = down ] && return 0; fi
+        sleep 0.5; i=$((i + 1))
+    done
+    return 1
+}
+
 server_running() { PORT=${PORT:-$(port)}; pid_alive "$RUN_DIR/server.pid" || lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; }
 
 start_server() {
     PORT=$(port)
+    if service_installed; then
+        service_loaded || launchctl bootstrap "$DOMAIN" "$PLIST" 2>/dev/null || true
+        server_running || launchctl kickstart "$DOMAIN/$LABEL" 2>/dev/null || true
+        if wait_port up 40; then echo "Server running on http://localhost:$PORT (kept running by macOS)"
+        else echo "Server did not start. See $LOG_DIR/server.log"; return 1; fi
+        return
+    fi
     if server_running; then echo "Server already running on http://localhost:$PORT"; return; fi
     "$PY" tools/spawn.py "$RUN_DIR/server.pid" "$LOG_DIR/server.log" -- "$PY" run.py >/dev/null
     i=0
@@ -189,6 +215,30 @@ case "${1:-}" in
         # If the new version won't start, go back to the version before the update.
         ensure_venv
         PORT=$(port)
+        healthy() {
+            curl -fs -o /dev/null --max-time 5 "http://127.0.0.1:$PORT/" || return 1
+            sleep 10
+            curl -fs -o /dev/null --max-time 5 "http://127.0.0.1:$PORT/"
+        }
+        if service_installed && service_loaded; then
+            # launchd restarts it (-k: stop the running one first); same health check and rollback.
+            launchctl kickstart -k "$DOMAIN/$LABEL"
+            sleep 1
+            if wait_port up 40 && healthy; then rm -f "$RUN_DIR/prev_head" "$RUN_DIR/prev_requirements.txt"; exit 0; fi
+            if [ -f "$RUN_DIR/prev_head" ]; then
+                prev=$(cat "$RUN_DIR/prev_head")
+                echo "New version didn't start - going back to $prev"
+                git reset --hard --quiet "$prev"
+                if [ -f "$RUN_DIR/prev_requirements.txt" ]; then "$PY" -m pip install -q -r "$RUN_DIR/prev_requirements.txt" || true
+                else "$PY" -m pip install -q -r requirements.txt || true; fi
+                rm -f "$RUN_DIR/prev_requirements.txt" "$RUN_DIR/prev_head"
+                echo "The update didn't start, so Scranton went back to the previous version. Details: data/logs/server.log" > "$RUN_DIR/update_failed"
+                launchctl kickstart -k "$DOMAIN/$LABEL"
+                wait_port up 40 || exit 1
+                exit 0
+            fi
+            exit 1
+        fi
         stop_pidfile "$RUN_DIR/server.pid"
         # No (or a stale) pid file: stop whatever Scranton server holds the port, so the
         # restart really happens instead of "already running" with the old code.
@@ -234,8 +284,56 @@ case "${1:-}" in
             stop_pidfile "$f"
         done
         for s in $(tmux ls -F '#S' 2>/dev/null | grep '^agentchattr-' || true); do tmux kill-session -t "=$s"; done
+        # Under launchd, unload it first, or macOS would just start it again.
+        if service_installed && service_loaded; then launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true; fi
         stop_pidfile "$RUN_DIR/server.pid"
         echo "Stopped."
+        ;;
+    install-service)
+        ensure_venv
+        command -v launchctl >/dev/null 2>&1 || { echo "This is for macOS only."; exit 1; }
+        PORT=$(port)
+        here=$(pwd)
+        mkdir -p "$HOME/Library/LaunchAgents"
+        # launchd starts with an almost empty PATH: keep the one from this terminal, so the
+        # Resume button can still find claude / codex / agent / tmux.
+        cat > "$PLIST" <<PL
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$LABEL</string>
+  <key>ProgramArguments</key>
+  <array><string>$here/$PY</string><string>run.py</string></array>
+  <key>WorkingDirectory</key><string>$here</string>
+  <key>EnvironmentVariables</key>
+  <dict><key>PATH</key><string>$PATH</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>5</integer>
+  <key>AbandonProcessGroup</key><true/>
+  <key>StandardOutPath</key><string>$here/$LOG_DIR/server.log</string>
+  <key>StandardErrorPath</key><string>$here/$LOG_DIR/server.log</string>
+</dict>
+</plist>
+PL
+        # Hand over: stop the server started by this script, then let launchd run it.
+        if service_loaded; then launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true; fi
+        stop_pidfile "$RUN_DIR/server.pid"
+        for pid in $(lsof -nP -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null); do
+            case "$(ps -o command= -p "$pid" 2>/dev/null)" in *run.py*) kill "$pid" 2>/dev/null || true ;; esac
+        done
+        wait_port down 20 || { echo "Port $PORT is used by another program."; exit 1; }
+        launchctl bootstrap "$DOMAIN" "$PLIST"
+        if wait_port up 40; then
+            echo "Done. macOS now keeps the server running: it comes back by itself if it stops, and starts when you log in."
+            echo "Teammates keep running and reconnect by themselves. Undo with: ./scranton.sh uninstall-service"
+        else echo "Installed, but the server didn't answer yet. See $LOG_DIR/server.log"; exit 1; fi
+        ;;
+    uninstall-service)
+        if service_installed && service_loaded; then launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true; fi
+        rm -f "$PLIST"
+        echo "Removed. The server is stopped; start it again with ./scranton.sh start"
         ;;
     status)
         ensure_venv

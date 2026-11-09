@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import os
 import secrets
 import sys
 import threading
@@ -212,7 +213,22 @@ def main():
 
     # Scranton: no access log. Heartbeats alone wrote a line every few seconds per agent,
     # forever, into a file nothing rotates. Errors still go to the log.
-    uvicorn.run(app, host=host, port=port, log_level="info", access_log=False)
+    # Scranton: say which signal stopped the server, so "it just stopped" can be traced
+    # (11-08 13:25 and 11-09 08:37 both ended in a clean shutdown with no reason logged).
+    import signal as _signal
+    import time as _time
+
+    class _Server(uvicorn.Server):
+        def handle_exit(self, sig, frame):
+            try:
+                name = _signal.Signals(sig).name
+            except Exception:
+                name = str(sig)
+            print(f"{_time.strftime('%H:%M:%S')} [run] Stop signal {name} received "
+                  f"(pid {os.getpid()}, parent {os.getppid()}).", flush=True)
+            super().handle_exit(sig, frame)
+
+    _Server(uvicorn.Config(app, host=host, port=port, log_level="info", access_log=False)).run()
 
 
 if __name__ == "__main__":

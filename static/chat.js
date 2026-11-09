@@ -9,6 +9,30 @@ let pendingAttachments = [];
 let channelUploads = 0;
 let autoScroll = true;
 let reconnectTimer = null;
+
+// Server unreachable for more than a few seconds: say so at the top, instead of a page
+// that looks normal but quietly can't send. Hidden again as soon as it reconnects.
+let _scOfflineTimer = null;
+function scOfflineBanner(down) {
+    let el = document.getElementById('sc-offline');
+    if (!down) {
+        clearTimeout(_scOfflineTimer); _scOfflineTimer = null;
+        if (el) el.classList.remove('sc-on');
+        return;
+    }
+    if (_scOfflineTimer || (el && el.classList.contains('sc-on'))) return;
+    _scOfflineTimer = setTimeout(() => {
+        _scOfflineTimer = null;
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'sc-offline';
+            el.setAttribute('role', 'status');
+            el.innerHTML = '<span class="sc-offline-dot"></span><span>Can\'t reach Scranton. Trying again… If it doesn\'t come back, run <code>./scranton.sh start</code> in Terminal.</span>';
+            document.body.appendChild(el);
+        }
+        el.classList.add('sc-on');
+    }, 5000);
+}
 let username = 'user';
 let agentConfig = {};  // { name: { color, label } } — registered instances (used for pills)
 let baseColors = {};   // { name: { color, label } } — base agent colors (for message coloring)
@@ -759,6 +783,7 @@ function connectWebSocket() {
 
     ws.onopen = () => {
         console.log('WebSocket connected');
+        scOfflineBanner(false);
         // Scranton: after a server restart (e.g. an update), reload if the page is out of date.
         if (window.scCheckBuild) window.scCheckBuild();
         if (window.scReloadDmActivity) window.scReloadDmActivity();
@@ -787,6 +812,7 @@ function connectWebSocket() {
         pendingHistory = [];
         pendingLiveEvents = [];
         setHistoryIndicator(true);
+        scOfflineBanner(true);
         reconnectTimer = setTimeout(connectWebSocket, 2000);
     };
 

@@ -554,7 +554,9 @@
         const meta = msg.metadata || {};
         const isDecision = msg.type === 'decision' && Array.isArray(meta.choices) && meta.choices.length;
         const blocks = isDecision
-            ? [{ question: '', num: '', options: meta.choices.map((c, i) => ({ key: String.fromCharCode(65 + i), text: String(c) })) }]
+            ? [{ question: '', num: '', options: meta.choices.map((c, i) => ({ key: String.fromCharCode(65 + i), raw: String(c),
+                // agents sometimes write "A. …" inside the choice itself; the row already shows the letter
+                text: String(c).replace(/^\s*[A-H]\s*[.)、:：]\s*/, '') })) }]
             : parseChoices(msg.text);
         if (!blocks.length) return;
         const col = el.querySelector('.chat-bubble, .sc-tmsg-body');
@@ -598,7 +600,8 @@
           .catch(() => { chosenStore.set(msg.id, 0, null); paint(); toast('Couldn\'t send your answer'); });
         const paint = () => {
             wrap.innerHTML = blocks.map((b, qi) => {
-                const picked = chosenStore.get(msg.id, qi) || fromReplies(qi);
+                const fromServer = fromReplies(qi);   // also fills in what you typed, after a reload or repaint
+                const picked = (isDecision && meta.resolved) ? fromServer : (chosenStore.get(msg.id, qi) || fromServer);
                 if (picked) {
                     const o = b.options.find((x) => x.key === picked);
                     const txt = o ? o.text : (typedOwn[qi] || '');
@@ -663,7 +666,7 @@
             const opt = block.options.find((o) => o.key === b.dataset.k);
             if (!opt || !window.ws || window.ws.readyState !== WebSocket.OPEN) return;
             const tag = blocks.length > 1 || block.num ? `${block.num || qi + 1}${opt.key}` : opt.key;
-            if (isDecision) answerDecision(opt.text, false);
+            if (isDecision) answerDecision(opt.raw || opt.text, false);
             else {
                 const root = rootOf(msg) ?? Number(msg.id);
                 window.ws.send(JSON.stringify({ type: 'message', text: `@${sender} ${tag}：${opt.text}`, sender: me(),
@@ -677,6 +680,11 @@
         // nothing shows twice. Anything else in the message stays.
         const norm = (t) => String(t || '').replace(/[*_`]/g, '').replace(/^\s*(?:\d+|[A-H])\s*[.)、:：]\s*/, '').replace(/\s+/g, ' ').trim();
         const known = new Set();
+        // A decision's text often repeats its options as "A. …" lines, worded a bit differently: drop those too.
+        const optLetter = (raw) => {
+            const m = /^\s*([A-H])\s*[.)、:：]/.exec(String(raw || ''));
+            return !!(m && isDecision && m[1].charCodeAt(0) - 65 < blocks[0].options.length);
+        };
         blocks.forEach((b) => { if (b.question) known.add(norm(b.question)); b.options.forEach((o) => known.add(norm(o.text))); });
         const ownText = (n) => {
             const c = n.cloneNode(true);
@@ -688,7 +696,15 @@
         const mt = textEl;
         if (mt && !mt.querySelector('p, li')) {
             const lines = ownText(mt).split('\n').map(norm).filter(Boolean);
+            const raws = ownText(mt).split('\n').filter((l) => l.trim());
             if (lines.length && lines.every((l) => known.has(l))) mt.classList.add('sc-opt-line');
+            else if (lines.some((l) => known.has(l)) || raws.some(optLetter)) {
+                // Question plus option lines in one block: keep the question, drop the option lines.
+                const parts = mt.innerHTML.split(/<br\s*\/?>|\n/);
+                const tmp = document.createElement('div');
+                const keep = parts.filter((h) => { tmp.innerHTML = h; const t = norm(tmp.textContent); return !t || !(known.has(t) || optLetter(tmp.textContent)); });
+                if (keep.length < parts.length) mt.innerHTML = keep.join('<br>').replace(/(<br>)+$/, '');
+            }
         }
         el.querySelectorAll('.msg-text li, .msg-text p, .sc-tmsg-text li, .sc-tmsg-text p').forEach((n) => {
             const lines = ownText(n).split('\n').map(norm).filter(Boolean);
