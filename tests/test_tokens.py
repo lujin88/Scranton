@@ -114,6 +114,34 @@ class Tokens(unittest.TestCase):
             r = tk.build([], {"motion": {"command": "codex"}}, "Lu", 7, home=home)
             self.assertEqual({x["agent"]: x["tokens"] for x in r["agents"]}, {"motion": 7})
 
+    def test_heaviest_sessions_show_what_is_reread(self):
+        now = time.time()
+        iso = lambda t: time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(t))  # noqa: E731
+        with tempfile.TemporaryDirectory() as d:
+            home = Path(d)
+            cl = home / ".claude" / "projects" / "x"; cl.mkdir(parents=True)
+            lines, n = [], 0
+            for i in range(6):
+                n += 1
+                lines.append({"type": "assistant", "timestamp": iso(now - 600 + i * 60), "requestId": f"r{n}",
+                              "message": {"id": f"m{n}", "usage": {"input_tokens": 10, "cache_read_input_tokens": 1000, "output_tokens": 5},
+                                          "content": [{"type": "tool_use", "id": f"t{n}", "name": "mcp__agentchattr__chat_read",
+                                                       "input": {"sender": "pm", "channel": "lu-portfolio"}}]}})
+                lines.append({"type": "user", "timestamp": iso(now - 590 + i * 60),
+                              "message": {"content": [{"type": "tool_result", "tool_use_id": f"t{n}", "content": "x" * 5000}]}})
+            n += 1
+            lines.append({"type": "assistant", "timestamp": iso(now - 10), "requestId": f"r{n}",
+                          "message": {"id": f"m{n}", "usage": {"input_tokens": 10, "cache_read_input_tokens": 1000, "output_tokens": 5},
+                                      "content": [{"type": "text", "text": "done"}]}})
+            (cl / "s.jsonl").write_text("\n".join(json.dumps(x, separators=(",", ":")) for x in lines) + "\n")
+            tk._cache.clear(); tk._files_seen.clear(); tk._analysis_cache.clear()
+            r = tk.build([], {"pm": {}}, "Lu", 7, home=home)
+            s0 = r["top_sessions"][0]
+            self.assertEqual(s0["agent"], "pm")
+            self.assertEqual(s0["mix"][0]["what"], "Chat it read")
+            self.assertEqual(r["top_actions"][0]["what"], "chat_read #lu-portfolio")
+            self.assertEqual(r["top_actions"][0]["times"], 6)
+
 
 if __name__ == "__main__":
     unittest.main()

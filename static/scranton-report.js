@@ -73,7 +73,7 @@
                 <div><b>${w.avg_minutes == null ? '–' : w.avg_minutes < 60 ? w.avg_minutes + ' min' : Math.round(w.avg_minutes / 6) / 10 + ' h'}</b><span>Your average answer time</span></div>
             </div>
 
-            <h2>Tokens: what used the most</h2>
+            <h2>Tokens: what gets re-read, and what to change</h2>
             <div id="sc-rp-tokens"><p class="sc-rp-muted">Counting tokens…</p></div>
 
             <h2>Pull requests</h2>
@@ -130,24 +130,31 @@
         }
         const maxA = Math.max(1, ...t.agents.map((a) => a.tokens));
         const pct = (n) => Math.round((100 * n) / Math.max(1, t.total));
+        const acts = t.top_actions || [], heavy = t.top_sessions || [];
         box.innerHTML = `
-            <div class="sc-rp-stats sc-rp-stats-3">
-                <div><b>${fmtTok(t.total)}</b><span>Tokens used</span></div>
-                <div><b>${pct(t.cached)}%</b><span>Re-reading earlier context</span></div>
-                <div><b>${fmtTok(t.out)}</b><span>Written by agents</span></div>
-            </div>
-            ${t.tasks.length ? `<h3 class="sc-rp-h3">Tasks that used the most</h3><div class="sc-rp-list">${t.tasks.map((k) => `<button type="button" class="sc-rp-row" data-msg="${esc(k.id)}" data-ch="${esc(k.channel)}">
-                <span class="sc-rp-ic">${ic('thread', 18)}</span>
-                <span class="sc-rp-t"><b>${esc(k.title || 'Thread')}</b><small>#${esc(k.channel)} · ${k.agents.map((a) => esc(label(a))).join(', ')}</small></span>
-                <span class="sc-rp-num sc-rp-num-wide">${fmtTok(k.tokens)} · ${pct(k.tokens)}%</span></button>`).join('')}</div>` : ''}
-            <h3 class="sc-rp-h3">By teammate</h3>
-            <div class="sc-rp-list">${t.agents.slice(0, 8).map((x) => `<div class="sc-rp-row static">
+            <p class="sc-rp-sum">${fmtTok(t.total)} tokens · <b>${pct(t.cached)}%</b> of it agents re-reading what's already in their session. So what matters is what sits in a session and gets re-read on every reply:</p>
+            ${acts.length ? `<h3 class="sc-rp-h3">Done most, and what to change</h3>
+            <div class="sc-rp-list">${acts.map((x, i) => `<div class="sc-rp-row static sc-rp-act">
+                <span class="sc-rp-rank">${i + 1}</span>
+                <span class="sc-rp-t"><b><code>${esc(x.what)}</code> <span class="sc-rp-times">× ${x.times}</span></b>
+                    <small>${x.agents.map((a) => esc(label(a))).join(', ')} · about ${fmtTok(x.tokens)} re-read</small>
+                    ${x.advice ? `<span class="sc-rp-advice">${esc(x.advice)}</span>` : ''}</span></div>`).join('')}</div>` : ''}
+            ${heavy.length ? `<h3 class="sc-rp-h3">Heaviest sessions: what they kept re-reading</h3>
+            <div class="sc-rp-sessions">${heavy.map((x) => `<div class="sc-rp-sess">
+                <div class="sc-rp-sess-h"><span class="sc-rp-av">${window.scAvatarHtml ? window.scAvatarHtml(x.agent) : ''}</span>
+                    <span class="sc-rp-t"><b>${esc(label(x.agent))}</b><small>${x.replies} replies over ${x.hours} h · ${fmtTok(x.tokens)} (${x.share}% of all)</small></span></div>
+                <div class="sc-rp-mix">${x.mix.map((m) => `<div class="sc-rp-mixrow"><span>${esc(m.what)}</span>
+                    <span class="sc-rp-bar"><i style="width:${m.share}%"></i></span><span class="sc-rp-num">${m.share}%</span></div>`).join('')}</div>
+                ${x.repeats.length ? `<p class="sc-rp-reps">Repeated: ${x.repeats.map((r) => `<code>${esc(r.what)}</code> × ${r.times}`).join(' · ')}</p>` : ''}
+                ${x.advice.length ? `<ul class="sc-rp-tips">${x.advice.map((v) => `<li>${esc(v)}</li>`).join('')}</ul>` : ''}
+            </div>`).join('')}</div>` : ''}
+            <details class="sc-rp-more"><summary>By teammate</summary>
+            <div class="sc-rp-list">${t.agents.slice(0, 12).map((x) => `<div class="sc-rp-row static">
                 <span class="sc-rp-av">${window.scAvatarHtml ? window.scAvatarHtml(x.agent) : ''}</span>
                 <span class="sc-rp-t"><b>${esc(label(x.agent))}</b><small>${pct(x.tokens)}% · re-reading ${Math.round((100 * x.cached) / Math.max(1, x.tokens))}%</small></span>
                 <span class="sc-rp-bar"><i style="width:${Math.round((x.tokens / maxA) * 100)}%"></i></span>
-                <span class="sc-rp-num">${fmtTok(x.tokens)}</span></div>`).join('')}</div>
-            ${t.tips.length ? `<h3 class="sc-rp-h3">What would save the most</h3><ul class="sc-rp-tips">${t.tips.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
-            <p class="sc-rp-note">From Claude Code and Codex logs on this Mac. A task is the thread of the request each agent was answering at the time, so per-task numbers are estimates.${t.not_counted.length ? ` Cursor keeps no token log, so ${t.not_counted.map((a) => esc(label(a))).join(', ')} ${t.not_counted.length === 1 ? 'isn\'t' : 'aren\'t'} counted.` : ''}${t.unassigned ? ` Another ${fmtTok(t.unassigned)} came from sessions that never posted in Scranton (for example ones you ran yourself) and is left out.` : ''}</p>`;
+                <span class="sc-rp-num">${fmtTok(x.tokens)}</span></div>`).join('')}</div></details>
+            <p class="sc-rp-note">From Claude Code and Codex logs on this Mac, the ${heavy.length ? 'eight heaviest sessions' : 'sessions'} of this period. "Re-read" weighs each thing by its size and by how many replies came after it, so the numbers are estimates.${t.not_counted.length ? ` Cursor keeps no token log, so ${t.not_counted.map((a) => esc(label(a))).join(', ')} ${t.not_counted.length === 1 ? 'isn\'t' : 'aren\'t'} counted.` : ''}${t.unassigned ? ` ${fmtTok(t.unassigned)} more came from sessions that never posted in Scranton (for example ones you ran yourself) and is left out.` : ''}</p>`;
     }
 
     function open() {

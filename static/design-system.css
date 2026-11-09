@@ -1348,3 +1348,21 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; max-height: 216px; overflow-y: auto; }
 .sc-emoji-grid .sc-emoji[hidden] { display: none; }
 .sc-emoji-empty { color: var(--ds-text-2); font-size: var(--ds-fs-sm); padding: 6px 2px; }
+
+/* Report → Tokens: repeated actions and heaviest sessions */
+.sc-rp-sum { margin: 0 0 4px; color: var(--ds-text-2); font-size: var(--ds-fs-sm); line-height: 1.5; }
+.sc-rp-sum b { color: var(--ds-text); }
+.sc-rp-act { align-items: flex-start !important; }
+.sc-rp-rank { flex-shrink: 0; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 7px; background: var(--ds-overlay); color: var(--ds-text-2); font-size: 12px; font-weight: 600; margin-top: 1px; }
+.sc-rp-act code, .sc-rp-reps code { font-size: 12.5px; padding: 1px 6px; border-radius: 6px; background: var(--ds-overlay); }
+.sc-rp-times { color: var(--ds-text-2); font-weight: 500; }
+.sc-rp-advice { display: block; margin-top: 4px; color: var(--ds-text); font-size: var(--ds-fs-sm); line-height: 1.45; }
+.sc-rp-sessions { display: grid; gap: 12px; }
+.sc-rp-sess { padding: 16px; border-radius: var(--ds-r-card); background: var(--ds-raised); display: flex; flex-direction: column; gap: 10px; }
+.sc-rp-sess-h { display: flex; align-items: center; gap: 12px; }
+.sc-rp-mix { display: flex; flex-direction: column; gap: 6px; }
+.sc-rp-mixrow { display: grid; grid-template-columns: minmax(150px, 220px) 1fr 44px; align-items: center; gap: 12px; font-size: var(--ds-fs-sm); color: var(--ds-text-2); }
+.sc-rp-reps { margin: 0; font-size: var(--ds-fs-sm); color: var(--ds-text-2); line-height: 1.7; }
+.sc-rp-sess .sc-rp-tips { margin: 0; }
+.sc-rp-more { margin-top: 16px; }
+.sc-rp-more summary { cursor: pointer; font-weight: 600; color: var(--ds-text-2); padding: 6px 0; }

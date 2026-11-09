@@ -173,7 +173,7 @@ def _sessions(base: Path, pattern: str, since: float, parse_line, own_call, app:
         senders, rows, cwd = got
         rows = [r for r in rows.values() if r[0] >= since]
         if rows:
-            yield _who(senders, cwd), rows, app
+            yield _who(senders, cwd), rows, app, f
 
 
 def _claude_sessions(since: float, home: Path):
@@ -234,10 +234,11 @@ def _build(msgs: list[dict], team: dict, owner: str, days: int, home: Path | Non
     unassigned = 0
     apps = set()
 
+    heavy = []                # (tokens, agent, app, path, first, last) per teammate session
     sessions = Counter()      # app -> session files with use in the period
     matched = Counter()       # app -> of those, ones tied to a teammate
     for gen in (_claude_sessions(since, home), _codex_sessions(since, home)):
-        for agent, rows, app in gen:
+        for agent, rows, app, path in gen:
             sessions[app] += 1
             agent = base(agent) if agent else None
             if not agent or agent not in handles:
@@ -245,6 +246,7 @@ def _build(msgs: list[dict], team: dict, owner: str, days: int, home: Path | Non
                 continue
             matched[app] += 1
             apps.add(app)
+            heavy.append((sum(r[1] + r[2] + r[3] for r in rows), agent, app, path, min(r[0] for r in rows), max(r[0] for r in rows)))
             trig = triggers.get(agent, [])
             j = 0
             for t, fresh, cached, out in sorted(rows):
@@ -271,6 +273,7 @@ def _build(msgs: list[dict], team: dict, owner: str, days: int, home: Path | Non
                       "title": title[:140], "tokens": tot(c), "agents": sorted(task_agents[r])})
 
     tips = _tips(all_tokens, totals, agents, tasks, team, msgs, since)
+    insight = _insight(sorted(heavy, key=lambda x: -x[0]), all_tokens, team)
     data = {
         "available": bool(all_tokens),
         "total": all_tokens, "fresh": totals["fresh"], "cached": totals["cached"], "out": totals["out"],
@@ -279,6 +282,7 @@ def _build(msgs: list[dict], team: dict, owner: str, days: int, home: Path | Non
                                if str(a.get("command", "")) in ("agent", "cursor-agent")}),
         "unassigned": unassigned,
         "sessions": dict(sessions), "matched": dict(matched),
+        "top_sessions": insight["sessions"], "top_actions": insight["actions"],
     }
     _cache.clear()
     _cache[key] = (time.time(), data)
@@ -357,3 +361,230 @@ def codex_shape(home: Path | None = None, files: int = 5) -> dict:
         except OSError:
             pass
     return dict(kinds)
+
+
+
+# ----------------------------------------------------------------------------------------------
+# What the heaviest sessions keep re-reading, and the actions repeated most (Lu, 11-09: a total
+# alone says nothing; show what's repeated and what to change).
+#
+# Each reply re-reads everything above it in the session. So a piece of context costs about
+# (its size) x (replies after it). We add that up per kind of thing and per repeated action.
+# Sizes are characters, so these are shares, not exact tokens.
+
+_TOOL_KIND = {
+    "chat_read": "Chat it read", "chat_resync": "Chat it read", "chat_send": "Its own posts",
+    "read": "Files it opened", "grep": "File searches", "glob": "File searches",
+    "bash": "Command output", "shell": "Command output", "exec_command": "Command output",
+    "webfetch": "Web pages", "websearch": "Web pages", "task": "Sub-agents", "agent": "Sub-agents",
+    "edit": "Its own edits", "write": "Its own edits", "multiedit": "Its own edits", "apply_patch": "Its own edits",
+}
+_analysis_cache: dict = {}
+
+
+def _tool_name(n):
+    n = str(n or "").split("__")[-1].split(".")[-1]
+    return n
+
+
+def _sig(name, args):
+    """A short label for 'the same action': chat_read #lu-portfolio, Read bar.md, git status."""
+    n = _tool_name(name)
+    a = args if isinstance(args, dict) else {}
+    if not a and isinstance(args, str):
+        try:
+            a = json.loads(args)
+        except ValueError:
+            a = {"cmd": args}
+    low = n.lower()
+    if low in ("chat_read", "chat_resync"):
+        return f"chat_read #{a.get('channel') or 'all'}" + (" (whole thread)" if a.get("job_id") else "")
+    if low in ("read", "edit", "write"):
+        fp = str(a.get("file_path") or a.get("path") or "")
+        return f"{n} {fp.rsplit('/', 1)[-1] or '?'}"
+    if low in ("bash", "shell", "exec_command"):
+        cmd = a.get("command") or a.get("cmd") or ""
+        if isinstance(cmd, list):
+            cmd = cmd[-1] if cmd else ""
+        words = [w for w in re.split(r"\s+", str(cmd).strip()) if w and not w.startswith("-") and "=" not in w]
+        words = [w.rsplit("/", 1)[-1] for w in words]
+        if words and words[0] in ("gh-push.sh", "test-lock.sh", "timeout", "sudo", "env"):
+            words = words[1:]
+        return " ".join(words[:3])[:60] or n
+    if low in ("webfetch",):
+        u = str(a.get("url") or "")
+        return "WebFetch " + (re.sub(r"^https?://", "", u).split("/")[0] or "?")
+    return n
+
+
+def _analyze(path: Path, app: str) -> dict:
+    """Walk one session: what sits in its context and how many replies re-read it."""
+    try:
+        st = path.stat()
+    except OSError:
+        return {}
+    ck = (str(path), st.st_size)
+    if ck in _analysis_cache:
+        return _analysis_cache[ck]
+    items = []        # [kind, sig, size, calls_before]
+    calls = 0
+    seen_ids = set()
+    pending = {}      # tool call id -> (name, args)
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            if app == "claude":
+                if d.get("type") == "system" and "compact" in str(d.get("subtype", "")):
+                    items = []   # compacted: earlier context is gone
+                    continue
+                msg = d.get("message") or {}
+                content = msg.get("content")
+                if d.get("type") == "assistant":
+                    mid = msg.get("id")
+                    if mid and mid not in seen_ids and msg.get("usage"):
+                        seen_ids.add(mid)
+                        calls += 1
+                    for c in content if isinstance(content, list) else []:
+                        if c.get("type") == "tool_use":
+                            pending[c.get("id")] = (c.get("name"), c.get("input") or {})
+                            items.append(["Its own replies and thinking", "", len(json.dumps(c.get("input") or {})), calls])
+                        elif c.get("type") in ("text", "thinking"):
+                            items.append(["Its own replies and thinking", "", len(str(c.get("text") or c.get("thinking") or "")), calls])
+                elif d.get("type") == "user":
+                    if isinstance(content, str):
+                        _prompt_items(items, content, calls)
+                        continue
+                    for c in content if isinstance(content, list) else []:
+                        if c.get("type") == "tool_result":
+                            name, args = pending.get(c.get("tool_use_id"), ("tool", {}))
+                            body = c.get("content")
+                            size, img = 0, 0
+                            for part in body if isinstance(body, list) else [{"type": "text", "text": body}]:
+                                if isinstance(part, dict) and part.get("type") == "image":
+                                    img += 1600   # an image is about 1.6k tokens
+                                else:
+                                    size += len(str(part.get("text", "") if isinstance(part, dict) else part))
+                            kind = _TOOL_KIND.get(_tool_name(name).lower(), "Other tools")
+                            items.append([kind, _sig(name, args), size, calls])
+                            if img:
+                                items.append(["Screenshots and images", _sig(name, args), img * 3, calls])
+                        elif c.get("type") == "text":
+                            _prompt_items(items, str(c.get("text") or ""), calls)
+                        elif c.get("type") == "image":
+                            items.append(["Screenshots and images", "image you sent", 4800, calls])
+            else:
+                p = d.get("payload") if isinstance(d.get("payload"), dict) else {}
+                t = p.get("type")
+                if d.get("type") == "compacted":
+                    items = []
+                    continue
+                if t == "token_count" and (p.get("info") or {}).get("last_token_usage"):
+                    calls += 1
+                elif t == "message":
+                    text = " ".join(str(x.get("text") or "") for x in p.get("content") or [] if isinstance(x, dict))
+                    if p.get("role") == "user":
+                        _prompt_items(items, text, calls)
+                    elif p.get("role") == "assistant":
+                        items.append(["Its own replies and thinking", "", len(text), calls])
+                    else:
+                        items.append(["Instructions at the start", "", len(text), calls])
+                elif t in ("function_call", "custom_tool_call"):
+                    args = p.get("arguments") if t == "function_call" else p.get("input")
+                    pending[p.get("call_id")] = (p.get("name"), args)
+                    items.append(["Its own replies and thinking", "", len(str(args or "")), calls])
+                elif t in ("function_call_output", "custom_tool_call_output"):
+                    name, args = pending.get(p.get("call_id"), ("tool", {}))
+                    out = p.get("output")
+                    size = len(out if isinstance(out, str) else json.dumps(out or ""))
+                    items.append([_TOOL_KIND.get(_tool_name(name).lower(), "Other tools"), _sig(name, args), size, calls])
+    kinds, acts = Counter(), defaultdict(lambda: [0, 0])
+    for kind, sig, size, before in items:
+        w = size * max(0, calls - before)
+        kinds[kind] += w
+        if sig:
+            acts[sig][0] += 1
+            acts[sig][1] += w
+    res = {"calls": calls, "kinds": dict(kinds), "acts": {k: tuple(v) for k, v in acts.items()},
+           "context": sum(i[2] for i in items)}
+    _analysis_cache[ck] = res
+    return res
+
+
+def _prompt_items(items, text, calls):
+    """A message Scranton typed in to wake the agent: the request itself, and the rules sent along."""
+    i = text.find("\n\nTEAM: ") if "\n\nTEAM: " in text else text.find(" TEAM: ")
+    if i >= 0:
+        items.append(["Team rules sent with messages", "", len(text) - i, calls])
+        text = text[:i]
+    items.append(["Messages that woke it", "", len(text), calls])
+
+
+_ADVICE = {
+    "Chat it read": "It re-reads chat it already saw. Ask it to read only new messages (chat_read with since_id), "
+                    "or have the project manager pass on just the lines it needs.",
+    "Files it opened": "Big files stay in its memory and are re-read on every reply. Put what it always needs "
+                       "in its role card, and have it read only the part it needs.",
+    "Command output": "Long command output stays in its memory. Have it cut output down (| tail -40, --quiet).",
+    "Screenshots and images": "Every screenshot is re-read on every later reply. Send fewer, smaller ones, "
+                              "and start a fresh session after a visual check.",
+    "Web pages": "Fetched web pages stay in its memory. Ask for a short summary instead of whole pages.",
+    "Team rules sent with messages": "The team rules sent along with messages are a big share: Scranton can send them less often.",
+    "Its own replies and thinking": "Its own long replies pile up. A fresh session after each finished task clears them.",
+    "Messages that woke it": "Long requests and hand-offs pile up. Shorter hand-offs (what to do, link, done-when) help.",
+    "Sub-agents": "Sub-agent reports stay in its memory. Ask sub-agents for a short result only.",
+}
+
+
+def _insight(heavy, all_tokens, team):
+    """Top sessions (what each kept re-reading) and the actions repeated most across them."""
+    sessions, acts = [], defaultdict(lambda: [0, 0, set()])
+    for tokens, agent, app, path, first, last in heavy[:8]:
+        try:
+            a = _analyze(path, app)
+        except Exception:
+            continue
+        if not a or not a.get("kinds"):
+            continue
+        tw = sum(a["kinds"].values()) or 1
+        for sig, (n, w) in a["acts"].items():
+            acts[sig][0] += n
+            acts[sig][1] += tokens * w / tw    # its share of this session's tokens
+            acts[sig][2].add(agent)
+        if len(sessions) < 3:
+            mix = sorted(a["kinds"].items(), key=lambda kv: -kv[1])
+            top = [{"what": k, "share": round(100 * v / tw)} for k, v in mix[:4] if v / tw >= 0.05]
+            reps = sorted(((s, n, w) for s, (n, w) in a["acts"].items() if n >= 3), key=lambda x: -x[2])[:3]
+            advice = []
+            hours = (last - first) / 3600
+            if a["calls"] >= 120 or hours >= 6:
+                advice.append(f"One session for {a['calls']} replies over {hours:.0f} h. With Fresh sessions on "
+                              f"(every 40 messages or 4 h) it would have started clean several times.")
+            if mix and _ADVICE.get(mix[0][0]):
+                advice.append(_ADVICE[mix[0][0]])
+            sessions.append({"agent": agent, "tokens": tokens, "share": round(100 * tokens / all_tokens) if all_tokens else 0,
+                             "replies": a["calls"], "hours": round(hours, 1), "mix": top,
+                             "repeats": [{"what": s, "times": n, "share": round(100 * w / tw)} for s, n, w in reps],
+                             "advice": advice[:2]})
+    top_acts = sorted(acts.items(), key=lambda kv: -kv[1][1])[:5]
+    actions = []
+    for sig, (n, tok, who) in top_acts:
+        kind = next((v for k, v in _TOOL_KIND.items() if sig.lower().startswith(k)), None)
+        if sig.startswith("chat_read"):
+            kind = "Chat it read"
+        elif sig.split(" ")[0] in ("Read",):
+            kind = "Files it opened"
+        elif kind is None:
+            kind = "Command output"
+        actions.append({"what": sig, "times": n, "tokens": int(tok), "agents": sorted(who),
+                        "advice": _ACTION_ADVICE.get(kind, "")})
+    return {"sessions": sessions, "actions": actions}
+
+
+_ACTION_ADVICE = {
+    "Chat it read": "Read only what's new since last time, not the whole channel or thread.",
+    "Files it opened": "Opened again and again: put the part it needs into its role card, or read just that part.",
+    "Command output": "Same command many times: keep the output short (| tail, --quiet), and don't re-run to check what didn't change.",
+}
