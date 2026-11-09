@@ -397,7 +397,7 @@
                         : '<button type="button" class="sc-btn primary" data-agent-act="start">Start</button>'}
                 </div>
             </header>
-            ${pickingAvatar ? `<div class="sc-av-pop"><div class="sc-av-grid">${p.avatars.map((f) => `<button type="button" class="sc-av-pick${f === p.avatar ? ' on' : ''}" data-av-set="${esc(f)}" aria-label="${esc(f)}"><img src="/static/avatars/${esc(f)}" alt=""></button>`).join('')}</div></div>` : ''}
+            ${pickingAvatar ? `<div class="sc-av-pop"><div class="sc-av-grid">${p.avatars.map((f) => `<button type="button" class="sc-av-pick${f === p.avatar ? ' on' : ''}" data-av-set="${esc(f)}" aria-label="${esc(f)}"><img src="/static/avatars/${esc(f)}" alt=""></button>`).join('')}<label class="sc-av-pick sc-av-upload" data-tip="Upload a picture (JPG, PNG or WebP)" aria-label="Upload a picture">${window.scIcon ? window.scIcon('add', 22) : '+'}<input type="file" accept="image/png,image/jpeg,image/webp" hidden data-av-upload></label></div></div>` : ''}
             <div class="sc-tabs" role="tablist">${tabs.map(([id, n]) => `<button type="button" role="tab" aria-selected="${id === agentTab}" class="${id === agentTab ? 'on' : ''}" data-tab="${id}">${n}</button>`).join('')}</div>
             <div class="sc-tabbody">${content}</div>`;
     }
@@ -499,6 +499,7 @@
         if (a === 'back') { agentOpen = null; editing = false; pickingAvatar = false; render(); return; }
         if (a === 'edit') { editing = true; render(); return; }
         if (a === 'pick-avatar') { pickingAvatar = !pickingAvatar; render(); return; }
+        if (t.closest('.sc-av-upload')) return;   // the file input inside opens the picker
         const avSet = t.closest('[data-av-set]');
         if (avSet) {
             const r = await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}`, { action: 'set', key: 'avatar', value: avSet.dataset.avSet });
@@ -610,7 +611,36 @@
         setTimeout(render, 300);
     }
 
+    // A new teammate picture: cropped to a 256 px square here, saved on the server, then used.
+    function squareJpeg(file) {
+        return new Promise((res, rej) => {
+            if (!file || !/^image\/(png|jpeg|webp)$/.test(file.type)) { rej(new Error('type')); return; }
+            const img = new Image(), u = URL.createObjectURL(file);
+            img.onload = () => {
+                const c = document.createElement('canvas'); c.width = c.height = 256;
+                const s = Math.min(img.width, img.height);
+                c.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 256, 256);
+                URL.revokeObjectURL(u); res(c.toDataURL('image/jpeg', 0.85));
+            };
+            img.onerror = () => { URL.revokeObjectURL(u); rej(new Error('read')); };
+            img.src = u;
+        });
+    }
+
     async function onChange(e) {
+        if (e.target.matches && e.target.matches('[data-av-upload]')) {
+            const file = e.target.files && e.target.files[0];
+            if (!file || !agentOpen) return;
+            let data;
+            try { data = await squareJpeg(file); } catch (_) { window.scToast && window.scToast('Use a JPG, PNG or WebP picture'); return; }
+            const up = await api('/api/scranton/avatars', { handle: agentOpen, data });
+            if (!up || up.error || !up.file) { window.scToast && window.scToast((up && up.error) || "Couldn't upload. Is Scranton running?"); return; }
+            const r = await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}`, { action: 'set', key: 'avatar', value: up.file });
+            pickingAvatar = false;
+            if (r && !r.error) { window.scReloadTeam && window.scReloadTeam(); }
+            setTimeout(render, 300);
+            return;
+        }
         if (e.target.name === 'sc-new-prov' && newOpts) {
             const sel = root.querySelector('#sc-new-model');
             if (sel) sel.innerHTML = modelOptions(newOpts.models[e.target.value] || [['', 'Default', '']], '');

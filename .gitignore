@@ -23,3 +23,4 @@ agentchattr-*.zip
 
 # Scranton helper permissions are committed on purpose
 !helper/.claude/
+static/avatars/upload-*

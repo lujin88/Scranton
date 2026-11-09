@@ -1288,3 +1288,7 @@ body.sc-inbox-open #scroll-anchor { display: none !important; }
 #sc-inbox .sc-inbox-item { padding-top: 10px !important; padding-bottom: 10px !important; }
 #sc-inbox .sc-inbox-status { margin-top: 2px; }
 #sc-inbox .sc-inbox-group-top { margin-top: 0 !important; }
+/* Teammate picture picker: the last tile uploads your own */
+.sc-av-upload { display: grid !important; place-items: center; cursor: pointer; color: var(--ds-text-2);
+    background: transparent !important; box-shadow: inset 0 0 0 1.5px var(--ds-line-strong) !important; border-style: dashed; }
+.sc-av-upload:hover { color: var(--ds-text); box-shadow: inset 0 0 0 1.5px var(--ds-text-3) !important; }

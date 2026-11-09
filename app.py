@@ -2606,6 +2606,28 @@ async def scranton_me_avatar_set(request: Request):
     return JSONResponse({"ok": True})
 
 
+@app.post("/api/scranton/avatars")
+async def scranton_avatar_upload(request: Request):
+    """A new teammate picture from Settings (the page crops it to a 256 px square JPEG first).
+    Saved as static/avatars/upload-<handle>-<time>.jpg, which git ignores (never pushed)."""
+    import base64 as _b64
+    body = await request.json()
+    handle = str(body.get("handle", "") or "").strip().lower()
+    data = str(body.get("data", "") or "")
+    m = _re.match(r"^data:image/jpeg;base64,([A-Za-z0-9+/=]+)$", data)
+    if not m or len(data) > 400_000:
+        return JSONResponse({"error": "use a JPG, PNG or WebP picture"}, status_code=400)
+    if handle not in (config or {}).get("agents", {}):
+        return JSONResponse({"error": "unknown teammate"}, status_code=404)
+    raw = _b64.b64decode(m.group(1))
+    if not raw.startswith(b"\xff\xd8\xff"):          # really a JPEG
+        return JSONResponse({"error": "use a JPG, PNG or WebP picture"}, status_code=400)
+    safe = _re.sub(r"[^a-z0-9-]", "", handle)[:20] or "agent"
+    fname = f"upload-{safe}-{int(_time_pr.time())}.jpg"
+    (Path(__file__).parent / "static" / "avatars" / fname).write_bytes(raw)
+    return JSONResponse({"ok": True, "file": fname})   # the page then sets it like any other picture
+
+
 @app.get("/api/scranton/connections")
 async def scranton_connections():
     return JSONResponse(await asyncio.to_thread(_sc_team.connections, config))

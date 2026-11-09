@@ -173,6 +173,7 @@ role_card = "roles/ux-copywriter.md"
 
 [agents.help]
 label = "Scranton 帮手"
+avatar = "15-scranton-helper-squirrel.jpg"
 command = "claude"
 cwd = "helper"
 color = "#cad3f5"
@@ -243,6 +244,7 @@ autostart = false
 
 [agents.ops]
 label = "上线与运维"
+avatar = "16-ops-hedgehog.jpg"
 command = "claude"
 cwd = "~/LuJin-Portfolio"
 color = "#8bd5ca"
@@ -252,6 +254,7 @@ autostart = false
 
 [agents.legal]
 label = "法务与隐私"
+avatar = "17-legal-privacy-owl.jpg"
 command = "claude"
 cwd = "~/LuJin-Portfolio"
 color = "#f5a97f"
