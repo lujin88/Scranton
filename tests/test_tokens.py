@@ -98,6 +98,22 @@ class Tokens(unittest.TestCase):
             a = {x["agent"]: x["tokens"] for x in tk.build([], team, "Lu", 7, home=home)["agents"]}
             self.assertEqual(a, {"copy": 2, "visual": 5})
 
+    def test_codex_posting_as_codex_is_found_by_its_worktree(self):
+        now = time.time()
+        iso = lambda t: time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(t))  # noqa: E731
+        with tempfile.TemporaryDirectory() as d:
+            home = Path(d)
+            cx = home / ".codex" / "sessions" / "2026"; cx.mkdir(parents=True)
+            rows = [{"timestamp": iso(now - 50), "type": "session_meta", "payload": {"cwd": "/Users/lu/LuJin-Portfolio-worktrees/motion"}},
+                    {"timestamp": iso(now - 40), "type": "response_item",
+                     "payload": {"type": "custom_tool_call", "input": json.dumps({"sender": "codex"})}},
+                    {"timestamp": iso(now - 30), "type": "event_msg", "payload": {"type": "token_count", "info": {
+                        "last_token_usage": {"input_tokens": 7, "cached_input_tokens": 0, "output_tokens": 0}}}}]
+            (cx / "rollout-d.jsonl").write_text("\n".join(json.dumps(x, separators=(",", ":")) for x in rows) + "\n")
+            tk._cache.clear(); tk._files_seen.clear()
+            r = tk.build([], {"motion": {"command": "codex"}}, "Lu", 7, home=home)
+            self.assertEqual({x["agent"]: x["tokens"] for x in r["agents"]}, {"motion": 7})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -64,7 +64,7 @@ def _scan(f: Path, parse_line, own_call):
         return None
     c = _files_seen.get(str(f))
     if not c or c["ino"] != st.st_ino or st.st_size < c["off"]:
-        c = {"ino": st.st_ino, "off": 0, "senders": Counter(), "rows": {}}
+        c = {"ino": st.st_ino, "off": 0, "senders": Counter(), "rows": {}, "cwd": ""}
         _files_seen[str(f)] = c
     if st.st_size > c["off"]:
         try:
@@ -72,11 +72,15 @@ def _scan(f: Path, parse_line, own_call):
                 fh.seek(c["off"])
                 chunk = fh.read()
         except OSError:
-            return c["senders"], c["rows"]
+            return c["senders"], c["rows"], c["cwd"]
         cut = chunk.rfind(b"\n") + 1
         pos = c["off"]
         for raw in chunk[:cut].split(b"\n")[:-1]:
             line = raw.decode("utf-8", "replace")
+            if not c["cwd"] and '"cwd"' in line:
+                m = _CWD.search(line)
+                if m:
+                    c["cwd"] = m.group(1)
             if "sender" in line and own_call(line):
                 c["senders"].update(_SENDER.findall(line))
             r = parse_line(line, pos)
@@ -91,7 +95,7 @@ def _scan(f: Path, parse_line, own_call):
             r = parse_line(tail, c["off"])
             if r:
                 c["rows"][r[0]] = r[1]
-    return c["senders"], c["rows"]
+    return c["senders"], c["rows"], c["cwd"]
 
 
 # Which teammate a session is: the sender in ITS OWN tool calls. Tool results (chat_read output)
@@ -103,6 +107,24 @@ def _claude_call(line):
 def _codex_call(line):
     return ('"function_call"' in line or '"custom_tool_call"' in line or '"mcp_tool_call_begin"' in line) \
         and '_output"' not in line
+
+
+_CWD = re.compile(r'"cwd"\s*:\s*"([^"]{1,400})"')
+_WT = re.compile(r'-worktrees/([A-Za-z0-9_-]{1,40})/?$')
+_GENERIC = {"codex", "claude", "user", "agent", "cursor", "assistant"}
+
+
+def _who(senders: Counter, cwd: str):
+    """The teammate a session belongs to. Its own git worktree says it best (<repo>-worktrees/<name>,
+    made by scranton.sh). Otherwise the name it posts as, but not a generic one: Codex teammates
+    often post as "codex" and the server fills in who they are."""
+    m = _WT.search(cwd or "")
+    if m:
+        return m.group(1)
+    for name, _n in senders.most_common():
+        if name.lower() not in _GENERIC:
+            return name
+    return None
 
 
 def _claude_line(line, pos):
@@ -148,10 +170,10 @@ def _sessions(base: Path, pattern: str, since: float, parse_line, own_call, app:
         got = _scan(f, parse_line, own_call)
         if not got:
             continue
-        senders, rows = got
+        senders, rows, cwd = got
         rows = [r for r in rows.values() if r[0] >= since]
         if rows:
-            yield (senders.most_common(1)[0][0] if senders else None), rows, app
+            yield _who(senders, cwd), rows, app
 
 
 def _claude_sessions(since: float, home: Path):
