@@ -101,7 +101,7 @@
         const chev = window.scIcon ? window.scIcon('right', 16) : '›';
         menu.innerHTML = `
             <button type="button" role="menuitem" class="sc-am-head" data-a="status" aria-haspopup="menu" aria-label="Status: ${stLabel}">
-                <span class="sc-am-av">${pic}<span class="sc-me-dot ${st}"></span></span>
+                <span class="sc-am-av">${pic}</span>
                 <span class="sc-am-who"><span class="sc-am-name">${esc(me())}</span><span class="sc-am-st"><span class="sc-am-dot ${st}"></span>${stLabel}</span></span>
                 <i class="sc-am-chev">${chev}</i></button>
             <hr>
