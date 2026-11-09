@@ -22,7 +22,9 @@ import time
 from collections import Counter, defaultdict
 from pathlib import Path
 
-_SENDER = re.compile(r'\\?"sender\\?"\s*:\s*\\?"([A-Za-z0-9_-]{1,40})')
+# "sender":"pm" in JSON, escaped once or twice (Codex custom tools wrap the call in code), or a
+# code literal like sender: 'visual'.
+_SENDER = re.compile(r'''(?:\\*"|\b)sender(?:\\*")?\s*[:=]\s*\\*["']([A-Za-z0-9_-]{1,40})''')
 _cache: dict = {}
 _lock = threading.Lock()   # the warm-up at start and a Report request must not read the same files at once
 
@@ -323,7 +325,10 @@ def codex_shape(home: Path | None = None, files: int = 5) -> dict:
                         kinds["unparsed"] += 1
                         continue
                     p = d.get("payload") if isinstance(d.get("payload"), dict) else {}
-                    kinds[f'{d.get("type")}/{p.get("type")}/{"call" if _codex_call(line) else "-"}'] += 1
+                    k = f'{d.get("type")}/{p.get("type")}/{"call" if _codex_call(line) else "-"}'
+                    kinds[k] += 1
+                    if _SENDER.search(line):
+                        kinds[k + "/found"] += 1
         except OSError:
             pass
     return dict(kinds)
