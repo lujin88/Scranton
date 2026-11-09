@@ -36,7 +36,8 @@
     }
 
     function avatarHtml(name) {
-        if (name === 'grok') return '<span class="sc-grok-av" aria-hidden="true">G</span>';
+        // Grok Bot's own picture if it's on this Mac (static/avatars/upload-grok.jpg, not in git), else "G"
+        if (name === 'grok') return '<img src="/static/avatars/upload-grok.jpg" alt="" loading="lazy" onerror="this.outerHTML=\'<span class=&quot;sc-grok-av&quot; aria-hidden=&quot;true&quot;>G</span>\'">';
         const t = scTeam[baseOf(name)];
         // Server only returns /static/avatars/<plain file name>; escape anyway.
         if (t && t.avatar && /^\/static\/avatars\/[^/]+$/.test(t.avatar)) return `<img src="${escAttr(t.avatar)}" alt="" loading="lazy">`;

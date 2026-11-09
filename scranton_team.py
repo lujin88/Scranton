@@ -486,7 +486,8 @@ def stop(name: str, config: dict, run_dir: Path) -> bool:
 
 def avatars() -> list[str]:
     d = ROOT / "static" / "avatars"
-    return sorted(p.name for p in d.iterdir() if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp")) if d.is_dir() else []
+    return sorted(p.name for p in d.iterdir() if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp")
+                  and p.name != "upload-grok.jpg") if d.is_dir() else []   # Grok Bot's own picture isn't for teammates
 
 
 def profile(name: str, config: dict, members: dict, recent: list[dict]) -> dict | None:
