@@ -2949,8 +2949,10 @@ _tok_jobs: dict = {}
 
 
 @app.get("/api/scranton/report/tokens")
-async def scranton_report_tokens(days: int = 7):
+async def scranton_report_tokens(days: int = 7, shape: int = 0):
     """Tokens from Claude Code / Codex session logs on this Mac, per teammate and per task."""
+    if shape:   # diagnostics: kinds of Codex log lines that carry a sender (no content)
+        return JSONResponse(await asyncio.to_thread(_sc_tokens.codex_shape))
     days = max(1, min(int(days), 31))
     last = _tok_last.get(days)
     if last and _time_pr.time() - last[0] < 120:

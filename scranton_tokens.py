@@ -303,3 +303,27 @@ def _tips(all_tokens, totals, agents, tasks, team, msgs, since):
         tips.append(f"The team was paused {loops} time{'s' if loops != 1 else ''} for handing work back and forth "
                     "without you. Each hand-off wakes another agent that re-reads the thread.")
     return tips[:3]
+
+
+def codex_shape(home: Path | None = None, files: int = 5) -> dict:
+    """Which kinds of Codex log lines mention a sender (kinds only, no content): to see why
+    Codex sessions aren't tied to a teammate."""
+    home = home or Path.home()
+    base = Path(os.environ.get("CODEX_HOME") or home / ".codex") / "sessions"
+    kinds: Counter = Counter()
+    for f in sorted(_files(base, "**/rollout-*.jsonl", time.time() - 7 * 86400), key=lambda p: -p.stat().st_mtime)[:files]:
+        try:
+            with open(f, encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    if "sender" not in line:
+                        continue
+                    try:
+                        d = json.loads(line)
+                    except ValueError:
+                        kinds["unparsed"] += 1
+                        continue
+                    p = d.get("payload") if isinstance(d.get("payload"), dict) else {}
+                    kinds[f'{d.get("type")}/{p.get("type")}/{"call" if _codex_call(line) else "-"}'] += 1
+        except OSError:
+            pass
+    return dict(kinds)
