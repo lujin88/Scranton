@@ -547,6 +547,7 @@ _ADVICE = {
 def _insight(heavy, all_tokens, team):
     """Top sessions (what each kept re-reading) and the actions repeated most across them."""
     sessions, acts = [], defaultdict(lambda: [0, 0, set()])
+    shown = Counter()   # one card per teammate (Lu, 11-09: pm showed twice); count its other long sessions
     for tokens, agent, app, path, first, last in heavy[:8]:
         try:
             a = _analyze(path, app)
@@ -559,6 +560,12 @@ def _insight(heavy, all_tokens, team):
             acts[sig][0] += n
             acts[sig][1] += tokens * w / tw    # its share of this session's tokens
             acts[sig][2].add(agent)
+        shown[agent] += 1
+        if shown[agent] > 1:
+            for x in sessions:
+                if x["agent"] == agent:
+                    x["more"] = shown[agent] - 1
+            continue
         if len(sessions) < 3:
             mix = sorted(a["kinds"].items(), key=lambda kv: -kv[1])
             top = [{"what": k, "share": round(100 * v / tw)} for k, v in mix[:4] if v / tw >= 0.05]
@@ -573,7 +580,7 @@ def _insight(heavy, all_tokens, team):
             sessions.append({"agent": agent, "tokens": tokens, "share": round(100 * tokens / all_tokens) if all_tokens else 0,
                              "replies": a["calls"], "hours": round(hours, 1), "mix": top,
                              "repeats": [{"what": s, "times": n, "share": round(100 * w / tw)} for s, n, w in reps],
-                             "advice": advice[:2]})
+                             "advice": advice[:2], "more": 0})
     top_acts = sorted(acts.items(), key=lambda kv: -kv[1][1])[:5]
     actions = []
     for sig, (n, tok, who) in top_acts:

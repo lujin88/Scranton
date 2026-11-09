@@ -9,6 +9,13 @@
         body: body ? JSON.stringify(body) : undefined,
     }).then((r) => r.json());
     const label = (h) => (window.scLabelOf ? window.scLabelOf(h) : h);
+    // "Claude · Opus", "ChatGPT · default model", "Cursor · Grok 4.6": which app and model a teammate runs on
+    const runsOn = (h) => {
+        const a = (window.scGetTeam ? window.scGetTeam() : {})[h] || {};
+        const app = { claude: 'Claude', codex: 'ChatGPT', agent: 'Cursor', 'cursor-agent': 'Cursor', grok: 'Grok' }[String(a.provider || a.command || '').toLowerCase()] || '';
+        const m = String(a.model_name || '');
+        return [app, m && m !== app ? m : (app ? 'default model' : '')].filter(Boolean).join(' · ');
+    };
     let days = 7;
 
     function section() {
@@ -143,7 +150,7 @@
             ${heavy.length ? `<h3 class="sc-rp-h3">Heaviest sessions: what they kept re-reading</h3>
             <div class="sc-rp-sessions">${heavy.map((x) => `<div class="sc-rp-sess">
                 <div class="sc-rp-sess-h"><span class="sc-rp-av">${window.scAvatarHtml ? window.scAvatarHtml(x.agent) : ''}</span>
-                    <span class="sc-rp-t"><b>${esc(label(x.agent))}</b><small>${x.replies} replies over ${x.hours} h · ${fmtTok(x.tokens)} (${x.share}% of all)</small></span></div>
+                    <span class="sc-rp-t"><b>${esc(label(x.agent))}${runsOn(x.agent) ? ` <span class="sc-rp-app">${esc(runsOn(x.agent))}</span>` : ''}</b><small>Its longest session: ${x.replies} replies over ${x.hours} h · ${fmtTok(x.tokens)} (${x.share}% of all)${x.more ? ` · plus ${x.more} more long session${x.more > 1 ? 's' : ''}` : ''}</small></span></div>
                 <div class="sc-rp-mix">${x.mix.map((m) => `<div class="sc-rp-mixrow"><span>${esc(m.what)}</span>
                     <span class="sc-rp-bar"><i style="width:${m.share}%"></i></span><span class="sc-rp-num">${m.share}%</span></div>`).join('')}</div>
                 ${x.repeats.length ? `<p class="sc-rp-reps">Repeated: ${x.repeats.map((r) => `<code>${esc(r.what)}</code> × ${r.times}`).join(' · ')}</p>` : ''}
@@ -152,7 +159,7 @@
             <details class="sc-rp-more"><summary>By teammate</summary>
             <div class="sc-rp-list">${t.agents.slice(0, 12).map((x) => `<div class="sc-rp-row static">
                 <span class="sc-rp-av">${window.scAvatarHtml ? window.scAvatarHtml(x.agent) : ''}</span>
-                <span class="sc-rp-t"><b>${esc(label(x.agent))}</b><small>${pct(x.tokens)}% · re-reading ${Math.round((100 * x.cached) / Math.max(1, x.tokens))}%</small></span>
+                <span class="sc-rp-t"><b>${esc(label(x.agent))}${runsOn(x.agent) ? ` <span class="sc-rp-app">${esc(runsOn(x.agent))}</span>` : ''}</b><small>${pct(x.tokens)}% · re-reading ${Math.round((100 * x.cached) / Math.max(1, x.tokens))}%</small></span>
                 <span class="sc-rp-bar"><i style="width:${Math.round((x.tokens / maxA) * 100)}%"></i></span>
                 <span class="sc-rp-num">${fmtTok(x.tokens)}</span></div>`).join('')}</div></details>
             <p class="sc-rp-note">From Claude Code and Codex logs on this Mac, the ${heavy.length ? 'eight heaviest sessions' : 'sessions'} of this period. "Re-read" weighs each thing by its size and by how many replies came after it, so the numbers are estimates.${t.not_counted.length ? ` Cursor keeps no token log, so ${t.not_counted.map((a) => esc(label(a))).join(', ')} ${t.not_counted.length === 1 ? 'isn\'t' : 'aren\'t'} counted.` : ''}${t.unassigned ? ` ${fmtTok(t.unassigned)} more came from sessions that never posted in Scranton (for example ones you ran yourself) and is left out.` : ''}</p>`;
@@ -188,6 +195,7 @@
         }
         const seen = new Set();
         for (const a of (t.top_actions || [])) {
+            if (/\(other\)$/.test(a.what)) continue;   // nothing specific to ask for
             const r = ACT_RULES.find(([re]) => re.test(a.what));
             if (!r || seen.has(r[1])) continue;
             seen.add(r[1]);
@@ -210,9 +218,13 @@
         if (!box) return;
         const list = await proposals(t);
         if (!box.isConnected || !list.length) return;
+        // Once you've picked, it's done: the card goes away. It can come back after a week if the
+        // numbers still say so.
         const got = picks();
-        box.innerHTML = `<h3 class="sc-rp-h3">Suggestions: pick one</h3><div class="sc-choices sc-rp-props">${list.map((p) => {
-            const picked = got[p.id];
+        const open = list.filter((p) => { const g = got[p.id]; return !g || (typeof g === 'object' && Date.now() - g.at > 7 * 86400e3); });
+        if (!open.length) { box.innerHTML = ''; return; }
+        box.innerHTML = `<h3 class="sc-rp-h3">Suggestions: pick one</h3><div class="sc-choices sc-rp-props">${open.map((p) => {
+            const picked = null;
             return `<div class="sc-choice-card${picked ? ' done' : ''}" data-prop="${esc(p.id)}">
                 <div class="sc-choice-q">${esc(p.title)}</div>
                 <p class="sc-rp-why">${esc(p.why)}</p>
@@ -240,8 +252,9 @@
                 }
             }
             if (!ok) { if (window.scToast) window.scToast("Couldn't do that. Is Scranton running?"); return; }
-            const a = picks(); a[p.id] = o.key; localStorage.setItem(PROP_KEY, JSON.stringify(a));
-            renderProposals(t);
+            const a = picks(); a[p.id] = { key: o.key, at: Date.now() }; localStorage.setItem(PROP_KEY, JSON.stringify(a));
+            card.classList.add('sc-gone');
+            setTimeout(() => renderProposals(t), 260);
         };
     }
 
