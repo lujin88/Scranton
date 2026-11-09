@@ -1229,10 +1229,16 @@ def main():
     _checked_work = [None]   # the request we already checked for a missing reply
     _nudged = {}             # request time -> when we reminded the agent to reply
 
+    _started_at = time.time()
+    def _work():
+        try:
+            return json.loads(_work_file(queue_file, assigned_name).read_text("utf-8")) or {}
+        except (OSError, ValueError, NameError):
+            return {}
     def _work_at():
         try:
-            return float(json.loads(_work_file(queue_file, assigned_name).read_text("utf-8")).get("at") or 0)
-        except (OSError, ValueError, NameError):
+            return float(_work().get("at") or 0)
+        except (TypeError, ValueError):
             return 0.0
 
     def _activity_monitor():
@@ -1273,19 +1279,24 @@ def main():
                         and _checked_work[0] != _work_at()):
                     _checked_work[0] = _work_at()
                     w_at = _checked_work[0]
-                    if w_at and now - w_at < 6 * 3600:
+                    # Only work handed to THIS run: after a restart the request from before is gone
+                    # from the CLI's memory, and the new run doesn't know its channel (11-09: everyone
+                    # asked "what request?" in #general). Ask where the request came from, not #general.
+                    w = _work()
+                    w_ch, w_th = (w.get("channel") or _LAST_PLACE["channel"]), w.get("thread")
+                    if w_at and w_at > _started_at and now - w_at < 6 * 3600:
                         cur, _ = get_identity()
                         try:
-                            msgs = _read_channel(server_port, get_token(), _LAST_PLACE["channel"])
+                            msgs = _read_channel(server_port, get_token(), w_ch)
                             if not _replied_since(msgs, cur, w_at):
                                 if _nudged.get(w_at) is None and _watcher_inject_fn:
                                     # First ask the agent itself: often its reply just didn't reach
                                     # Scranton (e.g. Scranton was restarting). Only tell Lu if that fails.
                                     _nudged[w_at] = now
                                     _checked_work[0] = None   # check again after this nudge
-                                    _watcher_inject_fn(_NUDGE.format(ch=_LAST_PLACE["channel"]))
+                                    _watcher_inject_fn(_NUDGE.format(ch=w_ch))
                                 else:
-                                    _post(server_port, cur, get_token(), _LAST_PLACE["channel"], _LAST_PLACE["thread"],
+                                    _post(server_port, cur, get_token(), w_ch, w_th,
                                           "I stopped without replying, even after a reminder. Open my terminal to see where I am, or @ me again.")
                         except Exception:
                             pass   # Scranton unreachable: say nothing now, the next check will tell
