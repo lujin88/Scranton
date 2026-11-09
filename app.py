@@ -2617,15 +2617,70 @@ async def scranton_avatar_upload(request: Request):
     m = _re.match(r"^data:image/jpeg;base64,([A-Za-z0-9+/=]+)$", data)
     if not m or len(data) > 400_000:
         return JSONResponse({"error": "use a JPG, PNG or WebP picture"}, status_code=400)
-    if handle not in (config or {}).get("agents", {}):
-        return JSONResponse({"error": "unknown teammate"}, status_code=404)
     raw = _b64.b64decode(m.group(1))
     if not raw.startswith(b"\xff\xd8\xff"):          # really a JPEG
         return JSONResponse({"error": "use a JPG, PNG or WebP picture"}, status_code=400)
-    safe = _re.sub(r"[^a-z0-9-]", "", handle)[:20] or "agent"
+    safe = _re.sub(r"[^a-z0-9-]", "", handle)[:20] or "agent"   # also for a teammate being added (no handle yet)
     fname = f"upload-{safe}-{int(_time_pr.time())}.jpg"
     (Path(__file__).parent / "static" / "avatars" / fname).write_bytes(raw)
     return JSONResponse({"ok": True, "file": fname})   # the page then sets it like any other picture
+
+
+@app.post("/api/scranton/avatars/fetch")
+async def scranton_avatar_fetch(request: Request):
+    """A picture link pasted in Settings: fetch it here (the page can't, other sites block it),
+    hand the image back as a data URL; the page crops and uploads it like a local file.
+    http(s) only, images only, at most 5 MB, not this machine or the local network."""
+    import base64 as _b64
+    import ipaddress as _ip
+    import socket as _sock
+    import urllib.parse as _up
+    import urllib.request as _ur
+    url = str((await request.json()).get("url", "") or "").strip()
+    u = _up.urlparse(url)
+    if u.scheme not in ("http", "https") or not u.hostname:
+        return JSONResponse({"error": "paste a link that starts with https://"}, status_code=400)
+    def _get():
+        try:
+            for info in _sock.getaddrinfo(u.hostname, None):
+                a = _ip.ip_address(info[4][0])
+                if a.is_private or a.is_loopback or a.is_link_local or a.is_reserved:
+                    return None, "that link points to this computer or the local network"
+        except Exception:
+            return None, "couldn't find that site"
+        req = _ur.Request(url, headers={"User-Agent": "Scranton (local team chat)", "Accept": "image/*"})
+        try:
+            with _ur.urlopen(req, timeout=10) as r:
+                ctype = (r.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+                if ctype not in ("image/jpeg", "image/png", "image/webp", "image/gif"):
+                    return None, "that link isn't a picture"
+                data = r.read(5 * 1024 * 1024 + 1)
+                if len(data) > 5 * 1024 * 1024:
+                    return None, "that picture is bigger than 5 MB"
+                return f"data:{ctype};base64," + _b64.b64encode(data).decode(), None
+        except Exception:
+            return None, "couldn't download that picture"
+    data, err = await asyncio.to_thread(_get)
+    if err:
+        return JSONResponse({"error": err}, status_code=400)
+    return JSONResponse({"data": data})
+
+
+import scranton_avatar_gen as _sc_avgen  # noqa: E402
+
+
+@app.post("/api/scranton/avatars/generate")
+async def scranton_avatar_generate(request: Request):
+    """Draw a new picture in the team's style with ChatGPT (Codex, subscription). Background job."""
+    b = await request.json()
+    r = _sc_avgen.start(str(b.get("label", "") or "")[:40], str(b.get("role", "") or "")[:300],
+                        str(b.get("handle", "") or ""), str(b.get("like", "") or ""))
+    return JSONResponse(r, status_code=400 if r.get("error") else 200)
+
+
+@app.get("/api/scranton/avatars/generate/{jid}")
+async def scranton_avatar_generate_status(jid: str):
+    return JSONResponse(_sc_avgen.status(jid))
 
 
 @app.get("/api/scranton/connections")

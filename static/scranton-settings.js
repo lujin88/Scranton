@@ -45,6 +45,7 @@
     let editing = false;
     let newOpts = null;
     let pickingAvatar = false;
+    let lastProfile = null;   // the teammate page on screen (name, role) for "Generate a similar one"
 
     function open(sec, handle, tab) {
         section = sec || 'profile';
@@ -61,6 +62,7 @@
             releaseModal = window.scModal ? window.scModal(root) : null;
             root.addEventListener('click', onClick);
             root.addEventListener('change', onChange);
+            wireAvatarInputs();
 
         }
         renderNav();
@@ -109,6 +111,7 @@
         if (section === 'history') { body.innerHTML = historyView(null); const b = await api('/api/scranton/backup'); if (root && section === 'history') body.innerHTML = historyView(b); }
         if (section === 'agents' && agentOpen) {
             const p = await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}`);
+            lastProfile = p;
             if (root && section === 'agents' && agentOpen === p.handle) body.innerHTML = agentView(p);
         }
     }
@@ -301,7 +304,7 @@
                 <label class="sc-field"><span>Model</span><span class="sc-select"><select id="sc-new-model">${modelOptions(o.models.claude, '')}</select></span></label>
                 <label class="sc-field"><span>Role</span><textarea id="sc-new-role" rows="3" maxlength="300" placeholder="What it does, in one or two sentences."></textarea></label>
                 <label class="sc-field"><span>Works in</span><span class="sc-select"><select id="sc-new-cwd">${o.folders.map((f) => `<option value="${esc(f)}">${esc(f)}</option>`).join('')}</select></span></label>
-                <div class="sc-field"><span>Picture</span><div class="sc-av-grid">${o.avatars.map((f, i) => `<button type="button" class="sc-av-pick${i === 0 ? ' on' : ''}" data-av="${esc(f)}" aria-label="${esc(f)}"><img src="/static/avatars/${esc(f)}" alt=""></button>`).join('')}</div></div>
+                <div class="sc-field sc-av-field"><span>Picture</span><div class="sc-av-grid">${o.avatars.map((f, i) => `<button type="button" class="sc-av-pick${i === 0 ? ' on' : ''}" data-av="${esc(f)}" aria-label="${esc(f)}"><img src="/static/avatars/${esc(f)}" alt=""></button>`).join('')}${avAdd()}</div>${avPaste()}</div>
                 <div class="sc-field"><span>Channels</span><div class="sc-ch-picks">${o.channels.map((c) => `<label class="sc-ch-pick"><input type="checkbox" value="${esc(c)}"${c === 'lu-portfolio' ? ' checked' : ''}><span>#${esc(c)}</span></label>`).join('')}</div></div>
                 <div class="sc-edit-actions"><span class="sc-st-saved err" id="sc-new-err"></span>
                     <button type="button" class="sc-btn" data-a="back">Cancel</button><button type="button" class="sc-btn primary" data-a="add-save">Add agent</button></div>
@@ -319,7 +322,7 @@
                 <label class="sc-field"><span>Name</span><input type="text" id="sc-ed-label" maxlength="40" value="${esc(p.label)}"></label>
                 <label class="sc-field"><span>Role</span><textarea id="sc-ed-role" rows="3" maxlength="300">${esc(p.role)}</textarea>
                     <small>One or two sentences. Added to every task this agent gets.</small></label>
-                <div class="sc-field"><span>Picture</span><div class="sc-av-grid">${p.avatars.map((f) => `<button type="button" class="sc-av-pick${f === p.avatar ? ' on' : ''}" data-av="${esc(f)}" aria-label="${esc(f)}"><img src="/static/avatars/${esc(f)}" alt=""></button>`).join('')}</div></div>
+                <div class="sc-field sc-av-field"><span>Picture</span><div class="sc-av-grid">${p.avatars.map((f) => `<button type="button" class="sc-av-pick${f === p.avatar ? ' on' : ''}" data-av="${esc(f)}" aria-label="${esc(f)}"><img src="/static/avatars/${esc(f)}" alt=""></button>`).join('')}${avAdd()}</div>${avPaste()}</div>
                 <div class="sc-field"><span>Channels</span><div class="sc-ch-picks">${chans.map((c) => `<label class="sc-ch-pick"><input type="checkbox" value="${esc(c)}"${inCh.has(c) ? ' checked' : ''}><span>#${esc(c)}</span></label>`).join('')}</div></div>
                 <div class="sc-edit-actions"><span class="sc-st-saved" id="sc-ag-saved"></span>
                     <button type="button" class="sc-btn" data-a="edit-cancel">Cancel</button><button type="button" class="sc-btn primary" data-a="edit-save">Save</button></div>
@@ -397,7 +400,7 @@
                         : '<button type="button" class="sc-btn primary" data-agent-act="start">Start</button>'}
                 </div>
             </header>
-            ${pickingAvatar ? `<div class="sc-av-pop"><div class="sc-av-grid">${p.avatars.map((f) => `<button type="button" class="sc-av-pick${f === p.avatar ? ' on' : ''}" data-av-set="${esc(f)}" aria-label="${esc(f)}"><img src="/static/avatars/${esc(f)}" alt=""></button>`).join('')}<label class="sc-av-pick sc-av-upload" data-tip="Upload a picture (JPG, PNG or WebP)" aria-label="Upload a picture">${window.scIcon ? window.scIcon('add', 22) : '+'}<input type="file" accept="image/png,image/jpeg,image/webp" hidden data-av-upload></label></div></div>` : ''}
+            ${pickingAvatar ? `<div class="sc-av-pop sc-av-field" data-av-now><div class="sc-av-grid">${p.avatars.map((f) => `<button type="button" class="sc-av-pick${f === p.avatar ? ' on' : ''}" data-av-set="${esc(f)}" aria-label="${esc(f)}"><img src="/static/avatars/${esc(f)}" alt=""></button>`).join('')}${avAdd()}</div>${avPaste()}</div>` : ''}
             <div class="sc-tabs" role="tablist">${tabs.map(([id, n]) => `<button type="button" role="tab" aria-selected="${id === agentTab}" class="${id === agentTab ? 'on' : ''}" data-tab="${id}">${n}</button>`).join('')}</div>
             <div class="sc-tabbody">${content}</div>`;
     }
@@ -500,6 +503,7 @@
         if (a === 'edit') { editing = true; render(); return; }
         if (a === 'pick-avatar') { pickingAvatar = !pickingAvatar; render(); return; }
         if (t.closest('.sc-av-upload')) return;   // the file input inside opens the picker
+        if (t.closest('[data-av-gen]')) { generateAvatar(t.closest('[data-av-gen]')); return; }
         const avSet = t.closest('[data-av-set]');
         if (avSet) {
             const r = await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}`, { action: 'set', key: 'avatar', value: avSet.dataset.avSet });
@@ -611,10 +615,16 @@
         setTimeout(render, 300);
     }
 
+    // The picture field's own way in: a "+" tile (choose a file), and a box you can paste an image
+    // or an image link into. Dropping a file anywhere on the field works too.
+    const avAdd = () => `<label class="sc-av-pick sc-av-upload" data-tip="Choose a picture (JPG, PNG or WebP)" aria-label="Choose a picture">${window.scIcon ? window.scIcon('add', 22) : '+'}<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden data-av-upload></label>`;
+    const avPaste = () => `<div class="sc-av-more"><input type="text" class="sc-av-paste" data-av-paste placeholder="Paste a picture or a link to one, or drop a file here" aria-label="Paste a picture or a picture link">`
+        + `<button type="button" class="sc-btn sc-av-gen" data-av-gen data-tip="ChatGPT draws a new one in the same style, from the name and role (uses your ChatGPT plan, about a minute)">Generate a similar one</button></div>`;
+
     // A new teammate picture: cropped to a 256 px square here, saved on the server, then used.
     function squareJpeg(file) {
         return new Promise((res, rej) => {
-            if (!file || !/^image\/(png|jpeg|webp)$/.test(file.type)) { rej(new Error('type')); return; }
+            if (!file || !/^image\/(png|jpeg|webp|gif)$/.test(file.type)) { rej(new Error('type')); return; }
             const img = new Image(), u = URL.createObjectURL(file);
             img.onload = () => {
                 const c = document.createElement('canvas'); c.width = c.height = 256;
@@ -627,18 +637,111 @@
         });
     }
 
-    async function onChange(e) {
-        if (e.target.matches && e.target.matches('[data-av-upload]')) {
-            const file = e.target.files && e.target.files[0];
-            if (!file || !agentOpen) return;
-            let data;
-            try { data = await squareJpeg(file); } catch (_) { window.scToast && window.scToast('Use a JPG, PNG or WebP picture'); return; }
-            const up = await api('/api/scranton/avatars', { handle: agentOpen, data });
-            if (!up || up.error || !up.file) { window.scToast && window.scToast((up && up.error) || "Couldn't upload. Is Scranton running?"); return; }
-            const r = await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}`, { action: 'set', key: 'avatar', value: up.file });
+    // One path for every way a picture comes in (file, paste, link, drop).
+    async function useAvatarFile(file, field) {
+        let data;
+        try { data = await squareJpeg(file); } catch (_) { window.scToast && window.scToast('Use a JPG, PNG, WebP or GIF picture'); return; }
+        const handle = agentOpen && agentOpen !== '__new' ? agentOpen : (root.querySelector('#sc-new-handle')?.value || '');
+        const up = await api('/api/scranton/avatars', { handle, data });
+        if (!up || up.error || !up.file) { window.scToast && window.scToast((up && up.error) || "Couldn't upload. Is Scranton running?"); return; }
+        if (field) await usePictureFile(up.file, field);   // profile: used right away; forms: added and selected
+    }
+    // "Generate a similar one": ChatGPT (Codex, your plan) draws a picture in the team's style.
+    async function generateAvatar(btn) {
+        const field = btn.closest('.sc-av-field');
+        const now = field.hasAttribute('data-av-now');
+        const prof = now ? (lastProfile || {}) : {};
+        const label = now ? (prof.label || agentOpen) : (root.querySelector('#sc-new-label, #sc-ed-label')?.value || '').trim();
+        const role = now ? (prof.role || '') : (root.querySelector('#sc-new-role, #sc-ed-role')?.value || '').trim();
+        if (!label && !role) { window.scToast && window.scToast('Write a name or a role first, so it knows what to draw'); return; }
+        const like = field.querySelector('.sc-av-pick.on')?.dataset.av || field.querySelector('.sc-av-pick.on')?.dataset.avSet || '';
+        const handle = agentOpen && agentOpen !== '__new' ? agentOpen : (root.querySelector('#sc-new-handle')?.value || '');
+        btn.disabled = true;
+        const old = btn.textContent;
+        btn.textContent = 'Drawing… (about a minute)';
+        const r = await api('/api/scranton/avatars/generate', { label, role, handle, like });
+        if (!r || r.error || !r.id) { btn.disabled = false; btn.textContent = old; window.scToast && window.scToast((r && r.error) || "Couldn't start"); return; }
+        const t0 = Date.now();
+        while (Date.now() - t0 < 8 * 60 * 1000) {
+            await new Promise((ok) => setTimeout(ok, 3000));
+            const st = await api(`/api/scranton/avatars/generate/${r.id}`);
+            if (st.state === 'working') continue;
+            btn.disabled = false; btn.textContent = old;
+            if (st.state !== 'done' || !st.file) { window.scToast && window.scToast(st.error || "Couldn't draw it"); return; }
+            if (!btn.isConnected) return;   // the page moved on; the picture is still in the list next time
+            await usePictureFile(st.file, field);
+            return;
+        }
+        btn.disabled = false; btn.textContent = old;
+        window.scToast && window.scToast('Took too long. Try again.');
+    }
+    async function usePictureFile(fname, field) {
+        if (field.hasAttribute('data-av-now')) {
+            const r = await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}`, { action: 'set', key: 'avatar', value: fname });
             pickingAvatar = false;
             if (r && !r.error) { window.scReloadTeam && window.scReloadTeam(); }
             setTimeout(render, 300);
+            return;
+        }
+        const grid = field.querySelector('.sc-av-grid');
+        grid.querySelectorAll('.sc-av-pick').forEach((b) => b.classList.remove('on'));
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'sc-av-pick on'; b.dataset.av = fname; b.setAttribute('aria-label', fname);
+        b.innerHTML = `<img src="/static/avatars/${esc(fname)}" alt="">`;
+        grid.insertBefore(b, grid.querySelector('.sc-av-upload'));
+    }
+    async function useAvatarLink(url, field) {
+        const r = await api('/api/scranton/avatars/fetch', { url });
+        if (!r || r.error || !r.data) { window.scToast && window.scToast((r && r.error) || "Couldn't get that picture"); return; }
+        const blob = await (await fetch(r.data)).blob();
+        await useAvatarFile(new File([blob], 'link', { type: blob.type }), field);
+    }
+    function wireAvatarInputs() {
+        if (!root || root.dataset.avWired) return;
+        root.dataset.avWired = '1';
+        root.addEventListener('paste', (e) => {
+            const box = e.target.closest && e.target.closest('[data-av-paste]');
+            const field = e.target.closest && e.target.closest('.sc-av-field');
+            if (!field) return;
+            const img = [...(e.clipboardData?.items || [])].find((i) => i.kind === 'file' && i.type.startsWith('image/'));
+            if (img) { e.preventDefault(); useAvatarFile(img.getAsFile(), field); if (box) box.value = ''; return; }
+            const text = (e.clipboardData?.getData('text') || '').trim();
+            if (box && /^https?:\/\/\S+$/.test(text)) { e.preventDefault(); box.value = ''; box.placeholder = 'Getting the picture…'; useAvatarLink(text, field).finally(() => { box.placeholder = 'Paste a picture or a link to one, or drop a file here'; }); }
+        });
+        root.addEventListener('keydown', (e) => {
+            const box = e.target.closest && e.target.closest('[data-av-paste]');
+            if (!box || e.key !== 'Enter' || e.isComposing) return;
+            e.preventDefault();
+            const v = box.value.trim();
+            if (/^https?:\/\/\S+$/.test(v)) { box.value = ''; useAvatarLink(v, box.closest('.sc-av-field')); }
+        });
+        root.addEventListener('dragover', (e) => {
+            const field = e.target.closest && e.target.closest('.sc-av-field');
+            if (!field || ![...(e.dataTransfer?.types || [])].includes('Files')) return;
+            e.preventDefault(); e.stopPropagation();
+            root.querySelectorAll('.sc-av-field.sc-drop-target').forEach((x) => x !== field && x.classList.remove('sc-drop-target'));
+            field.classList.add('sc-drop-target');
+        }, true);
+        root.addEventListener('dragleave', (e) => {
+            const field = e.target.closest && e.target.closest('.sc-av-field');
+            if (field && !field.contains(e.relatedTarget)) field.classList.remove('sc-drop-target');
+        }, true);
+        root.addEventListener('drop', (e) => {
+            const field = e.target.closest && e.target.closest('.sc-av-field');
+            if (!field) return;
+            const file = [...(e.dataTransfer?.files || [])].find((f) => f.type.startsWith('image/'));
+            field.classList.remove('sc-drop-target');
+            if (!file) return;
+            e.preventDefault(); e.stopPropagation();
+            useAvatarFile(file, field);
+        }, true);
+    }
+
+    async function onChange(e) {
+        if (e.target.matches && e.target.matches('[data-av-upload]')) {
+            const file = e.target.files && e.target.files[0];
+            e.target.value = '';
+            if (file) useAvatarFile(file, e.target.closest('.sc-av-field'));
             return;
         }
         if (e.target.name === 'sc-new-prov' && newOpts) {

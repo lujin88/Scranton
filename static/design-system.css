@@ -1292,3 +1292,11 @@ body.sc-inbox-open #scroll-anchor { display: none !important; }
 .sc-av-upload { display: grid !important; place-items: center; cursor: pointer; color: var(--ds-text-2);
     background: transparent !important; box-shadow: inset 0 0 0 1.5px var(--ds-line-strong) !important; border-style: dashed; }
 .sc-av-upload:hover { color: var(--ds-text); box-shadow: inset 0 0 0 1.5px var(--ds-text-3) !important; }
+
+/* Picture field: paste box and Generate under the grid */
+.sc-av-more { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.sc-av-paste { flex: 1; min-width: 0; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--ds-line-strong);
+    background: transparent; color: var(--ds-text); font: inherit; font-size: 13px; }
+.sc-av-paste:focus { outline: 2px solid var(--ds-accent); outline-offset: 0; }
+.sc-av-gen { white-space: nowrap; height: 34px; }
+.sc-av-field.sc-drop-target { outline: 2px dashed var(--ds-accent); outline-offset: 6px; border-radius: 12px; }
