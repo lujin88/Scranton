@@ -413,7 +413,10 @@ def _sig(name, args):
         words = [w.rsplit("/", 1)[-1] for w in words]
         if words and words[0] in ("gh-push.sh", "test-lock.sh", "timeout", "sudo", "env"):
             words = words[1:]
-        return " ".join(words[:3])[:60] or n
+        if words and words[0] in ("python", "python3", "node") and (len(words) < 2 or not re.match(r"^[\w./-]+\.(py|js|mjs)$", words[1])):
+            return f"{words[0]} (inline script)"
+        words = [w for w in words if re.match(r"^[\w./:@#-]+$", w)]
+        return " ".join(words[:3])[:60] or f"{n} (other)"
     if low in ("webfetch",):
         u = str(a.get("url") or "")
         return "WebFetch " + (re.sub(r"^https?://", "", u).split("/")[0] or "?")
