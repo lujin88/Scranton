@@ -49,22 +49,26 @@
     const prDone = (m) => { const u = prUrls(m); return u.length > 0 && u.every((x) => prState[x] === 'MERGED' || prState[x] === 'CLOSED'); };
     async function refreshPrs() {
         if (document.hidden) return;
+        // Only PRs that could still count (recent, not marked done), newest first, all of them in
+        // batches of 20. (Before: the first 20 found, which were old ones, so today's never got checked.)
         const want = new Set();
-        for (const m of inbox.values()) {
-            if (readKeys.has(keyOf(m))) continue;
+        const now = Date.now() / 1000;
+        for (const m of [...inbox.values()].sort((a, b) => b.id - a.id)) {
+            if (readKeys.has(keyOf(m)) || now - tsOf(m) > STALE_S) continue;
             for (const u of prUrls(m)) if (prState[u] !== 'MERGED' && prState[u] !== 'CLOSED') want.add(u);
         }
-        const list = [...want].slice(0, 20);
-        if (!list.length) return;
-        try {
-            const q = list.map((u) => 'u=' + encodeURIComponent(u)).join('&');
-            const r = await fetch('/api/scranton/pr-state?' + q, { headers: { 'X-Session-Token': window.SESSION_TOKEN } });
-            if (!r.ok) return;
-            const got = await r.json();
-            let changed = false;
-            for (const [u, st] of Object.entries(got)) if (st && prState[u] !== st) { prState[u] = st; changed = true; }
-            if (changed) scheduleRender();
-        } catch (_) { /* offline: try again next round */ }
+        const all = [...want];
+        let changed = false;
+        for (let i = 0; i < all.length; i += 20) {
+            try {
+                const q = all.slice(i, i + 20).map((u) => 'u=' + encodeURIComponent(u)).join('&');
+                const r = await fetch('/api/scranton/pr-state?' + q, { headers: { 'X-Session-Token': window.SESSION_TOKEN } });
+                if (!r.ok) break;
+                const got = await r.json();
+                for (const [u, st] of Object.entries(got)) if (st && prState[u] !== st) { prState[u] = st; changed = true; }
+            } catch (_) { break; }   /* offline: try again next round */
+        }
+        if (changed) scheduleRender();
     }
     // Ask soon after a PR link shows up or Activity opens (at page load the history may not be in yet,
     // so a single check 3 s in found nothing and the next one was 2 minutes later), then every minute.
