@@ -36,6 +36,7 @@ function renderChannelTabs() {
 
     // Preserve inline create input if it exists
     const existingCreate = container.querySelector('.channel-inline-create');
+    const keepFocus = _inlineFocusState(existingCreate);
     const scrollLeft = container.scrollLeft;
     container.innerHTML = '';
 
@@ -97,6 +98,7 @@ function renderChannelTabs() {
     // Re-append inline create if it was open
     if (existingCreate) {
         container.appendChild(existingCreate);
+        keepFocus();
     }
 
     container.scrollLeft = scrollLeft;
@@ -113,6 +115,7 @@ function renderChannelSidebar() {
 
     // Preserve inline create/rename if present
     const existingCreate = list.querySelector('.channel-inline-create');
+    const keepFocus = _inlineFocusState(existingCreate);
     list.innerHTML = '';
 
     for (const name of window.channelList) {
@@ -166,7 +169,7 @@ function renderChannelSidebar() {
         list.appendChild(row);
     }
 
-    if (existingCreate) list.appendChild(existingCreate);
+    if (existingCreate) { list.appendChild(existingCreate); keepFocus(); }
 
 }
 
@@ -224,12 +227,11 @@ function _showSidebarRenameDialog(oldName) {
     wrapper.appendChild(cancel);
 
     input.addEventListener('keydown', (e) => {
+        if (e.isComposing || e.keyCode === 229) return;   // Enter that picks an IME candidate
         if (e.key === 'Enter') { e.preventDefault(); confirm.click(); }
         if (e.key === 'Escape') cleanup();
     });
-    input.addEventListener('input', () => {
-        input.value = input.value.toLowerCase().replace(/[^a-z0-9\-]/g, '');
-    });
+    _wireChannelNameInput(input);
 
     if (targetRow) {
         targetRow.style.display = 'none';
@@ -382,12 +384,11 @@ function showChannelCreateDialog() {
     wrapper.appendChild(cancel);
 
     input.addEventListener('keydown', (e) => {
+        if (e.isComposing || e.keyCode === 229) return;   // Enter that picks an IME candidate
         if (e.key === 'Enter') { e.preventDefault(); _submitInlineCreate(input, wrapper); if (addBtn) addBtn.style.display = ''; }
         if (e.key === 'Escape') cleanup();
     });
-    input.addEventListener('input', () => {
-        input.value = input.value.toLowerCase().replace(/[^a-z0-9\-]/g, '');
-    });
+    _wireChannelNameInput(input);
 
     tabs.appendChild(wrapper);
     input.focus();
@@ -466,12 +467,11 @@ function showChannelRenameDialog(oldName) {
     wrapper.appendChild(cancel);
 
     input.addEventListener('keydown', (e) => {
+        if (e.isComposing || e.keyCode === 229) return;   // Enter that picks an IME candidate
         if (e.key === 'Enter') { e.preventDefault(); confirm.click(); }
         if (e.key === 'Escape') cleanup();
     });
-    input.addEventListener('input', () => {
-        input.value = input.value.toLowerCase().replace(/[^a-z0-9\-]/g, '');
-    });
+    _wireChannelNameInput(input);
 
     // Insert inline next to the tab, hide the original tab
     if (targetTab) {
@@ -697,3 +697,44 @@ window.showChannelRenameDialog = showChannelRenameDialog;
 window.renderChannelSidebar = renderChannelSidebar;
 window.setChannelSidebarMode = setChannelSidebarMode;
 window.Channels = { init: _channelsInit };
+
+// Channel names are a-z, 0-9 and "-". Cleaned when you've finished typing a piece, never while an
+// input method is still composing it (Lu, 11-09: with the Chinese IME on, letters vanished as she
+// typed). Spaces become "-"; anything else that can't be in a name is dropped and the box says so.
+function _wireChannelNameInput(input) {
+    let composing = false;
+    let hint = null;
+    const clean = () => {
+        const raw = input.value;
+        const v = raw.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/^-+/, '').slice(0, 20);
+        if (v === raw) return;
+        const dropped = raw.toLowerCase().replace(/\s+/g, '-').replace(/[a-z0-9-]/g, '').length > 0;
+        const at = input.selectionStart;
+        input.value = v;
+        try { const p = Math.min(v.length, at ?? v.length); input.setSelectionRange(p, p); } catch (_) { /* ok */ }
+        if (dropped) {
+            if (!hint) {
+                hint = document.createElement('div');
+                hint.className = 'channel-name-hint';
+                hint.setAttribute('role', 'status');
+                input.closest('.channel-inline-create')?.after(hint);
+            }
+            hint.textContent = 'Channel names use a–z, 0–9 and -';
+        }
+    };
+    input.addEventListener('compositionstart', () => { composing = true; });
+    input.addEventListener('compositionend', () => { composing = false; clean(); });
+    input.addEventListener('input', (e) => { if (!composing && !e.isComposing) clean(); });
+    input.maxLength = 40;   // room while typing; the name itself is cut to 20 when cleaned
+    const stop = new MutationObserver(() => { if (!input.isConnected) { hint?.remove(); stop.disconnect(); } });
+    stop.observe(document.body, { childList: true, subtree: true });
+}
+
+// Redrawing the channel list moves the "new channel" box, and a moved input loses focus: what you
+// typed next went nowhere (Lu, 11-09: "cl" and then nothing). Put focus and the cursor back.
+function _inlineFocusState(wrapper) {
+    const input = wrapper && wrapper.querySelector('input');
+    if (!input || document.activeElement !== input) return () => {};
+    const a = input.selectionStart, b = input.selectionEnd;
+    return () => { input.focus(); try { input.setSelectionRange(a, b); } catch (_) { /* ok */ } };
+}
