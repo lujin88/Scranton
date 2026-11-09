@@ -139,6 +139,7 @@
                 <span class="sc-rp-t"><b><code>${esc(x.what)}</code> <span class="sc-rp-times">× ${x.times}</span></b>
                     <small>${x.agents.map((a) => esc(label(a))).join(', ')} · about ${fmtTok(x.tokens)} re-read</small>
                     ${x.advice ? `<span class="sc-rp-advice">${esc(x.advice)}</span>` : ''}</span></div>`).join('')}</div>` : ''}
+            <div id="sc-rp-props"></div>
             ${heavy.length ? `<h3 class="sc-rp-h3">Heaviest sessions: what they kept re-reading</h3>
             <div class="sc-rp-sessions">${heavy.map((x) => `<div class="sc-rp-sess">
                 <div class="sc-rp-sess-h"><span class="sc-rp-av">${window.scAvatarHtml ? window.scAvatarHtml(x.agent) : ''}</span>
@@ -148,7 +149,6 @@
                 ${x.repeats.length ? `<p class="sc-rp-reps">Repeated: ${x.repeats.map((r) => `<code>${esc(r.what)}</code> × ${r.times}`).join(' · ')}</p>` : ''}
                 ${x.advice.length ? `<ul class="sc-rp-tips">${x.advice.map((v) => `<li>${esc(v)}</li>`).join('')}</ul>` : ''}
             </div>`).join('')}</div>` : ''}
-            <div id="sc-rp-props"></div>
             <details class="sc-rp-more"><summary>By teammate</summary>
             <div class="sc-rp-list">${t.agents.slice(0, 12).map((x) => `<div class="sc-rp-row static">
                 <span class="sc-rp-av">${window.scAvatarHtml ? window.scAvatarHtml(x.agent) : ''}</span>
