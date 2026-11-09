@@ -4122,12 +4122,44 @@ async def version_check():
     })
 
 
+_THUMB_WIDTHS = (480, 960)   # what the chat shows (300 px wide, 2x screens); full size opens on click
+_UPLOAD_CACHE = {"Cache-Control": "public, max-age=31536000, immutable"}   # upload names are random and never reused
+
+
+def _thumbnail(filepath: Path, upload_dir: Path, w: int):
+    """A smaller copy of an uploaded picture for the chat (Lu, 11-10: the phone fetched 179 MB of
+    full-size images on every load). Made once, kept in uploads/.thumbs. None if it can't be made."""
+    if filepath.suffix.lower() not in (".png", ".jpg", ".jpeg", ".webp", ".bmp"):
+        return None   # SVG and GIF (may be animated) are served as they are
+    out = upload_dir.resolve() / ".thumbs" / f"{filepath.stem}-{w}.webp"
+    if out.is_file() and out.stat().st_mtime >= filepath.stat().st_mtime:
+        return out
+    try:
+        from PIL import Image
+        with Image.open(filepath) as im:
+            if im.width <= w:
+                return None   # already small: the original is the thumbnail
+            im = im.convert("RGBA") if im.mode in ("P", "LA", "RGBA") else im.convert("RGB")
+            im.thumbnail((w, w * 4))
+            out.parent.mkdir(parents=True, exist_ok=True)
+            tmp = out.with_suffix(".tmp")
+            im.save(tmp, "WEBP", quality=82, method=4)
+            tmp.replace(out)
+        return out
+    except Exception:
+        return None   # Pillow missing or an odd file: fall back to the original
+
+
 @app.get("/uploads/{filename}")
-async def serve_upload(filename: str):
+async def serve_upload(filename: str, w: int | None = None):
     upload_dir = Path(config.get("images", {}).get("upload_dir", "./uploads"))
     filepath = (upload_dir / filename).resolve()
     if not filepath.is_relative_to(upload_dir.resolve()):
         return JSONResponse({"error": "invalid path"}, status_code=400)
+    if filepath.is_file() and w in _THUMB_WIDTHS and filepath.suffix.lower() in IMAGE_UPLOAD_EXTS:
+        thumb = await asyncio.to_thread(_thumbnail, filepath, upload_dir, w)
+        if thumb is not None:
+            return FileResponse(thumb, media_type="image/webp", headers={"X-Content-Type-Options": "nosniff", **_UPLOAD_CACHE})
     if filepath.is_file():
         if filepath.suffix.lower() == ".svg":
             # an SVG opened in its own tab would run its scripts on Scranton's origin
@@ -4135,7 +4167,7 @@ async def serve_upload(filename: str):
                                 headers={"Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
                                          "X-Content-Type-Options": "nosniff"})
         if filepath.suffix.lower() in IMAGE_UPLOAD_EXTS:
-            return FileResponse(filepath, headers={"X-Content-Type-Options": "nosniff"})
+            return FileResponse(filepath, headers={"X-Content-Type-Options": "nosniff", **_UPLOAD_CACHE})
         # Documents are downloads, never executable same-origin pages.
         return FileResponse(filepath, media_type="application/octet-stream",
                             filename=filepath.name,

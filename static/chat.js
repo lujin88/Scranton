@@ -3516,7 +3516,8 @@ let modalIndex = 0;    // current image index
 
 function getAllChatImages() {
     const imgs = document.querySelectorAll('.msg-attachments img, .job-msg-attachments img, .msg-text img, .sc-tmsg-text img');
-    return [...imgs].map(img => img.src);
+    // the full picture, not the small copy shown in the chat
+    return [...imgs].map(img => (img.dataset.full ? new URL(img.dataset.full, location.href).href : img.src));
 }
 
 function openImageModal(url) {

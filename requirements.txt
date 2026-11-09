@@ -1,3 +1,4 @@
 fastapi>=0.110
 uvicorn[standard]>=0.29
 mcp>=1.0,<2.0  # v2 removes mcp.server.fastmcp (issue #85)
+Pillow>=10  # chat thumbnails of uploaded pictures (optional: without it the full picture is shown)

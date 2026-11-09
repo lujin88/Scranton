@@ -1417,3 +1417,9 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-ch-card > .sc-ch-row:last-child { border-bottom-left-radius: var(--ds-r-card); border-bottom-right-radius: var(--ds-r-card); }
 .sc-ch-card > .sc-ch-row:first-child { border-top-left-radius: var(--ds-r-card); border-top-right-radius: var(--ds-r-card); }
 .sc-via { margin-left: 6px; font-size: 11px; color: var(--ds-text-2); white-space: nowrap; }
+/* A chat picture that hasn't loaded yet keeps a 200 px box, so lazy loading doesn't make the conversation jump. */
+.sc-img img.sc-img-wait { min-height: 200px; min-width: 200px; background: var(--ds-raised); border-radius: var(--ds-r-control, 8px); }
+/* Thread on a phone: the whole screen, not a panel with the chat showing beside it (Lu, 11-10). */
+@media (max-width: 760px) {
+    #sc-thread { position: fixed !important; inset: 0 !important; width: 100vw !important; max-width: none !important; z-index: 70; padding-top: env(safe-area-inset-top); }
+}
