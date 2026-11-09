@@ -2347,6 +2347,14 @@ let slashMenuIndex = 0;
 let slashMenuVisible = false;
 let mentionMenuIndex = 0;
 let mentionMenuVisible = false; window._scLastMentionQuery = null;
+// Clicking anywhere outside the @ list (and outside the message box) closes it, like any menu.
+document.addEventListener('pointerdown', (e) => {
+    if (!mentionMenuVisible) return;
+    const menu = document.getElementById('mention-menu');
+    if ((menu && menu.contains(e.target)) || e.target.id === 'input') return;
+    menu?.classList.add('hidden');
+    mentionMenuVisible = false; window._scLastMentionQuery = null;
+}, true);
 let mentionMenuStart = -1;  // cursor position of the '@'
 
 function updateSlashMenu(text) {
