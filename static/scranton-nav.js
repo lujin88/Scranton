@@ -222,7 +222,10 @@
     function scheduleRender() {
         if (renderPending) return;
         renderPending = true;
-        requestAnimationFrame(() => { renderPending = false; renderInboxBadge(); if (inboxOpen()) renderInbox(); });
+        const run = () => { renderPending = false; renderInboxBadge(); if (inboxOpen()) renderInbox(); };
+        // A hidden page (the Mac app's window in the back, a background tab) gets no animation frames,
+        // so the count, and the Dock badge read from it, would stay stale until you looked.
+        if (document.hidden) setTimeout(run, 50); else requestAnimationFrame(run);
     }
 
     function unreadCount() {
