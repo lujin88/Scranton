@@ -216,6 +216,14 @@ case "${1:-}" in
         # If the new version won't start, go back to the version before the update.
         ensure_venv
         PORT=$(port)
+        # The Mac app is a window around this page, so it shows every update right away. Only when
+        # the app's own code (mac/) changed is it rebuilt; the new one is used from its next launch.
+        rebuild_app() {
+            [ -f "$RUN_DIR/prev_head" ] && [ -d "$HOME/Applications/Scranton.app" ] || return 0
+            git diff --quiet "$(cat "$RUN_DIR/prev_head")" HEAD -- mac/ 2>/dev/null && return 0
+            echo "mac/ changed: rebuilding Scranton.app"
+            "$0" install-app || echo "Rebuilding Scranton.app failed; run ./scranton.sh install-app"
+        }
         healthy() {
             curl -fs -o /dev/null --max-time 5 "http://127.0.0.1:$PORT/" || return 1
             sleep 10
@@ -225,7 +233,7 @@ case "${1:-}" in
             # launchd restarts it (-k: stop the running one first); same health check and rollback.
             launchctl kickstart -k "$DOMAIN/$LABEL"
             sleep 1
-            if wait_port up 40 && healthy; then rm -f "$RUN_DIR/prev_head" "$RUN_DIR/prev_requirements.txt"; exit 0; fi
+            if wait_port up 40 && healthy; then rebuild_app; rm -f "$RUN_DIR/prev_head" "$RUN_DIR/prev_requirements.txt"; exit 0; fi
             if [ -f "$RUN_DIR/prev_head" ]; then
                 prev=$(cat "$RUN_DIR/prev_head")
                 echo "New version didn't start - going back to $prev"
@@ -258,7 +266,7 @@ case "${1:-}" in
             sleep 10
             curl -fs -o /dev/null --max-time 5 "http://127.0.0.1:$PORT/"
         }
-        if start_server && healthy; then rm -f "$RUN_DIR/prev_head" "$RUN_DIR/prev_requirements.txt"; exit 0; fi
+        if start_server && healthy; then rebuild_app; rm -f "$RUN_DIR/prev_head" "$RUN_DIR/prev_requirements.txt"; exit 0; fi
         if [ -f "$RUN_DIR/prev_head" ]; then
             prev=$(cat "$RUN_DIR/prev_head")
             echo "New version didn't start - going back to $prev"
