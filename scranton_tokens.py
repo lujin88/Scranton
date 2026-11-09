@@ -406,6 +406,9 @@ def _sig(name, args):
         cmd = a.get("command") or a.get("cmd") or ""
         if isinstance(cmd, list):
             cmd = cmd[-1] if cmd else ""
+        # "cd somewhere && git status": the command is the part after the cd
+        parts = [p.strip() for p in re.split(r"&&|;|\|\|", str(cmd)) if p.strip()]
+        cmd = next((p for p in parts if not re.match(r"^(cd|export|source|set)\b", p)), parts[0] if parts else "")
         words = [w for w in re.split(r"\s+", str(cmd).strip()) if w and not w.startswith("-") and "=" not in w]
         words = [w.rsplit("/", 1)[-1] for w in words]
         if words and words[0] in ("gh-push.sh", "test-lock.sh", "timeout", "sudo", "env"):
