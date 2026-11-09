@@ -1404,7 +1404,7 @@ body.sc-report-open #scroll-anchor { display: none !important; }
     #sc-inbox .sc-inbox-filters .sc-tabs { grid-column: 1 / -1; overflow-x: auto; scrollbar-width: none; }
     #sc-inbox .sc-inbox-filters .sc-from { margin-left: 0 !important; min-width: 0; }
     #sc-inbox .sc-inbox-filters .sc-from { font-size: 0 !important; gap: 0 !important; }
-    #sc-inbox .sc-inbox-filters .sc-from select { min-width: 0; width: 100%; font-size: 14px !important; }
+    #sc-inbox .sc-inbox-filters .sc-from select { min-width: 0; width: 100%; font-size: 16px !important; }
     #sc-inbox .sc-inbox-group-top { flex-wrap: nowrap; gap: 8px; }
     #sc-inbox .sc-inbox-group-top > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #sc-inbox .sc-inbox-markall { flex-shrink: 0; white-space: nowrap; }
@@ -1432,3 +1432,25 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-thread-close { display: inline-grid !important; place-items: center; color: var(--ds-text-2) !important; }
 @media (pointer: coarse) { .sc-thread-close { width: 44px !important; height: 44px !important; margin-right: -6px; } }
 @media (pointer: coarse) { .sc-inbox-x { min-width: 44px; min-height: 44px; display: inline-grid !important; place-items: center; } }
+
+/* iPhone zooms the page when you tap a text field under 16 px, which looked like the padding
+   vanishing and pushed avatars off the left edge (Lu, 11-10). Touch screens get 16 px fields. */
+@media (pointer: coarse) {
+    input, textarea, select, #sc-thread-input, #input { font-size: 16px !important; }
+}
+
+/* Floating controls as frosted glass, like Grok (Lu, 11-10): see-through, the content behind
+   blurred, a thin light edge on top. Falls back to the solid pill where blur isn't supported. */
+#sc-pane-pill, #sc-pane-head #sc-members-btn, #sc-float-tools .sc-tool, #scroll-anchor {
+    background: rgba(var(--float), 0.55) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.16), 0 0 0 0.5px rgba(var(--ink), 0.10), 0 6px 20px rgba(0, 0, 0, 0.22) !important;
+}
+:root[data-theme="light"] #sc-pane-pill, :root[data-theme="light"] #sc-pane-head #sc-members-btn,
+:root[data-theme="light"] #sc-float-tools .sc-tool, :root[data-theme="light"] #scroll-anchor {
+    background: rgba(var(--float), 0.62) !important;
+    box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.9), 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 6px 20px rgba(0, 0, 0, 0.10) !important;
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    #sc-pane-pill, #sc-pane-head #sc-members-btn, #sc-float-tools .sc-tool, #scroll-anchor { background: rgba(var(--float), 0.92) !important; }
+}
