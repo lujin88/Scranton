@@ -273,7 +273,8 @@
         d.id = 'sc-dialog';
         d.innerHTML = `<div class="sc-dlg sc-search-dlg" role="dialog" aria-modal="true" aria-label="Search">
             <div class="sc-sq">${ico.search}<input id="sc-search-input" type="text" placeholder="Search messages, people and channels" autocomplete="off" spellcheck="false" aria-label="Search">
-                <button type="button" class="sc-sq-clear" hidden aria-label="Clear">Clear</button></div>
+                <button type="button" class="sc-sq-clear" hidden aria-label="Clear">Clear</button>
+                <button type="button" class="sc-sq-cancel">Cancel</button></div>
             <div class="sc-sf" role="tablist">
                 <button type="button" role="tab" aria-selected="true" data-f="all" class="on">All</button><button type="button" role="tab" aria-selected="false" data-f="messages">Messages</button>
                 <button type="button" role="tab" aria-selected="false" data-f="people">People</button><button type="button" role="tab" aria-selected="false" data-f="channels">Channels</button></div>
@@ -299,6 +300,9 @@
         let filter = 'all', hits = [], seq = 0, timer = null, active = 0;
         const release = window.scModal ? window.scModal(d) : () => {};
         const close = () => { d.remove(); window.removeEventListener('resize', place); release(); };
+        // A phone has no Esc key: Cancel closes search (Lu, 11-10).
+        d.querySelector('.sc-sq-cancel').addEventListener('click', close);
+        if (window.matchMedia('(pointer: coarse)').matches) d.querySelector('#sc-search-input').placeholder = 'Search';
         d.addEventListener('click', (e) => { if (e.target === d) close(); });
 
         const team = () => (window.scGetTeam ? window.scGetTeam() : {}) || {};

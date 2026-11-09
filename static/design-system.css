@@ -1454,3 +1454,10 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     #sc-pane-pill, #sc-pane-head #sc-members-btn, #sc-float-tools .sc-tool, #scroll-anchor { background: rgba(var(--float), 0.92) !important; }
 }
+/* Search: "Cancel" only on touch screens (keyboards close it with Esc); keyboard hints hidden there. */
+.sc-sq-cancel { display: none; border: 0; background: none; color: var(--ds-accent); font: inherit; font-size: 16px; padding: 0 4px 0 8px; min-height: 44px; cursor: pointer; flex-shrink: 0; }
+@media (pointer: coarse) {
+    .sc-sq-cancel { display: inline-block; }
+    .sc-search-dlg .sc-keys { display: none; }
+    .sc-search-dlg { padding-top: env(safe-area-inset-top); }
+}
