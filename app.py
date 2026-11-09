@@ -5,6 +5,7 @@ import os
 import asyncio
 import json
 import re as _re
+_VIA_RE = _re.compile(r"[a-z][a-z0-9 -]{0,19}")   # "via Claude": who sent a message on your behalf
 import sys
 import threading
 import uuid
@@ -1530,8 +1531,12 @@ async def websocket_endpoint(websocket: WebSocket):
                 if reply_to is not None:
                     reply_to = int(reply_to)
 
+                # Scranton: a message sent on your behalf by another tool (a Claude session) keeps
+                # your name but says so: "via Claude" (Lu, 11-09, 4B).
+                via = str(event.get("via") or "").strip().lower()
+                meta = {"via": via} if _VIA_RE.fullmatch(via or "") else None
                 store.add(sender, text, attachments=attachments, reply_to=reply_to,
-                          channel=channel)
+                          channel=channel, metadata=meta)
 
             elif event.get("type") == "react":
                 # Scranton: toggle an emoji reaction by the human on a message.

@@ -173,7 +173,7 @@
         if (el && !statusLine && String(msg.sender) !== 'system') {
             el.classList.add('sc-msg');
             addToolbar(el, id);
-            try { relabel(el, msg); paintQuote(el, msg); paintStuck(el, msg); paintEdited(el, msg); if (kind === 'chat' || kind === 'decision') paintChoices(el, msg); } catch (_) { /* never break rendering */ }
+            try { relabel(el, msg); paintQuote(el, msg); paintStuck(el, msg); paintEdited(el, msg); paintVia(el, msg); if (kind === 'chat' || kind === 'decision') paintChoices(el, msg); } catch (_) { /* never break rendering */ }
         }
         if (msg.reactions && Object.keys(msg.reactions).length) paintReactions(msg, container);
         if (msg.reply_to != null) {
@@ -504,6 +504,18 @@
         });
         const col = el.querySelector('.msg-text')?.parentElement || el;
         col.appendChild(bar);
+    }
+    // Sent for you by another tool (a Claude session): your name, plus "via Claude" (Lu, 11-09, 4B).
+    function paintVia(el, msg) {
+        const via = msg && msg.metadata && msg.metadata.via;
+        if (!via || el.querySelector('.sc-via')) return;
+        const t = el.querySelector('.bubble-header .msg-time') || el.querySelector('.msg-time');
+        if (!t) return;
+        const s = document.createElement('span');
+        s.className = 'sc-via';
+        s.textContent = `via ${via.charAt(0).toUpperCase()}${via.slice(1)}`;
+        s.title = `Sent on your behalf by ${via}`;
+        t.after(s);
     }
     function paintEdited(el, msg) {
         try { paintEditOffer(el, msg); } catch (_) { /* never break */ }

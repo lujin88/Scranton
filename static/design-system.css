@@ -1416,3 +1416,4 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-ch-card .sc-ch-row:focus-visible { outline: 2px solid var(--ds-accent); outline-offset: -2px; }
 .sc-ch-card > .sc-ch-row:last-child { border-bottom-left-radius: var(--ds-r-card); border-bottom-right-radius: var(--ds-r-card); }
 .sc-ch-card > .sc-ch-row:first-child { border-top-left-radius: var(--ds-r-card); border-top-right-radius: var(--ds-r-card); }
+.sc-via { margin-left: 6px; font-size: 11px; color: var(--ds-text-2); white-space: nowrap; }
