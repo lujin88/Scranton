@@ -47,6 +47,9 @@
     // showed "Answered" while still open).
     const isPrAsk = (m) => prUrls(m).length > 0 && MERGE_RE.test(String(m.text || '')) && !isQuestion(m);
     const isAsk = (m) => isQuestion(m) || isPrAsk(m);
+    // The PM often asks again about the same PR: only the latest ask counts and is listed.
+    const prNewest = new Map();   // PR url -> id of the latest ask to merge it
+    const prRepeat = (m) => isPrAsk(m) && prUrls(m).every((u) => (prNewest.get(u) || 0) > Number(m.id));
     // For the notification sound: an ask addressed to you (mention, DM, or a reply to you), not yet done.
     window.scIsAskForMe = (m) => {
         if (!m || !isAgentSender(m.sender) || !['chat', 'message', 'decision'].includes(m.type || 'chat')) return false;
@@ -96,7 +99,7 @@
     const isUnread = (m) => {
         const k = keyOf(m);
         if (forceUnread.has(k)) return true;
-        if (readKeys.has(k) || answered(m)) return false;
+        if (readKeys.has(k) || answered(m) || prRepeat(m)) return false;
         if (Date.now() / 1000 - tsOf(m) > STALE_S) return false;
         // Only asks count (Lu, 11-09: "我只需要关注我的 event", 52 when 2 really needed her):
         // a question for you, or a PR for you to merge. Everything else is just listed;
@@ -196,6 +199,7 @@
         if (msg.reply_to != null && myMsgIds.has(Number(msg.reply_to))) kinds.add('reply');
         if (kinds.size) {
             inbox.set(Number(msg.id), { ...msg, _kinds: kinds });
+            if (isPrAsk(msg)) for (const u of prUrls(msg)) prNewest.set(u, Math.max(prNewest.get(u) || 0, Number(msg.id)));
             scheduleRender();
             if (PR_RE.test(String(msg.text || ''))) { PR_RE.lastIndex = 0; refreshPrsSoon(); }
         }
@@ -273,6 +277,7 @@
         const sortSel = document.getElementById('sc-inbox-sort');
         const mode = sortSel ? sortSel.value : 'needs';
         const items = [...inbox.values()]
+            .filter((m) => !prRepeat(m))
             .filter((m) => filterKind === 'all' || m._kinds.has(filterKind))
             .filter((m) => !from || String(m.sender).toLowerCase() === from)
             .filter((m) => mode !== 'only' || isUnread(m))
