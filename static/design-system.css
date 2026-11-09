@@ -1269,3 +1269,22 @@ body.sc-inbox-open #scroll-anchor { display: none !important; }
     place-items: center; cursor: pointer; background: var(--ds-accent-fill); color: #fff; }
 .sc-choice-other.has-text .sc-choice-send { display: grid; }
 .sc-choice-send:hover { background: var(--ds-accent-fill-hover); }
+
+/* Activity header, tightened (Lu, 11-09: too much space, show more text): title row, then one row
+   of tabs + From + Show, then the list right away. Dropdowns get a hairline like the other fields. */
+.sc-inbox-head { padding-top: 14px !important; padding-bottom: 2px !important; }
+#sc-inbox .sc-inbox-filters { padding-top: 0 !important; padding-bottom: 6px !important; gap: 8px !important; row-gap: 6px !important; }
+#sc-inbox .sc-inbox-filters .sc-from + .sc-from { margin-left: 8px; }
+#sc-inbox .sc-from select { border: 1px solid var(--ds-line-strong) !important; border-radius: 8px !important; height: 30px;
+    padding: 0 26px 0 10px !important; background-color: var(--ds-surface-raised, transparent) !important; font-size: 13px; }
+#sc-inbox .sc-from select:hover { border-color: var(--ds-text-3) !important; }
+#sc-inbox .sc-from select:focus-visible { outline: 2px solid var(--ds-accent); outline-offset: 1px; }
+#sc-inbox .sc-tab { padding-top: 5px; padding-bottom: 5px; }
+#sc-inbox-list { padding-top: 0 !important; }
+.sc-inbox-group { margin: 10px 0 2px !important; padding: 0 12px; }
+.sc-inbox-group-top { margin-top: 2px !important; min-height: 28px; }
+.sc-tab-n { margin-left: 6px; font-size: 11px; font-weight: 600; color: var(--ds-accent); }
+.sc-tab-n:empty { display: none; }
+#sc-inbox .sc-inbox-item { padding-top: 10px !important; padding-bottom: 10px !important; }
+#sc-inbox .sc-inbox-status { margin-top: 2px; }
+#sc-inbox .sc-inbox-group-top { margin-top: 0 !important; }

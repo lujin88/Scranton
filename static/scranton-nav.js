@@ -30,7 +30,7 @@
     //  - it's done when you answer it (pick an option, reply to it, or @ them in that channel
     //    afterwards), when the PR is merged or closed, or when you mark it done;
     //  - plain messages are listed but never counted (their channel shows them as unread);
-    //  - older than 3 days: dropped from the count. "Remind me" brings one back.
+    //  - only asks put to you (@Lu at the start, or a DM); older than 12 hours: dropped from the count. "Remind me" brings one back.
     const repliedTo = new Set();          // ids you replied to directly
     const myLastInThread = new Map();     // thread parent id -> id of your latest message in it
     const OPT_LINE = /(^|\n)\s*[A-H]\s*[.、:：)]/g;
@@ -44,8 +44,7 @@
     // For the notification sound: an ask addressed to you (mention, DM, or a reply to you), not yet done.
     window.scIsAskForMe = (m) => {
         if (!m || !isAgentSender(m.sender) || !['chat', 'message', 'decision'].includes(m.type || 'chat')) return false;
-        const forMe = mentionsMe(m.text) || isDm(m.channel) || (m.reply_to != null && myMsgIds.has(Number(m.reply_to)));
-        return forMe && isAsk(m) && !answered(m);
+        return addressedToMe(m) && isAsk(m) && !answered(m);
     };
     const prDone = (m) => { const u = prUrls(m); return u.length > 0 && u.every((x) => prState[x] === 'MERGED' || prState[x] === 'CLOSED'); };
     async function refreshPrs() {
@@ -76,7 +75,9 @@
         || repliedTo.has(Number(m.id))
         || (m.reply_to != null && (myLastInThread.get(Number(m.reply_to)) || 0) > Number(m.id))
         || (myLastToIn.get(`${m.channel || 'general'}|${String(m.sender || '').toLowerCase().replace(/-\d+$/, '')}`) || 0) > Number(m.id));
-    const STALE_S = 3 * 86400;   // older than 3 days: no longer counted as needing you
+    // Older than 12 hours: no longer counted. Overnight questions come back in the PM's
+    // "Lu is back" list, so the count doesn't carry yesterday around.
+    const STALE_S = 12 * 3600;
     const isUnread = (m) => {
         const k = keyOf(m);
         if (forceUnread.has(k)) return true;
@@ -86,6 +87,9 @@
         // a question for you, or a PR for you to merge. Everything else is just listed;
         // unread messages are already counted on their channel in the sidebar.
         if (!isAsk(m)) return false;
+        // ...and only when it's actually put to you: @Lu, or a DM. A question one teammate asks
+        // another in your thread isn't yours; the PM brings anything for you to you (Lu, 11-09).
+        if (!addressedToMe(m)) return false;
         return tsOf(m) > seenTs;
     };
     window.scInboxUpdate = (m) => {   // a decision answered (server message_update)
@@ -117,6 +121,14 @@
         const team = (window.scGetTeam && window.scGetTeam()) || {};
         if (typeof agentConfig !== 'undefined' && agentConfig[s]) return true;
         return !!team[s] || !!team[s.replace(/-\d+$/, '')];
+    }
+
+    // Put to you: a DM, or @Lu among the names the message opens with ("@Lu …", "@Lu @pm …").
+    // An @Lu further down ("…then send it to @Lu") is talk about you, not to you.
+    function addressedToMe(m) {
+        if (isDm(m.channel)) return true;
+        const lead = (/^\s*(?:@[\w-]+[\s,，、]*)+/.exec(String(m.text || '')) || [''])[0];
+        return mentionsMe(lead);
     }
 
     function mentionsMe(text) {
@@ -196,7 +208,7 @@
     const inboxOpen = () => !document.getElementById('sc-inbox')?.classList.contains('hidden');
     function paintMarkAll() { /* the button lives in the list now and is drawn only when something needs you */ }
 
-    let filterKind = 'mention';  // default: things that tag Lu
+    let filterKind = 'all';  // default: everything, so nothing that needs you hides in another tab
     function relTime(m) {
         const ts = Number(m.timestamp) * (Number(m.timestamp) < 1e12 ? 1000 : 1);
         if (!ts) return m.time || '';
@@ -224,6 +236,14 @@
         const from = document.getElementById('sc-inbox-from')?.value || '';
         // One "Show" control instead of a toggle plus a sort: needs-you first (default), newest first,
         // or only what still needs you. The choice is remembered.
+        // each tab says how many things in it need you
+        document.querySelectorAll('#sc-inbox .sc-tab').forEach((t) => {
+            const k = t.dataset.kind;
+            const n = [...inbox.values()].filter((m) => (k === 'all' || m._kinds.has(k)) && isUnread(m)).length;
+            let b = t.querySelector('.sc-tab-n');
+            if (!b) { b = document.createElement('span'); b.className = 'sc-tab-n'; t.appendChild(b); }
+            b.textContent = n ? String(n) : '';
+        });
         const sortSel = document.getElementById('sc-inbox-sort');
         const mode = sortSel ? sortSel.value : 'needs';
         const items = [...inbox.values()]
@@ -243,7 +263,7 @@
         // "Mark all as read" sits with the count it clears (right above the list), not in the page header.
         const totalN = unreadCount();
         if (totalN) {
-            const label = mode === 'needs' && needN ? `Needs you · ${needN}` : `Needs you · ${totalN}`;
+            const label = needN ? `Needs you · ${needN}` : `Nothing here needs you · ${totalN} in other tabs`;
             list.insertAdjacentHTML('beforeend', `<div class="sc-inbox-group sc-inbox-group-top"><span>${label}</span>`
                 + `<button type="button" class="sc-inbox-markall" data-tip="Mark everything that needs you as done (⇧Esc)">${window.scIcon ? window.scIcon('check-double', 14) : ''}Mark all done</button></div>`);
             list.querySelector('.sc-inbox-markall').addEventListener('click', () => window.scInboxMarkRead());
@@ -262,11 +282,12 @@
             const label = window.scLabelOf ? window.scLabelOf(sender) : m.sender;
             const pic = window.scAvatarHtml ? window.scAvatarHtml(sender) : '';
             const text = String(m.text || '').replace(/\s+/g, ' ').trim();
-            const q = isQuestion(m);
+            const forMe = addressedToMe(m);
+            const q = forMe && isQuestion(m);
             const done = answered(m);
             const chosen = m.type === 'decision' && (m.metadata || {}).resolved ? String(m.metadata.chosen || '') : '';
             const prs = prUrls(m);
-            const status = (prs.length && isAsk(m) && !q) || (prs.length && prDone(m)) ? (done
+            const status = forMe && ((prs.length && isAsk(m) && !q) || (prs.length && prDone(m))) ? (done
                     ? `<span class="sc-inbox-status done">${window.scIcon ? window.scIcon('check', 14) : ''}${prDone(m) ? 'Merged on GitHub' : 'Answered'}</span>`
                     : `<span class="sc-inbox-status todo">Merge on GitHub</span>`)
                 : !q ? ''
