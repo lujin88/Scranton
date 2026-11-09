@@ -40,7 +40,13 @@
     const PR_RE = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
     const prUrls = (m) => [...new Set(String(m.text || '').match(PR_RE) || [])];
     const prState = {};   // url -> OPEN | MERGED | CLOSED
-    const isAsk = (m) => isQuestion(m) || (prUrls(m).length > 0 && /合|merge/i.test(String(m.text || '')));
+    // "可以合 / 合并 / merge", not any 合 (合适, 合作, 综合 aren't asks to merge).
+    const MERGE_RE = /可以合|请合|去合|合并|合进|合一下|合吧|合了吗|\bmerge/i;
+    // A PR handed to you to merge (not a question with options that happens to link one):
+    // only GitHub can say it's done. Replying in the chat doesn't merge it (Lu, 11-09: #117 and #94
+    // showed "Answered" while still open).
+    const isPrAsk = (m) => prUrls(m).length > 0 && MERGE_RE.test(String(m.text || '')) && !isQuestion(m);
+    const isAsk = (m) => isQuestion(m) || isPrAsk(m);
     // For the notification sound: an ask addressed to you (mention, DM, or a reply to you), not yet done.
     window.scIsAskForMe = (m) => {
         if (!m || !isAgentSender(m.sender) || !['chat', 'message', 'decision'].includes(m.type || 'chat')) return false;
@@ -80,10 +86,10 @@
     // You talked to them after it, in the same channel (e.g. "@pm B" typed in the channel instead of
     // clicking): counts as dealt with. The PM re-asks anything still open when you're back.
     const myLastToIn = new Map();   // "channel|handle" -> id of your latest message there @mentioning them
-    const answered = (m) => !!(prDone(m) || (m.type === 'decision' && (m.metadata || {}).resolved)
+    const answered = (m) => !!(prDone(m) || (!isPrAsk(m) && ((m.type === 'decision' && (m.metadata || {}).resolved)
         || repliedTo.has(Number(m.id))
         || (m.reply_to != null && (myLastInThread.get(Number(m.reply_to)) || 0) > Number(m.id))
-        || (myLastToIn.get(`${m.channel || 'general'}|${String(m.sender || '').toLowerCase().replace(/-\d+$/, '')}`) || 0) > Number(m.id));
+        || (myLastToIn.get(`${m.channel || 'general'}|${String(m.sender || '').toLowerCase().replace(/-\d+$/, '')}`) || 0) > Number(m.id))));
     // Older than 12 hours: no longer counted. Overnight questions come back in the PM's
     // "Lu is back" list, so the count doesn't carry yesterday around.
     const STALE_S = 12 * 3600;
@@ -100,6 +106,16 @@
         // another in your thread isn't yours; the PM brings anything for you to you (Lu, 11-09).
         if (!addressedToMe(m)) return false;
         return tsOf(m) > seenTs;
+    };
+    // Deleted or cleared messages leave Activity too (they used to keep counting for 12 h).
+    window.scInboxRemove = (ids) => {
+        let hit = false;
+        for (const id of ids || []) hit = inbox.delete(Number(id)) || hit;
+        if (hit) scheduleRender();
+    };
+    window.scInboxClear = (channel) => {
+        for (const [id, m] of inbox) if (!channel || (m.channel || 'general') === channel) inbox.delete(id);
+        scheduleRender();
     };
     window.scInboxUpdate = (m) => {   // a decision answered (server message_update)
         const item = m && inbox.get(Number(m.id));
@@ -297,8 +313,9 @@
             const done = answered(m);
             const chosen = m.type === 'decision' && (m.metadata || {}).resolved ? String(m.metadata.chosen || '') : '';
             const prs = prUrls(m);
-            const status = forMe && ((prs.length && isAsk(m) && !q) || (prs.length && prDone(m))) ? (done
-                    ? `<span class="sc-inbox-status done">${window.scIcon ? window.scIcon('check', 14) : ''}${prDone(m) ? 'Merged on GitHub' : 'Answered'}</span>`
+            const prClosed = prs.length && prs.every((u) => prState[u] === 'CLOSED');
+            const status = forMe && (isPrAsk(m) || (prs.length && prDone(m))) ? (prDone(m)
+                    ? `<span class="sc-inbox-status done">${window.scIcon ? window.scIcon('check', 14) : ''}${prClosed ? 'Closed on GitHub' : 'Merged on GitHub'}</span>`
                     : `<span class="sc-inbox-status todo">Merge on GitHub</span>`)
                 : !q ? ''
                 : done ? `<span class="sc-inbox-status done">${window.scIcon ? window.scIcon('check', 14) : ''}Answered${chosen ? ': ' + esc(chosen.length > 40 ? chosen.slice(0, 40) + '…' : chosen) : ''}</span>`
@@ -342,7 +359,12 @@
             if (k === 'open') jumpTo(m);
         });
         menu.querySelector('button').focus();
-        menu.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') close(); });
+        const row = e.target && e.target.closest ? e.target.closest('.sc-inbox-item') : null;
+        menu.addEventListener('keydown', (ev) => {
+            if (ev.key !== 'Escape') return;
+            ev.stopPropagation(); ev.preventDefault();   // close the menu, not the whole Activity panel
+            close(); row?.focus();
+        });
     }
 
     function initInboxFilters() {
@@ -394,8 +416,9 @@
         const n = unreadCount();
         if (!n) return;
         const before = { seenTs, read: [...readKeys], unread: [...forceUnread] };
+        // Message times only: they're the server's clock. Mixing in this device's clock hid
+        // asks that arrived in the next few seconds when the iPad ran ahead.
         for (const m of inbox.values()) seenTs = Math.max(seenTs, tsOf(m));
-        seenTs = Math.max(seenTs, Date.now() / 1000);
         LS.set('scranton-inbox-seen-ts', String(seenTs));
         readKeys.clear(); forceUnread.clear(); saveRead();
         renderInboxBadge();
@@ -658,9 +681,9 @@
             c.width = c.height = size;
             const s = Math.min(img.width, img.height);
             c.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
-            const url = c.toDataURL('image/jpeg', 0.85);
-            LS.set('scranton-me-avatar', url);
-            saveAvatarToServer(url);
+            const data = c.toDataURL('image/jpeg', 0.85);
+            LS.set('scranton-me-avatar', data);
+            saveAvatarToServer(data);
             URL.revokeObjectURL(url);
             renderMe();
         };

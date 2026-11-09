@@ -42,10 +42,20 @@
         return m < 60 ? `${m} min` : m < 1440 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} d`;
     };
 
+    let renderSeq = 0;
     async function render() {
         const s = section();
         s.innerHTML = '<div class="sc-rp"><p class="sc-rp-muted">Loading…</p></div>';
-        const r = await api(`/api/scranton/report?days=${days}`);
+        const seq = ++renderSeq, want = days;
+        let r;
+        try { r = await api(`/api/scranton/report?days=${days}`); } catch (_) { r = null; }
+        // A slower answer for the other period must not replace the one you picked last.
+        if (seq !== renderSeq || want !== days) return;
+        if (!r || r.error) {
+            s.innerHTML = '<div class="sc-rp"><p class="sc-rp-muted">Couldn\'t load the report. Is Scranton running? <button type="button" class="sc-btn" id="sc-rp-retry">Try again</button></p></div>';
+            s.querySelector('#sc-rp-retry')?.addEventListener('click', render);
+            return;
+        }
         const c = r.counts || {};
         const w = r.waiting || {};
         const maxH = Math.max(1, ...(r.work || []).map((x) => x.hours));
@@ -129,7 +139,7 @@
             ${t.tasks.length ? `<h3 class="sc-rp-h3">Tasks that used the most</h3><div class="sc-rp-list">${t.tasks.map((k) => `<button type="button" class="sc-rp-row" data-msg="${esc(k.id)}" data-ch="${esc(k.channel)}">
                 <span class="sc-rp-ic">${ic('thread', 18)}</span>
                 <span class="sc-rp-t"><b>${esc(k.title || 'Thread')}</b><small>#${esc(k.channel)} · ${k.agents.map((a) => esc(label(a))).join(', ')}</small></span>
-                <span class="sc-rp-num">${fmtTok(k.tokens)} · ${pct(k.tokens)}%</span></button>`).join('')}</div>` : ''}
+                <span class="sc-rp-num sc-rp-num-wide">${fmtTok(k.tokens)} · ${pct(k.tokens)}%</span></button>`).join('')}</div>` : ''}
             <h3 class="sc-rp-h3">By teammate</h3>
             <div class="sc-rp-list">${t.agents.slice(0, 8).map((x) => `<div class="sc-rp-row static">
                 <span class="sc-rp-av">${window.scAvatarHtml ? window.scAvatarHtml(x.agent) : ''}</span>

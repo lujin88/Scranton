@@ -638,13 +638,14 @@
     }
 
     // One path for every way a picture comes in (file, paste, link, drop).
-    async function useAvatarFile(file, field) {
+    async function useAvatarFile(file, field, forAgent) {
         let data;
         try { data = await squareJpeg(file); } catch (_) { window.scToast && window.scToast('Use a JPG, PNG, WebP or GIF picture'); return; }
-        const handle = agentOpen && agentOpen !== '__new' ? agentOpen : (root.querySelector('#sc-new-handle')?.value || '');
+        const handle = forAgent !== undefined ? forAgent
+            : agentOpen && agentOpen !== '__new' ? agentOpen : (root.querySelector('#sc-new-handle')?.value || '');
         const up = await api('/api/scranton/avatars', { handle, data });
         if (!up || up.error || !up.file) { window.scToast && window.scToast((up && up.error) || "Couldn't upload. Is Scranton running?"); return; }
-        if (field) await usePictureFile(up.file, field);   // profile: used right away; forms: added and selected
+        if (field) await usePictureFile(up.file, field, handle);   // profile: used right away; forms: added and selected
     }
     // "Generate a similar one": ChatGPT (Codex, your plan) draws a picture in the team's style.
     async function generateAvatar(btn) {
@@ -659,28 +660,35 @@
         btn.disabled = true;
         const old = btn.textContent;
         btn.textContent = 'Drawing… (about a minute)';
-        const r = await api('/api/scranton/avatars/generate', { label, role, handle, like });
+        let r;
+        try { r = await api('/api/scranton/avatars/generate', { label, role, handle, like }); } catch (_) { r = null; }
         if (!r || r.error || !r.id) { btn.disabled = false; btn.textContent = old; window.scToast && window.scToast((r && r.error) || "Couldn't start"); return; }
         const t0 = Date.now();
         while (Date.now() - t0 < 8 * 60 * 1000) {
             await new Promise((ok) => setTimeout(ok, 3000));
-            const st = await api(`/api/scranton/avatars/generate/${r.id}`);
-            if (st.state === 'working') continue;
+            let st;
+            try { st = await api(`/api/scranton/avatars/generate/${r.id}`); } catch (_) { st = { state: 'working' }; }   // server restarting: keep waiting
+            if (!st || st.state === 'working') continue;
             btn.disabled = false; btn.textContent = old;
             if (st.state !== 'done' || !st.file) { window.scToast && window.scToast(st.error || "Couldn't draw it"); return; }
             if (!btn.isConnected) return;   // the page moved on; the picture is still in the list next time
-            await usePictureFile(st.file, field);
+            await usePictureFile(st.file, field, handle);
             return;
         }
         btn.disabled = false; btn.textContent = old;
         window.scToast && window.scToast('Took too long. Try again.');
     }
-    async function usePictureFile(fname, field) {
+    async function usePictureFile(fname, field, forAgent) {
+        // The upload or link can take seconds: by then you may have opened another teammate or
+        // closed Settings. Use the one it was started for, and don't touch a page that's gone.
+        if (!field || !field.isConnected) return;
         if (field.hasAttribute('data-av-now')) {
-            const r = await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}`, { action: 'set', key: 'avatar', value: fname });
+            const who = forAgent || agentOpen;
+            if (!who || who === '__new') return;
+            const r = await api(`/api/scranton/teammate/${encodeURIComponent(who)}`, { action: 'set', key: 'avatar', value: fname });
             pickingAvatar = false;
             if (r && !r.error) { window.scReloadTeam && window.scReloadTeam(); }
-            setTimeout(render, 300);
+            setTimeout(() => { if (root) render(); }, 300);
             return;
         }
         const grid = field.querySelector('.sc-av-grid');
@@ -691,10 +699,11 @@
         grid.insertBefore(b, grid.querySelector('.sc-av-upload'));
     }
     async function useAvatarLink(url, field) {
+        const forAgent = agentOpen && agentOpen !== '__new' ? agentOpen : '';
         const r = await api('/api/scranton/avatars/fetch', { url });
         if (!r || r.error || !r.data) { window.scToast && window.scToast((r && r.error) || "Couldn't get that picture"); return; }
         const blob = await (await fetch(r.data)).blob();
-        await useAvatarFile(new File([blob], 'link', { type: blob.type }), field);
+        await useAvatarFile(new File([blob], 'link', { type: blob.type }), field, forAgent || undefined);
     }
     function wireAvatarInputs() {
         if (!root || root.dataset.avWired) return;
@@ -726,13 +735,18 @@
             const field = e.target.closest && e.target.closest('.sc-av-field');
             if (field && !field.contains(e.relatedTarget)) field.classList.remove('sc-drop-target');
         }, true);
+        // While Settings is open, a dropped file never goes on to the chat behind it
+        // (it used to be attached to the message box there).
+        const isFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+        root.addEventListener('dragover', (e) => { if (isFiles(e)) { e.preventDefault(); e.stopPropagation(); } });
         root.addEventListener('drop', (e) => {
+            if (!isFiles(e)) return;   // dragging text into a box still works
+            e.preventDefault(); e.stopPropagation();
             const field = e.target.closest && e.target.closest('.sc-av-field');
+            root.querySelectorAll('.sc-av-field.sc-drop-target').forEach((x) => x.classList.remove('sc-drop-target'));
             if (!field) return;
             const file = [...(e.dataTransfer?.files || [])].find((f) => f.type.startsWith('image/'));
-            field.classList.remove('sc-drop-target');
-            if (!file) return;
-            e.preventDefault(); e.stopPropagation();
+            if (!file) { window.scToast && window.scToast('Drop a picture (JPG, PNG, WebP or GIF)'); return; }
             useAvatarFile(file, field);
         }, true);
     }

@@ -655,6 +655,7 @@ function handleServerEvent(event) {
         applySettings(event.data);
     } else if (event.type === 'delete') {
         handleDeleteBroadcast(event.ids);
+        if (window.scInboxRemove) window.scInboxRemove(event.ids);
     } else if (event.type === 'rules' || event.type === 'decisions') {
         rules = event.data || [];
         renderRulesPanel();
@@ -739,6 +740,7 @@ function handleServerEvent(event) {
             }
         }
     } else if (event.type === 'clear') {
+        if (window.scInboxClear) window.scInboxClear(event.channel || null);
         const _clearDbgList = document.getElementById('jobs-list');
         const _clearDbgBefore = _clearDbgList ? _clearDbgList.children.length : -1;
         console.log('CLEAR_DEBUG clear event received, channel=' + (event.channel || 'ALL'), 'jobs-panel-children-before=' + _clearDbgBefore);
@@ -937,7 +939,16 @@ function dayFloatRefresh() {
 function appendMessage(msg, options = {}) {
     try { scEchoed(msg); } catch (_) { /* never break rendering */ }
     // History replay and a live delivery can contain the same saved message.
-    if (document.getElementById(`message-${msg.id}`)) return;
+    const existing = document.getElementById(`message-${msg.id}`);
+    if (existing) {
+        // Replayed after a reconnect: a card answered meanwhile (on the phone, say) must lose its buttons,
+        // or clicking one answers it a second time.
+        if (msg.type === 'decision' && (msg.metadata || {}).resolved && existing.dataset.scResolved !== '1' && window.scRepaintChoices) {
+            existing.dataset.scResolved = '1';
+            try { window.scRepaintChoices(msg); } catch (_) { /* never break rendering */ }
+        }
+        return;
+    }
     const container = options.container || document.getElementById('messages');
 
     // Insert date divider if needed
@@ -2551,6 +2562,9 @@ function setupInput() {
     const input = document.getElementById('input');
 
     input.addEventListener('keydown', (e) => {
+        // Chinese / Japanese input: Enter confirms the candidate, it must not send or pick a name.
+        // (Safari reports these keys as keyCode 229 with isComposing already false.)
+        if (e.isComposing || e.keyCode === 229) return;
         if (mentionMenuVisible) {
             const menu = document.getElementById('mention-menu');
             const items = menu.querySelectorAll('.mention-item');
@@ -2575,6 +2589,7 @@ function setupInput() {
                 return;
             }
             if (e.key === 'Escape') {
+                e.stopPropagation();   // close the list only, keep the reply quote you're writing
                 menu.classList.add('hidden');
                 mentionMenuVisible = false; window._scLastMentionQuery = null;
                 return;

@@ -433,6 +433,7 @@ body.sc-report-open #sc-empty-room { display: none; }
 .sc-rp-bar { width: 160px; height: 6px; border-radius: 3px; background: var(--ds-overlay); overflow: hidden; flex-shrink: 0; }
 .sc-rp-bar i { display: block; height: 100%; background: var(--ds-accent); border-radius: 3px; }
 .sc-rp-num { width: 56px; text-align: right; color: var(--ds-text-2); font-size: var(--ds-fs-sm); flex-shrink: 0; }
+.sc-rp-num.sc-rp-num-wide { width: auto; min-width: 56px; white-space: nowrap; padding-left: 12px; }
 .sc-rp-muted, .sc-rp-note { color: var(--ds-text-3); font-size: var(--ds-fs-sm); margin: 8px 0 0; }
 .sc-rp-est { background: var(--ds-raised); border-radius: var(--ds-r-card); padding: 16px; color: var(--ds-text-2); font-size: var(--ds-fs-md); }
 .sc-rp-est input { width: 72px; height: 32px; margin: 0 6px; padding: 0 8px; border: 0; border-radius: var(--ds-r-control); background: var(--ds-field); color: var(--ds-text); font: inherit; }

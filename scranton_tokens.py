@@ -192,12 +192,16 @@ def build(msgs: list[dict], team: dict, owner: str, days: int, home: Path | None
     unassigned = 0
     apps = set()
 
+    sessions = Counter()      # app -> session files with use in the period
+    matched = Counter()       # app -> of those, ones tied to a teammate
     for gen in (_claude_sessions(since, home), _codex_sessions(since, home)):
         for agent, rows, app in gen:
+            sessions[app] += 1
             agent = base(agent) if agent else None
             if not agent or agent not in handles:
                 unassigned += sum(r[1] + r[2] + r[3] for r in rows)
                 continue
+            matched[app] += 1
             apps.add(app)
             trig = triggers.get(agent, [])
             j = 0
@@ -232,6 +236,7 @@ def build(msgs: list[dict], team: dict, owner: str, days: int, home: Path | None
         "not_counted": sorted({base(h) for h, a in team.items()
                                if str(a.get("command", "")) in ("agent", "cursor-agent")}),
         "unassigned": unassigned,
+        "sessions": dict(sessions), "matched": dict(matched),
     }
     _cache.clear()
     _cache[key] = (time.time(), data)

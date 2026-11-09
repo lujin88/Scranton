@@ -2640,17 +2640,45 @@ async def scranton_avatar_fetch(request: Request):
     u = _up.urlparse(url)
     if u.scheme not in ("http", "https") or not u.hostname:
         return JSONResponse({"error": "paste a link that starts with https://"}, status_code=400)
-    def _get():
+    _cgnat = _ip.ip_network("100.64.0.0/10")   # Tailscale and carrier NAT: your own devices
+
+    def _bad_host(host):
         try:
-            for info in _sock.getaddrinfo(u.hostname, None):
-                a = _ip.ip_address(info[4][0])
-                if a.is_private or a.is_loopback or a.is_link_local or a.is_reserved:
-                    return None, "that link points to this computer or the local network"
+            for info in _sock.getaddrinfo(host, None):
+                a = _ip.ip_address(info[4][0].split("%")[0])
+                if (a.is_private or a.is_loopback or a.is_link_local or a.is_reserved or a.is_multicast
+                        or a.is_unspecified or (a.version == 4 and a in _cgnat)):
+                    return "that link points to this computer or the local network"
         except Exception:
-            return None, "couldn't find that site"
-        req = _ur.Request(url, headers={"User-Agent": "Scranton (local team chat)", "Accept": "image/*"})
-        try:
-            with _ur.urlopen(req, timeout=10) as r:
+            return "couldn't find that site"
+        return None
+
+    class _NoRedirect(_ur.HTTPRedirectHandler):
+        def redirect_request(self, *a, **k):
+            return None   # we follow redirects ourselves, checking each new address
+
+    opener = _ur.build_opener(_NoRedirect)
+
+    def _get():
+        cur = url
+        for _ in range(4):
+            cu = _up.urlparse(cur)
+            if cu.scheme not in ("http", "https") or not cu.hostname:
+                return None, "couldn't download that picture"
+            bad = _bad_host(cu.hostname)
+            if bad:
+                return None, bad
+            req = _ur.Request(cur, headers={"User-Agent": "Scranton (local team chat)", "Accept": "image/*"})
+            try:
+                r = opener.open(req, timeout=10)
+            except _ur.HTTPError as e:
+                if e.code in (301, 302, 303, 307, 308) and e.headers.get("Location"):
+                    cur = _up.urljoin(cur, e.headers["Location"])
+                    continue
+                return None, "couldn't download that picture"
+            except Exception:
+                return None, "couldn't download that picture"
+            with r:
                 ctype = (r.headers.get("Content-Type") or "").split(";")[0].strip().lower()
                 if ctype not in ("image/jpeg", "image/png", "image/webp", "image/gif"):
                     return None, "that link isn't a picture"
@@ -2658,8 +2686,7 @@ async def scranton_avatar_fetch(request: Request):
                 if len(data) > 5 * 1024 * 1024:
                     return None, "that picture is bigger than 5 MB"
                 return f"data:{ctype};base64," + _b64.b64encode(data).decode(), None
-        except Exception:
-            return None, "couldn't download that picture"
+        return None, "that link redirects too many times"
     data, err = await asyncio.to_thread(_get)
     if err:
         return JSONResponse({"error": err}, status_code=400)
@@ -2845,7 +2872,7 @@ _PR_TTL = {"MERGED": 24 * 3600, "CLOSED": 24 * 3600}   # final states rarely cha
 def _pr_state(url: str):
     now = _time_pr.time()
     hit = _pr_cache.get(url)
-    if hit and now - hit[1] < _PR_TTL.get(hit[0], 180):
+    if hit and now - hit[1] < (_PR_TTL.get(hit[0], 180) if hit[0] else 600):
         return hit[0]
     if now < _pr_backoff_until[0] or not _shutil_pr.which("gh"):
         return hit[0] if hit else None
@@ -2860,6 +2887,8 @@ def _pr_state(url: str):
         if any(k in err for k in ("rate limit", "403", "429", "suspended", "abuse")):
             _pr_backoff_until[0] = now + 1800   # harness rule: GitHub said stop, so stop for a while
             log.warning("PR state: GitHub refused (%s); not asking again for 30 min", err.strip()[:120])
+        elif not hit:
+            _pr_cache[url] = (None, now)   # no access / no such PR: don't ask GitHub again for 10 min
         return hit[0] if hit else None
     _pr_cache[url] = (out, now)
     return out
@@ -2868,10 +2897,16 @@ def _pr_state(url: str):
 @app.get("/api/scranton/pr-state")
 async def scranton_pr_state(request: Request):
     urls = [u for u in request.query_params.getlist("u") if _PR_URL.match(u)][:20]
-    states = {}
-    for u in urls:
-        states[u] = await asyncio.to_thread(_pr_state, u)
-    return JSONResponse(states)
+    sem = asyncio.Semaphore(4)   # a few at a time: one bot account for every agent (harness rule)
+
+    async def one(u):
+        async with sem:
+            return await asyncio.to_thread(_pr_state, u)
+    try:
+        got = await asyncio.wait_for(asyncio.gather(*(one(u) for u in urls)), 25)
+    except asyncio.TimeoutError:
+        got = [(_pr_cache.get(u) or (None,))[0] for u in urls]
+    return JSONResponse(dict(zip(urls, got)))
 
 
 @app.get("/api/scranton/report")

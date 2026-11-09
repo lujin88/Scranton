@@ -1054,7 +1054,9 @@
         body.dataset.count = String(list.length);
         paintThreadDown(panel, body);
         const input = document.getElementById('sc-thread-input');
-        if (input) input.placeholder = `Reply in thread${root ? ' · @' + labelOf(root.sender) : ''}`;
+        // Address the agent who started it; not you, when you started the thread (it said "@lu").
+        const rootIsMe = root && String(root.sender || '').toLowerCase() === String((window.scMe && window.scMe()) || window.username || '').toLowerCase();
+        if (input) input.placeholder = `Reply in thread${root && !rootIsMe ? ' · @' + labelOf(root.sender) : ''}`;
     }
 
     // ↓ button in the thread: same look as the main one, shows how many replies are below you.
@@ -1243,7 +1245,7 @@
             if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
                 e.preventDefault(); e.stopImmediatePropagation();
                 index = (index + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length; paint();
-            } else if ((e.key === 'Enter' || e.key === 'Tab') && !e.isComposing) {
+            } else if ((e.key === 'Enter' || e.key === 'Tab') && !e.isComposing && e.keyCode !== 229) {
                 e.preventDefault(); e.stopImmediatePropagation(); pick(index);
             } else if (e.key === 'Escape') {
                 e.preventDefault(); e.stopImmediatePropagation(); close();
@@ -1270,7 +1272,7 @@
         const input = document.getElementById('sc-thread-input');
         attachMentions(input);   // first, so Enter/Tab pick a name while the list is open
         input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendThreadReply(); }
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); sendThreadReply(); }
         });
         // ⚡ shortcuts, same as under the main message box
         const send = document.getElementById('sc-thread-send');

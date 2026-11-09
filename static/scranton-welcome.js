@@ -35,15 +35,22 @@
         const pmAnswered = !!pmHandle && Array.from((window.scMsgs && window.scMsgs.values()) || [])
             .some((m) => m && m.channel === `dm-${pmHandle}` && String(m.sender || '').split('-')[0] === pmHandle);
         const pm = team()[PM] ? PM : Object.keys(team())[0];
+        // Also ticked by what really happened: you've @-ed someone in a channel, or they've talked to you.
+        const meLc = myName.toLowerCase();
+        const all = Array.from((window.scMsgs && window.scMsgs.values()) || []);
+        const gaveTask = all.some((m) => m && String(m.sender || '').toLowerCase() === meLc
+            && !String(m.channel || '').startsWith('dm-') && /@[\w\u4e00-\u9fff-]+/.test(String(m.text || '')));
+        const metPm = pmAnswered || (!!pmHandle && all.some((m) => m && String(m.sender || '').split('-')[0] === pmHandle
+            && new RegExp(`@(${meLc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}|lu)\\b`, 'i').test(String(m.text || ''))));
         return [
             { id: 'apps', icon: 'plug', title: 'Connect your apps', text: 'Claude, ChatGPT or Cursor. Your plans, no API keys.',
                 done: connected === true, go: () => window.scOpenSettings && window.scOpenSettings('connections') },
             { id: 'me', icon: 'user-smile', title: 'Add your name and photo', text: 'So your agents know who they work for.',
                 done: hasPic || (myName && !/^(user|you)$/i.test(myName)), go: () => { window.scOpenSettings && window.scOpenSettings('profile'); } },
             { id: 'meet', icon: 'chat-smile', title: `Say hi to ${esc(pm ? label(pm) : 'your project manager')}`, text: 'Your project manager plans the work and hands it to the team.',
-                done: pmAnswered, go: () => { close(); pm && window.scOpenDm && window.scOpenDm(pm); } },
+                done: metPm, go: () => { close(); pm && window.scOpenDm && window.scOpenDm(pm); } },
             { id: 'task', icon: 'task', title: 'Give the first task', text: `In #${projectChannel()}, @ someone and say what you need.`,
-                done: LS.get('scranton-welcome-task', '') === '1', go: () => {
+                done: gaveTask || LS.get('scranton-welcome-task', '') === '1', go: () => {
                     close();
                     if (typeof switchChannel === 'function') switchChannel(projectChannel());
                     setTimeout(() => {
