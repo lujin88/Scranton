@@ -429,6 +429,8 @@ body.sc-report-open #sc-empty-room { display: none; }
 .sc-rp-row { display: flex; align-items: center; gap: var(--ds-3); min-height: 52px; padding: 8px 12px; border: 0; border-radius: var(--ds-r-row); background: none; color: var(--ds-text); font: inherit; text-align: left; text-decoration: none; cursor: pointer; width: 100%; }
 .sc-rp-row:hover { background: var(--ds-hover); }
 .sc-rp-row.static { cursor: default; }
+.sc-rp-row[hidden] { display: none; }
+.sc-rp-showmore { margin-top: 6px; }
 .sc-rp-row.static:hover { background: none; }
 .sc-rp-ic { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: var(--ds-overlay); color: var(--ds-text-2); flex-shrink: 0; }
 .sc-rp-av { width: 32px; height: 32px; border-radius: 50%; overflow: hidden; flex-shrink: 0; }

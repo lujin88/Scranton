@@ -30,9 +30,10 @@ def _pr_cache_path() -> Path:
     return ROOT / "data" / "pr-state.json"
 
 
-def pr_state(url: str) -> bool | None:
-    """Merged or not, read from GitHub (read-only, cached; merged is final, open is rechecked
-    after 15 min). None when gh isn't there or GitHub can't be reached."""
+def pr_info(url: str) -> dict | None:
+    """{"merged", "title"} read from GitHub (read-only, cached; merged is final, open is rechecked
+    after 15 min). None when gh isn't there or GitHub can't be reached. The title comes in the same
+    request as the merged state, so showing it costs no extra GitHub calls."""
     m = PR_PARTS.search(url)
     if not m or os.environ.get("PYTEST_CURRENT_TEST"):
         return None
@@ -43,10 +44,12 @@ def pr_state(url: str) -> bool | None:
             except (OSError, ValueError):
                 pass
         hit = _pr_cache.get(url)
-    if hit and (hit.get("merged") or time.time() - hit.get("at", 0) < 900):
-        return bool(hit.get("merged"))
+    # Entries saved before titles were kept are read once more.
+    if hit and "title" in hit and (hit.get("merged") or time.time() - hit.get("at", 0) < 900):
+        return {"merged": bool(hit.get("merged")), "title": hit.get("title") or ""}
     try:
-        out = subprocess.run(["gh", "api", f"repos/{m.group(1)}/{m.group(2)}/pulls/{m.group(3)}", "--jq", ".merged_at"],
+        out = subprocess.run(["gh", "api", f"repos/{m.group(1)}/{m.group(2)}/pulls/{m.group(3)}",
+                              "--jq", "{merged_at, title}"],
                              capture_output=True, text=True, timeout=10)
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -54,14 +57,23 @@ def pr_state(url: str) -> bool | None:
         if re.search(r"403|429|rate limit|suspended", out.stderr or "", re.I):
             _gh_blocked[0] = time.time()
         return None
-    merged = (out.stdout or "").strip() not in ("", "null")
+    try:
+        data = json.loads(out.stdout or "{}")
+    except ValueError:
+        return None
+    info = {"merged": data.get("merged_at") not in (None, ""), "title": str(data.get("title") or "")[:200]}
     with _pr_lock:
-        _pr_cache[url] = {"merged": merged, "at": time.time()}
+        _pr_cache[url] = {**info, "at": time.time()}
         try:
             atomic_write(_pr_cache_path(), json.dumps(_pr_cache))
         except OSError:
             pass
-    return merged
+    return info
+
+
+def pr_state(url: str) -> bool | None:
+    info = pr_info(url)
+    return None if info is None else info["merged"]
 
 
 _gh_blocked = [0.0]   # GitHub said stop: don't ask again for an hour
@@ -155,7 +167,7 @@ def build(messages: list[dict], team: dict, owner: str, days: int = 7, now: floa
         # A few at a time (one bot account for everyone), not 40 in a row with 10 s timeouts each.
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=4) as ex:
-            for url, st in zip([p["url"] for p in newest[:40]], ex.map(pr_state, [p["url"] for p in newest[:40]])):
+            for url, st in zip([p["url"] for p in newest[:40]], ex.map(pr_info, [p["url"] for p in newest[:40]])):
                 states[url] = st
     for p in newest:
         state = states.get(p["url"])
@@ -163,7 +175,9 @@ def build(messages: list[dict], team: dict, owner: str, days: int = 7, now: floa
             p["checked"] = False
             unverified += 1
         else:
-            p["merged"], p["checked"] = state, True
+            p["merged"], p["checked"] = state["merged"], True
+            if state["title"]:
+                p["title"] = state["title"]   # the PR's own title; the chat line is only a fallback
     shipped = sorted(prs.values(), key=lambda p: (not p["merged"], -(p["first"] or 0)))
 
     # 2. measured work per agent

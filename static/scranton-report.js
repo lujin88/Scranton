@@ -1,6 +1,7 @@
 // Scranton: Report — what got done this week, measured. No invented numbers:
 // "time you'd have spent" only shows when you set your own estimate.
 (function () {
+    const PR_SHOWN = 5;   // pull requests listed before "Show more"
     const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const ic = (n, s) => (window.scIcon ? window.scIcon(n, s || 18) : '');
     const api = (path, body) => fetch(path, {
@@ -84,10 +85,11 @@
             <div id="sc-rp-tokens"><p class="sc-rp-muted">Counting tokens…</p></div>
 
             <h2>Pull requests</h2>
-            ${(r.shipped || []).length ? `<div class="sc-rp-list">${r.shipped.map((p) => `<a class="sc-rp-row" href="${esc(p.url)}" target="_blank" rel="noopener">
+            ${(r.shipped || []).length ? `<div class="sc-rp-list" id="sc-rp-prs">${r.shipped.map((p, i) => `<a class="sc-rp-row${i >= PR_SHOWN ? ' sc-rp-more' : ''}" href="${esc(p.url)}" target="_blank" rel="noopener"${i >= PR_SHOWN ? ' hidden' : ''}>
                 <span class="sc-rp-ic">${ic('git-pr', 18)}</span>
                 <span class="sc-rp-t"><b>${esc(p.title || p.url.replace(/^https:\/\/github\.com\//, ''))}</b><small>${esc(p.url.replace(/^https:\/\/github\.com\//, ''))}${p.by ? ' · ' + esc(label(p.by)) : ''}</small></span>
                 <span class="sc-rp-tag ${p.merged ? 'ok' : ''}"${p.checked === false ? ' title="Not checked on GitHub, taken from the chat"' : ''}>${p.merged ? 'Merged' : 'Open'}${p.checked === false ? '?' : ''}</span></a>`).join('')}</div>
+               ${r.shipped.length > PR_SHOWN ? `<button type="button" class="sc-btn sm sc-rp-showmore" id="sc-rp-prs-more">Show ${r.shipped.length - PR_SHOWN} more</button>` : ''}
                ${c.unverified ? `<p class="sc-rp-muted">${c.unverified === (r.shipped || []).length ? 'GitHub couldn\'t be reached, so' : `For ${c.unverified} of these`} "Merged" is taken from the chat, not checked on GitHub (marked ?).</p>` : ''}`
                 : '<p class="sc-rp-muted">No pull requests in this period yet. They show up here when an agent posts a PR link.</p>'}
 
@@ -275,6 +277,12 @@
     window.scOpenReport = open;
 
     async function onClick(e) {
+        if (e.target.closest('#sc-rp-prs-more')) {
+            // Lu, 11-09: five is enough at a glance; the rest one click away.
+            document.querySelectorAll('#sc-rp-prs .sc-rp-more').forEach((a) => { a.hidden = false; });
+            e.target.closest('#sc-rp-prs-more').remove();
+            return;
+        }
         const d = e.target.closest('[data-days]');
         if (d) { days = Number(d.dataset.days); render(); return; }
         const m = e.target.closest('[data-msg]');
