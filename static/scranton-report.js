@@ -71,6 +71,9 @@
                ${c.unverified ? `<p class="sc-rp-muted">${c.unverified === (r.shipped || []).length ? 'GitHub couldn\'t be reached, so' : `For ${c.unverified} of these`} "Merged" is taken from the chat, not checked on GitHub (marked ?).</p>` : ''}`
                 : '<p class="sc-rp-muted">No pull requests in this period yet. They show up here when an agent posts a PR link.</p>'}
 
+            <h2>Tokens</h2>
+            <div id="sc-rp-tokens"><p class="sc-rp-muted">Counting tokens…</p></div>
+
             <h2>Who worked</h2>
             ${(r.work || []).length ? `<div class="sc-rp-list">${r.work.map((x) => `<div class="sc-rp-row static">
                 <span class="sc-rp-av">${window.scAvatarHtml ? window.scAvatarHtml(x.agent) : ''}</span>
@@ -93,6 +96,42 @@
                 ${r.estimate ? `<p>By your estimate, this period's ${c.merged} merged PRs would have taken you about <b>${r.estimate.hours} h</b>.</p>` : '<p class="sc-rp-muted">Optional. Scranton doesn\'t guess this for you.</p>'}
             </div>
         </div>`;
+        renderTokens();
+    }
+
+    // Tokens: read from the apps' own logs on this Mac; can take a few seconds, so it fills in after.
+    const fmtTok = (n) => n >= 1e9 ? (n / 1e9).toFixed(1) + ' B' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' M' : n >= 1e3 ? Math.round(n / 1e3) + ' K' : String(n);
+    async function renderTokens() {
+        const box = document.getElementById('sc-rp-tokens');
+        if (!box) return;
+        const want = days;
+        let t;
+        try { t = await api(`/api/scranton/report/tokens?days=${days}`); } catch (_) { t = null; }
+        if (want !== days || !box.isConnected) return;
+        if (!t || !t.available) {
+            box.innerHTML = '<p class="sc-rp-muted">No token data found for this period. Scranton reads it from Claude Code and Codex on this Mac.</p>';
+            return;
+        }
+        const maxA = Math.max(1, ...t.agents.map((a) => a.tokens));
+        const pct = (n) => Math.round((100 * n) / Math.max(1, t.total));
+        box.innerHTML = `
+            <div class="sc-rp-stats sc-rp-stats-3">
+                <div><b>${fmtTok(t.total)}</b><span>Tokens used</span></div>
+                <div><b>${pct(t.cached)}%</b><span>Re-reading earlier context</span></div>
+                <div><b>${fmtTok(t.out)}</b><span>Written by agents</span></div>
+            </div>
+            ${t.tasks.length ? `<h3 class="sc-rp-h3">Tasks that used the most</h3><div class="sc-rp-list">${t.tasks.map((k) => `<button type="button" class="sc-rp-row" data-msg="${esc(k.id)}" data-ch="${esc(k.channel)}">
+                <span class="sc-rp-ic">${ic('thread', 18)}</span>
+                <span class="sc-rp-t"><b>${esc(k.title || 'Thread')}</b><small>#${esc(k.channel)} · ${k.agents.map((a) => esc(label(a))).join(', ')}</small></span>
+                <span class="sc-rp-num">${fmtTok(k.tokens)} · ${pct(k.tokens)}%</span></button>`).join('')}</div>` : ''}
+            <h3 class="sc-rp-h3">By teammate</h3>
+            <div class="sc-rp-list">${t.agents.slice(0, 8).map((x) => `<div class="sc-rp-row static">
+                <span class="sc-rp-av">${window.scAvatarHtml ? window.scAvatarHtml(x.agent) : ''}</span>
+                <span class="sc-rp-t"><b>${esc(label(x.agent))}</b><small>${pct(x.tokens)}% · re-reading ${Math.round((100 * x.cached) / Math.max(1, x.tokens))}%</small></span>
+                <span class="sc-rp-bar"><i style="width:${Math.round((x.tokens / maxA) * 100)}%"></i></span>
+                <span class="sc-rp-num">${fmtTok(x.tokens)}</span></div>`).join('')}</div>
+            ${t.tips.length ? `<h3 class="sc-rp-h3">What would save the most</h3><ul class="sc-rp-tips">${t.tips.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+            <p class="sc-rp-note">From Claude Code and Codex logs on this Mac. A task is the thread of the request each agent was answering at the time, so per-task numbers are estimates.${t.not_counted.length ? ` Cursor keeps no token log, so ${t.not_counted.map((a) => esc(label(a))).join(', ')} ${t.not_counted.length === 1 ? 'isn\'t' : 'aren\'t'} counted.` : ''}</p>`;
     }
 
     function open() {

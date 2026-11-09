@@ -2894,6 +2894,19 @@ async def scranton_report(days: int = 7):
 _report_cache: dict = {}
 
 
+import scranton_tokens as _sc_tokens  # noqa: E402
+
+
+@app.get("/api/scranton/report/tokens")
+async def scranton_report_tokens(days: int = 7):
+    """Tokens from Claude Code / Codex session logs on this Mac, per teammate and per task."""
+    days = max(1, min(int(days), 31))
+    owner = str(room_settings.get("username") or config.get("team", {}).get("owner", "Lu"))
+    team = {n: a for n, a in config.get("agents", {}).items()}
+    data = await asyncio.to_thread(_sc_tokens.build, store.get_since(-1), team, owner, days)
+    return JSONResponse(data)
+
+
 @app.post("/api/scranton/report/settings")
 async def scranton_report_settings(request: Request):
     b = await request.json()
