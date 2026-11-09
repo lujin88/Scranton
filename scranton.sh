@@ -11,6 +11,7 @@
 #   ./scranton.sh grok …           for Grok Bot: post / read as 幕僚长 (Grok) (docs/grok-bot.md)
 #   ./scranton.sh install-service  let macOS keep the server running (restarts it if it stops, starts at login)
 #   ./scranton.sh uninstall-service
+#   ./scranton.sh install-app      build Scranton.app (own window + Dock icon) into ~/Applications
 #
 # Teammates run in background tmux sessions, so they keep working when you
 # close the terminal. Logs: data/logs/. Pids: data/run/.
@@ -330,6 +331,54 @@ PL
             echo "Teammates keep running and reconnect by themselves. Undo with: ./scranton.sh uninstall-service"
         else echo "Installed, but the server didn't answer yet. See $LOG_DIR/server.log"; exit 1; fi
         ;;
+    install-app)
+        # Scranton.app in ~/Applications: its own window and Dock icon (badge = what needs you).
+        # Built here with swiftc (Xcode Command Line Tools), so nothing downloaded runs.
+        command -v xcrun >/dev/null 2>&1 && xcrun --find swiftc >/dev/null 2>&1 || {
+            echo "Needs the Xcode Command Line Tools. Run: xcode-select --install   then try again."; exit 1; }
+        PORT=$(port)
+        here=$(pwd)
+        APP="$HOME/Applications/Scranton.app"
+        tmp=$(mktemp -d)
+        mkdir -p "$tmp/Scranton.app/Contents/MacOS" "$tmp/Scranton.app/Contents/Resources"
+        echo "Building Scranton.app..."
+        xcrun swiftc -O -o "$tmp/Scranton.app/Contents/MacOS/Scranton" mac/Scranton.swift -framework Cocoa -framework WebKit || { rm -r "$tmp"; exit 1; }
+        # Icon: every size macOS wants, from mac/AppIcon.png (1024 px).
+        mkdir -p "$tmp/AppIcon.iconset"
+        for s in 16 32 128 256 512; do
+            sips -z $s $s mac/AppIcon.png --out "$tmp/AppIcon.iconset/icon_${s}x${s}.png" >/dev/null
+            d=$((s * 2)); sips -z $d $d mac/AppIcon.png --out "$tmp/AppIcon.iconset/icon_${s}x${s}@2x.png" >/dev/null
+        done
+        iconutil -c icns "$tmp/AppIcon.iconset" -o "$tmp/Scranton.app/Contents/Resources/AppIcon.icns"
+        cat > "$tmp/Scranton.app/Contents/Info.plist" <<PL
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>Scranton</string>
+  <key>CFBundleDisplayName</key><string>Scranton</string>
+  <key>CFBundleIdentifier</key><string>com.scranton.app</string>
+  <key>CFBundleExecutable</key><string>Scranton</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>$(git rev-parse --short HEAD 2>/dev/null || echo 1)</string>
+  <key>LSMinimumSystemVersion</key><string>12.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>ScrantonDir</key><string>$here</string>
+  <key>ScrantonPort</key><integer>$PORT</integer>
+  <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
+</dict>
+</plist>
+PL
+        codesign --force --deep -s - "$tmp/Scranton.app" >/dev/null 2>&1 || true   # ad-hoc: built on this Mac
+        mkdir -p "$HOME/Applications"
+        # The previous build goes to the Trash (recoverable), not deleted.
+        if [ -d "$APP" ]; then mv "$APP" "$HOME/.Trash/Scranton $(date +%Y-%m-%d %H.%M.%S).app"; fi
+        mv "$tmp/Scranton.app" "$APP"
+        rm -r "$tmp"
+        echo "Installed: $APP"
+        echo "Open it from Launchpad or Finder > Applications (your home folder). Drag it to the Dock to keep it there."
+        ;;
     uninstall-service)
         if service_installed && service_loaded; then launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true; fi
         rm -f "$PLIST"
@@ -369,6 +418,6 @@ PL
         echo "Scranton removes ANTHROPIC_API_KEY / OPENAI_API_KEY / CURSOR_API_KEY before starting anyone."
         ;;
     *)
-        sed -n '2,10p' "$0"
+        sed -n '2,14p' "$0"
         ;;
 esac

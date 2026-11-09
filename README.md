@@ -103,6 +103,18 @@ From Terminal you can also use:
 
 Logs: `data/logs/`. If a teammate's CLI exits, Scranton restarts it, waiting longer each time; after 5 exits within a minute of starting it stops and says so in `data/logs/<name>.log` (usually a login or quota problem). API keys in your environment are removed before anyone starts.
 
+## As a Mac app (own window, Dock icon)
+
+```sh
+./scranton.sh install-service   # macOS keeps the server running: restarts it, starts it at login
+./scranton.sh install-app       # builds ~/Applications/Scranton.app (needs: xcode-select --install)
+```
+
+The app is a window around http://localhost:8300 with its own Dock icon; the icon's badge is the
+Activity count (what needs you). Closing the window keeps it in the Dock; links to GitHub and other
+sites open in your browser. If the server isn't running, the app starts it. Run `install-app` again
+after an update to rebuild it (the previous build goes to the Trash). Source: `mac/Scranton.swift`.
+
 ## First-run test (do this once)
 
 1. `./scranton.sh check`: every CLI you use says it's installed and logged in.
