@@ -2509,6 +2509,7 @@ function mentionMetaHtml(name, st) {
     const t = ((window.scGetTeam && window.scGetTeam()) || {})[name] || {};
     const state = { working: 'Working', available: 'Online', pending: 'Starting' }[st] || 'Not running';
     const model = [t.model_name, t.effort ? ({ xhigh: 'extra high' }[t.effort] || t.effort) : ''].filter(Boolean).join(' · ');
+    // one line, right-aligned: "● Working  Opus 5.5" (two lines didn't line up with the names)
     return `<span class="mention-meta"><span class="mention-st ${st || 'offline'}">${state}</span>${model ? `<span class="mention-model">${escapeHtml(model)}</span>` : ''}</span>`;
 }
 

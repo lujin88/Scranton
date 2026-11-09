@@ -1300,3 +1300,21 @@ body.sc-inbox-open #scroll-anchor { display: none !important; }
 .sc-av-paste:focus { outline: 2px solid var(--ds-accent); outline-offset: 0; }
 .sc-av-gen { white-space: nowrap; height: 34px; }
 .sc-av-field.sc-drop-target { outline: 2px dashed var(--ds-accent); outline-offset: 6px; border-radius: 12px; }
+
+/* One status colour scheme everywhere (Lu, 11-09): Working = blue (accent), Online = green,
+   Not running = grey. Before: amber dots and pills, green text in the @ list. */
+.sc-pill.working { background: rgba(76, 141, 246, 0.14) !important; color: var(--ds-accent) !important; }
+.team-row.working .team-dot, .sc-dm-row.working .team-dot, .sc-mp-av.working .team-dot,
+.mention-av.working .team-dot { background: var(--ds-accent) !important; }
+#mention-menu .mention-meta, .sc-tmention .mention-meta { flex-direction: row !important; align-items: center !important; gap: 8px !important; }
+#mention-menu .mention-st, .sc-tmention .mention-st { display: inline-flex; align-items: center; gap: 5px; }
+#mention-menu .mention-st::before, .sc-tmention .mention-st::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ds-text-3); }
+#mention-menu .mention-st.working, .sc-tmention .mention-st.working { color: var(--ds-accent) !important; }
+#mention-menu .mention-st.working::before, .sc-tmention .mention-st.working::before { background: var(--ds-accent); }
+#mention-menu .mention-st.available::before, .sc-tmention .mention-st.available::before { background: #34c759; }
+#mention-menu .mention-model, .sc-tmention .mention-model { font-size: 12px; min-width: 64px; text-align: right; }
+/* the @ list sits above the conversation's ↓ button */
+body:has(#mention-menu:not(.hidden)) #scroll-anchor { display: none !important; }
+/* Settings → Agents: "Add agent" clear of the close button */
+#sc-settings .sc-st-head.sc-st-head-row, .sc-st .sc-st-body > header.sc-st-head-row { padding-right: 48px !important; }
+#mention-menu { min-width: 380px !important; }
