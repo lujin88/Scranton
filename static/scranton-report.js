@@ -148,6 +148,7 @@
                 ${x.repeats.length ? `<p class="sc-rp-reps">Repeated: ${x.repeats.map((r) => `<code>${esc(r.what)}</code> × ${r.times}`).join(' · ')}</p>` : ''}
                 ${x.advice.length ? `<ul class="sc-rp-tips">${x.advice.map((v) => `<li>${esc(v)}</li>`).join('')}</ul>` : ''}
             </div>`).join('')}</div>` : ''}
+            <div id="sc-rp-props"></div>
             <details class="sc-rp-more"><summary>By teammate</summary>
             <div class="sc-rp-list">${t.agents.slice(0, 12).map((x) => `<div class="sc-rp-row static">
                 <span class="sc-rp-av">${window.scAvatarHtml ? window.scAvatarHtml(x.agent) : ''}</span>
@@ -155,6 +156,93 @@
                 <span class="sc-rp-bar"><i style="width:${Math.round((x.tokens / maxA) * 100)}%"></i></span>
                 <span class="sc-rp-num">${fmtTok(x.tokens)}</span></div>`).join('')}</div></details>
             <p class="sc-rp-note">From Claude Code and Codex logs on this Mac, the ${heavy.length ? 'eight heaviest sessions' : 'sessions'} of this period. "Re-read" weighs each thing by its size and by how many replies came after it, so the numbers are estimates.${t.not_counted.length ? ` Cursor keeps no token log, so ${t.not_counted.map((a) => esc(label(a))).join(', ')} ${t.not_counted.length === 1 ? 'isn\'t' : 'aren\'t'} counted.` : ''}${t.unassigned ? ` ${fmtTok(t.unassigned)} more came from sessions that never posted in Scranton (for example ones you ran yourself) and is left out.` : ''}</p>`;
+        renderProposals(t);
+    }
+
+    // ---------------------------------------------------------------- proposals
+    // Lu, 11-09: "suggestions at the bottom, as A/B/C I can agree to or not". Each one comes from
+    // this period's numbers. Picking an option does it: a Scranton setting is changed right away;
+    // a change to how agents work goes to @harness (who owns the rules) as a request.
+    const PROP_KEY = 'scranton-report-picks';
+    const picks = () => { try { return JSON.parse(localStorage.getItem(PROP_KEY) || '{}'); } catch (_) { return {}; } };
+    const ACT_RULES = [
+        [/^chat_read/, 'only-new-chat', 'Read only new chat',
+            'Agents re-read chat they already saw', 'read chat with since_id (only what is new since they last read), and read a thread only when they are in it'],
+        [/^(Read|Edit|Write) /, 'files-once', 'Stop reopening the same files',
+            'The same files are opened again and again', 'read a file once per task, only the part they need (offset/limit), and put what they always need in their role card'],
+        [/./, 'short-output', 'Keep command output short',
+            'The same commands run many times, and their output stays in memory', 'keep command output short (| tail -40, --quiet) and not re-run a command to check something that did not change'],
+    ];
+    async function proposals(t) {
+        const out = [];
+        const reread = Math.round((100 * t.cached) / Math.max(1, t.total));
+        let ho = null;
+        try { ho = await api('/api/scranton/handover'); } catch (_) { ho = null; }
+        if (ho && !ho.enabled && reread >= 70) {
+            out.push({ id: 'fresh-sessions', title: 'Turn on Fresh sessions',
+                why: `${reread}% of all tokens are agents re-reading their own long sessions, and Fresh sessions is off.`,
+                options: [
+                    { key: 'A', text: 'Turn on: start fresh every 4 hours or 40 messages', rec: true, act: { type: 'handover', hours: 4, wakes: 40 } },
+                    { key: 'B', text: 'Turn on, gentler: every 8 hours or 80 messages', act: { type: 'handover', hours: 8, wakes: 80 } },
+                    { key: 'C', text: 'Not now', act: { type: 'none' } }] });
+        }
+        const seen = new Set();
+        for (const a of (t.top_actions || [])) {
+            const r = ACT_RULES.find(([re]) => re.test(a.what));
+            if (!r || seen.has(r[1])) continue;
+            seen.add(r[1]);
+            const who = a.agents.map((x) => '@' + x).join(' ');
+            const rule = r[4];
+            out.push({ id: r[1], title: r[2],
+                why: `${r[3]}: \`${a.what}\` ran ${a.times} times (${a.agents.map(label).join(', ')}), about ${fmtTok(a.tokens)} re-read.`,
+                options: [
+                    { key: 'A', text: 'Add it to every agent\'s rules (Harness manager opens the PR)', rec: true,
+                      act: { type: 'ask', text: `@harness Lu agreed (Report → Tokens): add a rule for every agent: ${rule}. Reason: \`${a.what}\` ran ${a.times} times this period, about ${fmtTok(a.tokens)} tokens re-read. Open a PR in harness-core; it's not a design change.` } },
+                    { key: 'B', text: `Only for ${a.agents.map(label).join(', ')}`,
+                      act: { type: 'ask', text: `@harness Lu agreed (Report → Tokens): add to the role card of ${who}: ${rule}. Reason: \`${a.what}\` ran ${a.times} times this period, about ${fmtTok(a.tokens)} tokens re-read. Open a PR in harness-core.` } },
+                    { key: 'C', text: 'Leave it as it is', act: { type: 'none' } }] });
+            if (out.length >= 3) break;
+        }
+        return out.slice(0, 3);
+    }
+    async function renderProposals(t) {
+        const box = document.getElementById('sc-rp-props');
+        if (!box) return;
+        const list = await proposals(t);
+        if (!box.isConnected || !list.length) return;
+        const got = picks();
+        box.innerHTML = `<h3 class="sc-rp-h3">Suggestions: pick one</h3><div class="sc-choices sc-rp-props">${list.map((p) => {
+            const picked = got[p.id];
+            return `<div class="sc-choice-card${picked ? ' done' : ''}" data-prop="${esc(p.id)}">
+                <div class="sc-choice-q">${esc(p.title)}</div>
+                <p class="sc-rp-why">${esc(p.why)}</p>
+                ${p.options.map((o) => `<button type="button" class="sc-choice${picked === o.key ? ' on' : ''}" data-opt="${o.key}"${picked ? ' disabled' : ''}>
+                    <span class="sc-choice-key">${o.key}</span><span>${esc(o.text)}${o.rec ? ' <span class="sc-rec">推荐</span>' : ''}</span></button>`).join('')}
+            </div>`;
+        }).join('')}</div>`;
+        box.onclick = async (e) => {
+            const card = e.target.closest('[data-prop]');
+            if (!card) return;
+            const p = list.find((x) => x.id === card.dataset.prop);
+            const b = e.target.closest('[data-opt]');
+            if (!b || b.disabled) return;
+            const o = p.options.find((x) => x.key === b.dataset.opt);
+            let ok = true;
+            if (o.act.type === 'handover') {
+                const r = await api('/api/scranton/handover', { enabled: true, hours: o.act.hours, wakes: o.act.wakes }).catch(() => null);
+                ok = !!(r && !r.error);
+                if (ok && window.scToast) window.scToast(`Fresh sessions on: every ${o.act.hours} h or ${o.act.wakes} messages`);
+            } else if (o.act.type === 'ask') {
+                ok = !!(window.ws && window.ws.readyState === WebSocket.OPEN);
+                if (ok) {
+                    window.ws.send(JSON.stringify({ type: 'message', text: o.act.text, sender: (typeof username === 'string' ? username : 'Lu'), channel: 'general', attachments: [] }));
+                    if (window.scToast) window.scToast('Sent to Harness manager in #general');
+                }
+            }
+            if (!ok) { if (window.scToast) window.scToast("Couldn't do that. Is Scranton running?"); return; }
+            const a = picks(); a[p.id] = o.key; localStorage.setItem(PROP_KEY, JSON.stringify(a));
+            renderProposals(t);
+        };
     }
 
     function open() {

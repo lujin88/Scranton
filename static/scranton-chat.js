@@ -1238,7 +1238,7 @@
         paintThreadDown(panel, body);
         const input = document.getElementById('sc-thread-input');
         // Address the agent who started it; not you, when you started the thread (it said "@lu").
-        const rootIsMe = root && String(root.sender || '').toLowerCase() === String((window.scMe && window.scMe()) || window.username || '').toLowerCase();
+        const rootIsMe = root && String(root.sender || '').toLowerCase() === String(me()).toLowerCase();
         if (input) input.placeholder = `Reply in thread${root && !rootIsMe ? ' · @' + labelOf(root.sender) : ''}`;
     }
 
