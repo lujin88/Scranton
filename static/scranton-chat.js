@@ -1207,6 +1207,60 @@
         });
     }
 
+    // Swipe right on a message to reply (Lu, 11-10, like WhatsApp / iMessage): in the chat it opens the
+    // message's thread, in a thread it quotes the message. Follows the finger, triggers past 64 px;
+    // only a mostly sideways drag counts, so scrolling, code blocks and pictures behave as before.
+    if (window.matchMedia('(pointer: coarse)').matches) {
+        const TRIGGER = 64, MAX = 88;
+        let g = null;
+        const reset = (el) => {
+            el.style.transition = 'transform .18s ease'; el.style.transform = '';
+            setTimeout(() => { el.style.transition = ''; el.querySelector(':scope > .sc-swipe-ic')?.remove(); }, 200);
+        };
+        document.addEventListener('touchstart', (e) => {
+            g = null;
+            if (e.touches.length !== 1) return;
+            const t = e.touches[0];
+            if (t.clientX < 24) return;   // the screen edge belongs to the system's back gesture
+            const el = e.target.closest('#messages .message.sc-msg, #sc-thread .sc-tmsg');
+            if (!el || e.target.closest('pre, code, .sc-img, input, textarea, button, a, .sc-choices, .sc-edit')) return;
+            const id = Number(el.dataset.id || el.dataset.mid);
+            if (!Number.isFinite(id)) return;
+            g = { el, id, x: t.clientX, y: t.clientY, on: false, dx: 0, inThread: !!el.closest('#sc-thread') };
+        }, { passive: true });
+        document.addEventListener('touchmove', (e) => {
+            if (!g) return;
+            const t = e.touches[0];
+            const dx = t.clientX - g.x, dy = t.clientY - g.y;
+            if (!g.on) {
+                if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { g = null; return; }   // a scroll
+                if (dx < 12 || dx < Math.abs(dy) * 1.5) return;
+                g.on = true;
+                const ic = document.createElement('span');
+                ic.className = 'sc-swipe-ic';
+                ic.innerHTML = ICONS.reply;
+                g.el.prepend(ic);
+            }
+            e.preventDefault();
+            g.dx = Math.max(0, Math.min(MAX, dx <= TRIGGER ? dx : TRIGGER + (dx - TRIGGER) * 0.4));   // resists past the trigger point
+            g.el.style.transform = `translateX(${g.dx}px)`;
+            g.el.classList.toggle('sc-swipe-ready', g.dx >= TRIGGER);
+        }, { passive: false });
+        const end = () => {
+            if (!g || !g.on) { g = null; return; }
+            const { el, id, inThread } = g;
+            const go = el.classList.contains('sc-swipe-ready');
+            el.classList.remove('sc-swipe-ready');
+            reset(el);
+            g = null;
+            if (!go) return;
+            if (inThread) threadQuote(id);
+            else { const m = byId.get(id); openThread(m ? (rootOf(m) ?? id) : id); }
+        };
+        document.addEventListener('touchend', end, { passive: true });
+        document.addEventListener('touchcancel', end, { passive: true });
+    }
+
     // ------------------------------------------------------------------
     // Thread panel
     // ------------------------------------------------------------------
