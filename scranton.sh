@@ -147,6 +147,9 @@ start_agent() {
         full:agent|full:cursor-agent) pflags="--force" ;;
         *)                        pflags="" ;;
     esac
+    # Claude Code can block reading outside the working folder (blockReadsOutsideWorkingDirectories),
+    # and each teammate's role card is in Scranton/roles. Lu, 11-09: @help sat on that question.
+    if [ "$cmd" = "claude" ]; then pflags="$pflags --add-dir $(pwd)/roles"; fi
     model=$(cfg "$name" model "")
     if [ -n "$model" ] && printf '%s' "$model" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$'; then
         case "$cmd" in
