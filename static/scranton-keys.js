@@ -11,7 +11,7 @@
             [[A, '↑'], [A, '↓'], 'Previous / next channel or DM'],
             [[A, S, '↑'], [A, S, '↓'], 'Previous / next unread'],
             [[M, S, 'A'], 'Activity'],
-            [[S, 'Esc'], 'In Activity: mark all as read (Undo in the toast)'],
+            [[S, 'Esc'], 'In Activity: mark everything that needs you as done (Undo in the toast)'],
             [[M, ','], 'Settings'],
         ]],
         ['This conversation', [

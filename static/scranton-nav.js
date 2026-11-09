@@ -25,12 +25,12 @@
     // "Mark as unread" survives a reload (it used to live in memory only).
     let forceUnread;
     try { forceUnread = new Set(JSON.parse(LS.get('scranton-inbox-unread-keys', '[]') || '[]')); } catch (_) { forceUnread = new Set(); }
-    // What "needs you" means (Lu, 11-09: "我现在所有的东西都回复了", yet the number kept growing):
-    //  - a question (option card / decision) waits until you ANSWER it: card picked, or you replied to it;
-    //    just seeing it doesn't count.
-    //  - anything else waits until you've read it (opened from here, or seen in its conversation),
-    //    or you replied to it.
-    //  - "Mark as read" / "Mark all as read" always clear it; "Mark as unread" always brings it back.
+    // The Activity number = asks still waiting on you, nothing else (Lu, 11-09):
+    //  - an ask is a question for you (option card / decision) or a PR for you to merge;
+    //  - it's done when you answer it (pick an option, reply to it, or @ them in that channel
+    //    afterwards), when the PR is merged or closed, or when you mark it done;
+    //  - plain messages are listed but never counted (their channel shows them as unread);
+    //  - older than 3 days: dropped from the count. "Remind me" brings one back.
     const repliedTo = new Set();          // ids you replied to directly
     const myLastInThread = new Map();     // thread parent id -> id of your latest message in it
     const OPT_LINE = /(^|\n)\s*[A-H]\s*[.、:：)]/g;
@@ -40,6 +40,7 @@
     const PR_RE = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
     const prUrls = (m) => [...new Set(String(m.text || '').match(PR_RE) || [])];
     const prState = {};   // url -> OPEN | MERGED | CLOSED
+    const isAsk = (m) => isQuestion(m) || (prUrls(m).length > 0 && /合|merge/i.test(String(m.text || '')));
     const prDone = (m) => { const u = prUrls(m); return u.length > 0 && u.every((x) => prState[x] === 'MERGED' || prState[x] === 'CLOSED'); };
     async function refreshPrs() {
         if (document.hidden) return;
@@ -62,13 +63,23 @@
     }
     setTimeout(refreshPrs, 3000);
     setInterval(refreshPrs, 120000);
+    // You talked to them after it, in the same channel (e.g. "@pm B" typed in the channel instead of
+    // clicking): counts as dealt with. The PM re-asks anything still open when you're back.
+    const myLastToIn = new Map();   // "channel|handle" -> id of your latest message there @mentioning them
     const answered = (m) => !!(prDone(m) || (m.type === 'decision' && (m.metadata || {}).resolved)
         || repliedTo.has(Number(m.id))
-        || (m.reply_to != null && (myLastInThread.get(Number(m.reply_to)) || 0) > Number(m.id)));
+        || (m.reply_to != null && (myLastInThread.get(Number(m.reply_to)) || 0) > Number(m.id))
+        || (myLastToIn.get(`${m.channel || 'general'}|${String(m.sender || '').toLowerCase().replace(/-\d+$/, '')}`) || 0) > Number(m.id));
+    const STALE_S = 3 * 86400;   // older than 3 days: no longer counted as needing you
     const isUnread = (m) => {
         const k = keyOf(m);
         if (forceUnread.has(k)) return true;
         if (readKeys.has(k) || answered(m)) return false;
+        if (Date.now() / 1000 - tsOf(m) > STALE_S) return false;
+        // Only asks count (Lu, 11-09: "我只需要关注我的 event", 52 when 2 really needed her):
+        // a question for you, or a PR for you to merge. Everything else is just listed;
+        // unread messages are already counted on their channel in the sidebar.
+        if (!isAsk(m)) return false;
         return tsOf(m) > seenTs;
     };
     window.scInboxUpdate = (m) => {   // a decision answered (server message_update)
@@ -119,6 +130,11 @@
         if (!['chat', 'message', 'decision'].includes(type)) return;
         if (String(msg.sender || '').toLowerCase() === me().toLowerCase()) {
             myMsgIds.add(Number(msg.id));
+            // only messages in the channel itself: an answer inside one card's thread says nothing about the others
+            if (msg.reply_to == null) for (const h of String(msg.text || '').matchAll(/@([\w-]+)/g)) {
+                const key = `${msg.channel || 'general'}|${h[1].toLowerCase().replace(/-\d+$/, '')}`;
+                myLastToIn.set(key, Math.max(myLastToIn.get(key) || 0, Number(msg.id)));
+            }
             if (msg.reply_to != null) {
                 const p = Number(msg.reply_to);
                 repliedTo.add(p);
@@ -172,10 +188,7 @@
     }
 
     const inboxOpen = () => !document.getElementById('sc-inbox')?.classList.contains('hidden');
-    function paintMarkAll() {
-        const b = document.getElementById('sc-inbox-markall');
-        if (b) b.disabled = unreadCount() === 0;
-    }
+    function paintMarkAll() { /* the button lives in the list now and is drawn only when something needs you */ }
 
     let filterKind = 'mention';  // default: things that tag Lu
     function relTime(m) {
@@ -221,11 +234,18 @@
         list.innerHTML = '';
         const needN = items.filter(isUnread).length;
         let doneHead = false;
-        if (mode === 'needs' && needN) list.insertAdjacentHTML('beforeend', `<div class="sc-inbox-group">Needs you · ${needN}</div>`);
+        // "Mark all as read" sits with the count it clears (right above the list), not in the page header.
+        const totalN = unreadCount();
+        if (totalN) {
+            const label = mode === 'needs' && needN ? `Needs you · ${needN}` : `Needs you · ${totalN}`;
+            list.insertAdjacentHTML('beforeend', `<div class="sc-inbox-group sc-inbox-group-top"><span>${label}</span>`
+                + `<button type="button" class="sc-inbox-markall" data-tip="Mark everything that needs you as done (⇧Esc)">${window.scIcon ? window.scIcon('check-double', 14) : ''}Mark all done</button></div>`);
+            list.querySelector('.sc-inbox-markall').addEventListener('click', () => window.scInboxMarkRead());
+        }
         for (const m of items) {
             if (mode === 'needs' && needN && !doneHead && !isUnread(m)) {
                 doneHead = true;
-                list.insertAdjacentHTML('beforeend', '<div class="sc-inbox-group">Done</div>');
+                list.insertAdjacentHTML('beforeend', '<div class="sc-inbox-group">Everything else</div>');
             }
             const row = document.createElement('button');
             row.type = 'button';
@@ -240,7 +260,7 @@
             const done = answered(m);
             const chosen = m.type === 'decision' && (m.metadata || {}).resolved ? String(m.metadata.chosen || '') : '';
             const prs = prUrls(m);
-            const status = prs.length ? (done
+            const status = (prs.length && isAsk(m) && !q) || (prs.length && prDone(m)) ? (done
                     ? `<span class="sc-inbox-status done">${window.scIcon ? window.scIcon('check', 14) : ''}${prDone(m) ? 'Merged on GitHub' : 'Answered'}</span>`
                     : `<span class="sc-inbox-status todo">Merge on GitHub</span>`)
                 : !q ? ''
@@ -250,14 +270,42 @@
                 + `<span class="sc-inbox-body"><span class="sc-inbox-meta"><b>${esc(label)}</b> <span>${esc(where)}</span></span>`
                 + `<span class="sc-inbox-text">${esc(text.length > 240 ? text.slice(0, 240) + '…' : text)}</span>${status}</span>`
                 + `<span class="sc-inbox-side"><span class="sc-inbox-time">${esc(relTime(m))}</span>`
-                + `<span class="sc-read-toggle" role="button" tabindex="0" data-tip="${unread ? 'Mark as read' : 'Mark as unread'}" aria-label="${unread ? 'Mark as read' : 'Mark as unread'}"><span class="sc-unread-dot"></span></span></span>`;
+                + `<span class="sc-read-toggle" role="button" tabindex="0" data-tip="${unread ? 'Mark as done' : 'Remind me'}" aria-label="${unread ? 'Mark as done' : 'Remind me'}"><span class="sc-unread-dot"></span></span></span>`;
             const tog = row.querySelector('.sc-read-toggle');
             const flip = (e) => { e.stopPropagation(); e.preventDefault(); setRead(m, isUnread(m)); };
             tog.addEventListener('click', flip);
             tog.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') flip(e); });
             row.addEventListener('click', () => jumpTo(m));
+            row.addEventListener('contextmenu', (e) => { e.preventDefault(); rowMenu(e, m); });
             list.appendChild(row);
         }
+    }
+
+    // Right-click a row: the two things you'd want without opening it.
+    function rowMenu(e, m) {
+        document.querySelectorAll('.sc-inbox-menu').forEach((x) => x.remove());
+        const unread = isUnread(m);
+        const menu = document.createElement('div');
+        menu.className = 'sc-inbox-menu sc-pop sc-menu';
+        menu.setAttribute('role', 'menu');
+        menu.innerHTML = `<button type="button" class="sc-menu-item" role="menuitem" data-k="read">${unread ? 'Mark as done' : 'Remind me (needs me)'}</button>`
+            + '<button type="button" class="sc-menu-item" role="menuitem" data-k="open">Open in conversation</button>';
+        document.body.appendChild(menu);
+        const w = menu.offsetWidth, h = menu.offsetHeight;
+        menu.style.left = Math.min(e.clientX, innerWidth - w - 8) + 'px';
+        menu.style.top = Math.min(e.clientY, innerHeight - h - 8) + 'px';
+        const close = () => { menu.remove(); document.removeEventListener('pointerdown', away, true); };
+        const away = (ev) => { if (!menu.contains(ev.target)) close(); };
+        document.addEventListener('pointerdown', away, true);
+        menu.addEventListener('click', (ev) => {
+            const k = ev.target.closest('[data-k]')?.dataset.k;
+            if (!k) return;
+            close();
+            if (k === 'read') setRead(m, unread);
+            if (k === 'open') jumpTo(m);
+        });
+        menu.querySelector('button').focus();
+        menu.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') close(); });
     }
 
     function initInboxFilters() {
@@ -315,34 +363,14 @@
         renderInboxBadge();
         renderInbox();
         // Easy to hit by accident and it touches every tab, so it can be undone.
-        if (window.scToast) window.scToast(`Marked ${n} as read`, { label: 'Undo', run: () => {
+        if (window.scToast) window.scToast(`Marked ${n} done`, { label: 'Undo', run: () => {
             seenTs = before.seenTs; LS.set('scranton-inbox-seen-ts', String(seenTs));
             readKeys = new Set(before.read); forceUnread = new Set(before.unread); saveRead();
             renderInboxBadge(); if (inboxOpen()) renderInbox();
         } });
     };
 
-    // Reading a message where it was posted counts: once an unread Activity item has been on
-    // screen in its channel or thread for a moment (window in front), it turns read here too.
-    // Before, the same question stayed unread in Activity after you'd read and answered it.
-    const seenSince = new Map();
-    setInterval(() => {
-        if (document.hidden || !document.hasFocus() || inboxOpen()) { seenSince.clear(); return; }
-        const now = Date.now();
-        let changed = false;
-        for (const m of inbox.values()) {
-            if (!isUnread(m) || forceUnread.has(keyOf(m))) continue;   // you marked it unread on purpose
-            if (isQuestion(m) || prUrls(m).length) continue;             // a question / a PR to merge waits for the real thing, not a glance
-            const el = document.querySelector(`#messages .message[data-id="${m.id}"]:not(.sc-in-thread), #sc-thread .sc-tmsg[data-mid="${m.id}"]`);
-            const r = el && el.getBoundingClientRect();
-            const box = el && (el.closest('#timeline, .sc-thread-body') || document.body).getBoundingClientRect();
-            const visible = r && r.height && r.top < box.bottom - 24 && r.bottom > box.top + 24;
-            if (!visible) { seenSince.delete(m.id); continue; }
-            if (!seenSince.has(m.id)) { seenSince.set(m.id, now); continue; }
-            if (now - seenSince.get(m.id) >= 1500) { readKeys.add(keyOf(m)); seenSince.delete(m.id); changed = true; }
-        }
-        if (changed) { saveRead(); renderInboxBadge(); }
-    }, 700);
+
 
     if (typeof appendMessage === 'function') {
         const origAppend = appendMessage;

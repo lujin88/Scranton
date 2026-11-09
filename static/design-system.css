@@ -1099,9 +1099,8 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 :root[data-theme="light"] #sc-pane-head #sc-members-btn:hover { background: #f7f7f7 !important; }
 :root[data-theme="light"] #sc-pane-pill[aria-expanded="true"] { background: #ececec !important; }
 :root[data-theme="dark"] #sc-side-tools .sc-tool { border-radius: 50% !important; }
-/* Sidebar tools on the left, at the same spot as on the collapsed rail: the collapse button
-   doesn't move when you collapse or expand. */
-@media (min-width: 761px) { #sc-side-tools { justify-content: flex-start !important; padding: 10px 10px 4px !important; gap: 6px !important; } }
+/* Sidebar tools on the right of the sidebar (Lu, 11-09: looks better there). */
+@media (min-width: 761px) { #sc-side-tools { justify-content: flex-end !important; padding: 10px 12px 4px !important; gap: 6px !important; } }
 .sc-ap-eff .sc-ap-svc { font-size: var(--ds-fs-xs); padding: 0 4px; }
 
 /* ================================================================ bubble padding, one rule
@@ -1258,3 +1257,9 @@ body.sc-inbox-open #scroll-anchor { display: none !important; }
 
 .sc-inbox-group { margin: 18px 0 4px; padding: 0 12px; font-size: 12px; font-weight: 600; color: var(--ds-text-3); }
 .sc-inbox-group:first-child { margin-top: 0; }
+
+.sc-inbox-group-top { display: flex; align-items: center; justify-content: space-between; }
+.sc-inbox-markall { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 4px 8px; margin-right: -8px;
+    border-radius: 8px; font: inherit; font-size: 12px; font-weight: 500; color: var(--ds-text-2); cursor: pointer; }
+.sc-inbox-markall:hover { background: var(--ds-hover); color: var(--ds-text); }
+.sc-inbox-menu { position: fixed; z-index: 1000; min-width: 200px; }
