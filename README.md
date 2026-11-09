@@ -82,7 +82,7 @@ cd ~/Scranton
 ./install-mac.sh
 ```
 
-This puts **Scranton.app** in `~/Applications`. Open it from Spotlight and drag it to the Dock. Opening it starts the server and every teammate with `autostart`, then opens the chat. Closing the browser tab doesn't stop the team.
+This puts **Scranton.app** in `/Applications` (or `~/Applications` if that folder isn't writable). Open it from Spotlight and drag it to the Dock. Opening it starts the server and every teammate with `autostart`, then opens the chat. Closing the browser tab doesn't stop the team.
 
 - `./install-mac.sh --login`: also start the team automatically when you log in (for the Mac mini).
 - `./install-mac.sh --uninstall`: remove the app and login item, keep the folder and history.
@@ -107,7 +107,7 @@ Logs: `data/logs/`. If a teammate's CLI exits, Scranton restarts it, waiting lon
 
 ```sh
 ./scranton.sh install-service   # macOS keeps the server running: restarts it, starts it at login
-./scranton.sh install-app       # builds ~/Applications/Scranton.app (needs: xcode-select --install)
+./scranton.sh install-app       # builds /Applications/Scranton.app (needs: xcode-select --install)
 ```
 
 The app is a window around http://localhost:8300 with its own Dock icon; the icon's badge is the

@@ -11,7 +11,7 @@
 #   ./scranton.sh grok …           for Grok Bot: post / read as 幕僚长 (Grok) (docs/grok-bot.md)
 #   ./scranton.sh install-service  let macOS keep the server running (restarts it if it stops, starts at login)
 #   ./scranton.sh uninstall-service
-#   ./scranton.sh install-app      build Scranton.app (own window + Dock icon) into ~/Applications
+#   ./scranton.sh install-app      build Scranton.app (own window + Dock icon) into /Applications
 #
 # Teammates run in background tmux sessions, so they keep working when you
 # close the terminal. Logs: data/logs/. Pids: data/run/.
@@ -219,7 +219,7 @@ case "${1:-}" in
         # The Mac app is a window around this page, so it shows every update right away. Only when
         # the app's own code (mac/) changed is it rebuilt; the new one is used from its next launch.
         rebuild_app() {
-            [ -f "$RUN_DIR/prev_head" ] && [ -d "$HOME/Applications/Scranton.app" ] || return 0
+            [ -f "$RUN_DIR/prev_head" ] && { [ -d /Applications/Scranton.app ] || [ -d "$HOME/Applications/Scranton.app" ]; } || return 0
             git diff --quiet "$(cat "$RUN_DIR/prev_head")" HEAD -- mac/ 2>/dev/null && return 0
             echo "mac/ changed: rebuilding Scranton.app"
             "$0" install-app || echo "Rebuilding Scranton.app failed; run ./scranton.sh install-app"
@@ -340,13 +340,16 @@ PL
         else echo "Installed, but the server didn't answer yet. See $LOG_DIR/server.log"; exit 1; fi
         ;;
     install-app)
-        # Scranton.app in ~/Applications: its own window and Dock icon (badge = what needs you).
+        # Scranton.app in /Applications, next to your other apps (~/Applications if that isn't
+        # writable): its own window and Dock icon (badge = what needs you).
         # Built here with swiftc (Xcode Command Line Tools), so nothing downloaded runs.
         command -v xcrun >/dev/null 2>&1 && xcrun --find swiftc >/dev/null 2>&1 || {
             echo "Needs the Xcode Command Line Tools. Run: xcode-select --install   then try again."; exit 1; }
         PORT=$(port)
         here=$(pwd)
-        APP="$HOME/Applications/Scranton.app"
+        # Lu, 11-09: she looked in Finder > Applications and it wasn't there (it was in ~/Applications).
+        if [ -w /Applications ]; then APP_DIR=/Applications; else APP_DIR="$HOME/Applications"; fi
+        APP="$APP_DIR/Scranton.app"
         tmp=$(mktemp -d)
         mkdir -p "$tmp/Scranton.app/Contents/MacOS" "$tmp/Scranton.app/Contents/Resources"
         echo "Building Scranton.app..."
@@ -379,13 +382,17 @@ PL
 </plist>
 PL
         codesign --force --deep -s - "$tmp/Scranton.app" >/dev/null 2>&1 || true   # ad-hoc: built on this Mac
-        mkdir -p "$HOME/Applications"
-        # The previous build goes to the Trash (recoverable), not deleted.
-        if [ -d "$APP" ]; then mv "$APP" "$HOME/.Trash/Scranton $(date "+%Y-%m-%d %H.%M.%S").app"; fi
+        mkdir -p "$APP_DIR"
+        # The previous build goes to the Trash (recoverable), not deleted. So does an older copy in
+        # ~/Applications, so there's only one Scranton in Spotlight.
+        stamp=$(date "+%Y-%m-%d %H.%M.%S")
+        if [ -d "$APP" ]; then mv "$APP" "$HOME/.Trash/Scranton $stamp.app"; fi
+        old="$HOME/Applications/Scranton.app"
+        if [ "$APP" != "$old" ] && [ -d "$old" ]; then mv "$old" "$HOME/.Trash/Scranton (old place) $stamp.app"; fi
         mv "$tmp/Scranton.app" "$APP"
         rm -r "$tmp"
         echo "Installed: $APP"
-        echo "Open it from Launchpad or Finder > Applications (your home folder). Drag it to the Dock to keep it there."
+        echo "Open it from Finder > Applications or Spotlight (Cmd+Space, Scranton). Drag it to the Dock to keep it there."
         ;;
     uninstall-service)
         if service_installed && service_loaded; then launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true; fi
