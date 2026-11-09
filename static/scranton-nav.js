@@ -66,8 +66,13 @@
             if (changed) scheduleRender();
         } catch (_) { /* offline: try again next round */ }
     }
-    setTimeout(refreshPrs, 3000);
-    setInterval(refreshPrs, 120000);
+    // Ask soon after a PR link shows up or Activity opens (at page load the history may not be in yet,
+    // so a single check 3 s in found nothing and the next one was 2 minutes later), then every minute.
+    let prTimer = null;
+    const refreshPrsSoon = () => { clearTimeout(prTimer); prTimer = setTimeout(refreshPrs, 800); };
+    window.scRefreshPrs = refreshPrsSoon;
+    setInterval(refreshPrs, 60000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshPrsSoon(); });
     // You talked to them after it, in the same channel (e.g. "@pm B" typed in the channel instead of
     // clicking): counts as dealt with. The PM re-asks anything still open when you're back.
     const myLastToIn = new Map();   // "channel|handle" -> id of your latest message there @mentioning them
@@ -172,6 +177,7 @@
         if (kinds.size) {
             inbox.set(Number(msg.id), { ...msg, _kinds: kinds });
             scheduleRender();
+            if (PR_RE.test(String(msg.text || ''))) { PR_RE.lastIndex = 0; refreshPrsSoon(); }
         }
     }
 
@@ -367,6 +373,7 @@
         if (window.scCloseRightPanel) window.scCloseRightPanel();
         document.getElementById('sc-inbox')?.classList.remove('hidden');
         document.body.classList.add('sc-inbox-open');
+        refreshPrsSoon();
         document.getElementById('sc-inbox-row')?.classList.add('active');
         document.querySelectorAll('#channel-sidebar-list .channel-sidebar-row.active, #sc-dm-list .sc-side-row.active')
             .forEach((el) => el.classList.add('sc-dimmed'));
