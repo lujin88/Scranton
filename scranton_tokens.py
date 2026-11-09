@@ -52,7 +52,7 @@ def _files(base: Path, pattern: str, since: float):
 _files_seen: dict = {}
 
 
-def _scan(f: Path, parse_line):
+def _scan(f: Path, parse_line, own_call):
     """Read f from where we stopped last time; return (senders, rows). Partial last lines wait."""
     try:
         st = f.stat()
@@ -73,7 +73,7 @@ def _scan(f: Path, parse_line):
         pos = c["off"]
         for raw in chunk[:cut].split(b"\n")[:-1]:
             line = raw.decode("utf-8", "replace")
-            if "sender" in line:
+            if "sender" in line and own_call(line):
                 c["senders"].update(_SENDER.findall(line))
             r = parse_line(line, pos)
             if r:
@@ -88,6 +88,17 @@ def _scan(f: Path, parse_line):
             if r:
                 c["rows"][r[0]] = r[1]
     return c["senders"], c["rows"]
+
+
+# Which teammate a session is: the sender in ITS OWN tool calls. Tool results (chat_read output)
+# are full of other people's senders; counting those gave nearly every session to pm (11-09).
+def _claude_call(line):
+    return '"type":"assistant"' in line or '"type": "assistant"' in line
+
+
+def _codex_call(line):
+    return ('"function_call"' in line or '"custom_tool_call"' in line or '"mcp_tool_call_begin"' in line) \
+        and '_output"' not in line
 
 
 def _claude_line(line, pos):
@@ -127,10 +138,10 @@ def _codex_line(line, pos):
                          int(u.get("output_tokens") or 0) + int(u.get("reasoning_output_tokens") or 0))
 
 
-def _sessions(base: Path, pattern: str, since: float, parse_line, app: str):
+def _sessions(base: Path, pattern: str, since: float, parse_line, own_call, app: str):
     """Yield (agent_or_None, [(ts, fresh_in, cached_in, out)], app) per session file."""
     for f in _files(base, pattern, since):
-        got = _scan(f, parse_line)
+        got = _scan(f, parse_line, own_call)
         if not got:
             continue
         senders, rows = got
@@ -140,12 +151,12 @@ def _sessions(base: Path, pattern: str, since: float, parse_line, app: str):
 
 
 def _claude_sessions(since: float, home: Path):
-    return _sessions(home / ".claude" / "projects", "*/*.jsonl", since, _claude_line, "claude")
+    return _sessions(home / ".claude" / "projects", "*/*.jsonl", since, _claude_line, _claude_call, "claude")
 
 
 def _codex_sessions(since: float, home: Path):
     base = Path(os.environ.get("CODEX_HOME") or home / ".codex") / "sessions"
-    return _sessions(base, "**/rollout-*.jsonl", since, _codex_line, "codex")
+    return _sessions(base, "**/rollout-*.jsonl", since, _codex_line, _codex_call, "codex")
 
 
 def build(msgs: list[dict], team: dict, owner: str, days: int, home: Path | None = None) -> dict:

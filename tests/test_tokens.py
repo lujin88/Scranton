@@ -70,6 +70,34 @@ class Tokens(unittest.TestCase):
             tk._cache.clear()
             self.assertEqual(tk.build([], team, "Lu", 7, home=home)["total"], 105)
 
+    def test_sender_from_own_calls_not_from_chat_read_results(self):
+        now = time.time()
+        iso = lambda t: time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(t))  # noqa: E731
+        with tempfile.TemporaryDirectory() as d:
+            home = Path(d)
+            cl = home / ".claude" / "projects" / "x"; cl.mkdir(parents=True)
+            read_result = json.dumps([{"sender": "pm", "text": "a"}, {"sender": "pm", "text": "b"}, {"sender": "pm", "text": "c"}])
+            lines = [
+                {"type": "assistant", "timestamp": iso(now - 60), "requestId": "r1",
+                 "message": {"id": "m1", "content": [{"type": "tool_use", "input": {"sender": "copy", "channel": "x"}}],
+                             "usage": {"input_tokens": 1, "output_tokens": 1}}},
+                {"type": "user", "timestamp": iso(now - 59),
+                 "message": {"content": [{"type": "tool_result", "content": read_result}]}},
+            ]
+            (cl / "s.jsonl").write_text("\n".join(json.dumps(x, separators=(",", ":")) for x in lines) + "\n")
+            cx = home / ".codex" / "sessions" / "2026"; cx.mkdir(parents=True)
+            rows = [{"timestamp": iso(now - 40), "type": "response_item",
+                     "payload": {"type": "function_call", "arguments": json.dumps({"sender": "visual"})}},
+                    {"timestamp": iso(now - 39), "type": "response_item",
+                     "payload": {"type": "function_call_output", "output": read_result}},
+                    {"timestamp": iso(now - 30), "type": "event_msg", "payload": {"type": "token_count", "info": {
+                        "last_token_usage": {"input_tokens": 5, "cached_input_tokens": 0, "output_tokens": 0}}}}]
+            (cx / "rollout-c.jsonl").write_text("\n".join(json.dumps(x, separators=(",", ":")) for x in rows) + "\n")
+            team = {"pm": {}, "copy": {}, "visual": {"command": "codex"}}
+            tk._cache.clear(); tk._files_seen.clear()
+            a = {x["agent"]: x["tokens"] for x in tk.build([], team, "Lu", 7, home=home)["agents"]}
+            self.assertEqual(a, {"copy": 2, "visual": 5})
+
 
 if __name__ == "__main__":
     unittest.main()
