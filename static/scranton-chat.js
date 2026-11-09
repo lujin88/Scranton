@@ -173,7 +173,7 @@
         if (el && !statusLine && String(msg.sender) !== 'system') {
             el.classList.add('sc-msg');
             addToolbar(el, id);
-            try { relabel(el, msg); paintQuote(el, msg); paintStuck(el, msg); if (kind === 'chat' || kind === 'decision') paintChoices(el, msg); } catch (_) { /* never break rendering */ }
+            try { relabel(el, msg); paintQuote(el, msg); paintStuck(el, msg); paintEdited(el, msg); if (kind === 'chat' || kind === 'decision') paintChoices(el, msg); } catch (_) { /* never break rendering */ }
         }
         if (msg.reactions && Object.keys(msg.reactions).length) paintReactions(msg, container);
         if (msg.reply_to != null) {
@@ -417,6 +417,66 @@
         });
     }
 
+    // ---- Edit your own message (Lu, 11-09). In place, like Slack: Enter saves, Esc cancels.
+    // Agents already got the original, so editing doesn't wake anyone again; it shows "edited".
+    const isMine = (m) => m && (m.type || 'chat') === 'chat' && String(m.sender || '').toLowerCase() === String(me()).toLowerCase();
+    function startEdit(id) {
+        const m = byId.get(id);
+        if (!isMine(m)) return;
+        document.querySelectorAll(`.message[data-id="${id}"] .msg-text`).forEach((box) => {
+            if (box.querySelector('.sc-edit')) return;
+            const was = box.innerHTML;
+            box.innerHTML = `<div class="sc-edit"><textarea class="sc-edit-input" rows="1" aria-label="Edit message"></textarea>
+                <div class="sc-edit-bar"><span>Enter to save · Esc to cancel</span>
+                <button type="button" class="sc-btn sm" data-ed="cancel">Cancel</button><button type="button" class="sc-btn sm primary" data-ed="save">Save</button></div></div>`;
+            const ta = box.querySelector('textarea');
+            ta.value = String(m.text || '');
+            const fit = () => { ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, 320)}px`; };
+            fit(); ta.addEventListener('input', fit);
+            ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+            const done = () => { box.innerHTML = was; };
+            const save = () => {
+                const t = ta.value.trim();
+                if (!t) { toast("A message can't be empty. Delete it instead."); return; }
+                if (t === String(m.text || '').trim()) { done(); return; }
+                if (!(window.ws && window.ws.readyState === WebSocket.OPEN)) { toast("Couldn't save: not connected"); return; }
+                window.ws.send(JSON.stringify({ type: 'edit_text', id, text: t }));
+                done();   // the server sends the edited message back and it's drawn again
+            };
+            ta.addEventListener('keydown', (e) => {
+                e.stopPropagation();
+                if (e.isComposing || e.keyCode === 229) return;
+                if (e.key === 'Escape') { e.preventDefault(); done(); }
+                else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); }
+            });
+            box.querySelector('[data-ed="save"]').addEventListener('click', (e) => { e.stopPropagation(); save(); });
+            box.querySelector('[data-ed="cancel"]').addEventListener('click', (e) => { e.stopPropagation(); done(); });
+            box.addEventListener('click', (e) => e.stopPropagation());
+        });
+    }
+    window.scStartEdit = startEdit;
+    // ↑ in an empty message box edits your last message in this conversation (Slack's shortcut)
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowUp' || e.altKey || e.metaKey || e.ctrlKey || e.shiftKey || e.isComposing) return;
+        const input = document.getElementById('input');
+        if (document.activeElement !== input || input.value) return;
+        const ch = window.activeChannel || 'general';
+        const last = [...byId.values()].filter((x) => isMine(x) && (x.channel || 'general') === ch && x.reply_to == null).pop();
+        if (!last) return;
+        e.preventDefault();
+        startEdit(Number(last.id));
+    });
+    function paintEdited(el, msg) {
+        if (!msg.edited) return;
+        const t = el.querySelector('.bubble-header .msg-time');
+        if (!t || t.parentElement.querySelector('.sc-edited')) return;
+        const s = document.createElement('span');
+        s.className = 'sc-edited';
+        s.textContent = '(edited)';
+        try { s.title = `Edited ${new Date(Number(msg.edited) * 1000).toLocaleString()}`; } catch (_) { /* ok */ }
+        t.after(s);
+    }
+
     function openMore(anchor, id, inThread) {
         const m = byId.get(id);
         if (!m) return;
@@ -425,6 +485,7 @@
             ...(inThread ? [] : [['quote', 'Quote in channel']]),   // also R
             ['forward', 'Forward to another channel'],
             ...(inThread ? [] : [['unread', 'Mark as unread']]),   // unread is per conversation, not per reply
+            ...(isMine(m) ? [['edit', 'Edit message']] : []),
             ['delete', 'Delete message', 'danger'],
         ];
         const pop = popAt(anchor, items.map(([k, label, cls]) =>
@@ -434,6 +495,7 @@
             if (!b) return;
             const k = b.dataset.k;
             closePops();
+            if (k === 'edit') startEdit(id);
             if (k === 'copy') copyText(String(m.text || ''), 'Message');
             if (k === 'quote') quoteReply(id);
             if (k === 'forward') openForward(anchor, id);

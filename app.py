@@ -1551,6 +1551,36 @@ async def websocket_endpoint(websocket: WebSocket):
                         ws_clients.difference_update(dead)
                 continue
 
+            elif event.get("type") == "edit_text":
+                # Scranton: fix a typo in your own message. Agents already got the original, so
+                # an edit doesn't wake anyone again; the message shows "edited".
+                try:
+                    mid = int(event.get("id"))
+                except (TypeError, ValueError):
+                    continue
+                text = str(event.get("text") or "").strip()
+                if not text or len(text) > 20000:
+                    continue
+                cur = store.get_by_id(mid)
+                agents_lc = {str(a).lower() for a in (config or {}).get("agents", {})}
+                if (not cur or cur.get("type", "chat") != "chat"
+                        or str(cur.get("sender", "")).lower().rsplit("-", 1)[0] in agents_lc
+                        or str(cur.get("sender", "")).lower() in agents_lc
+                        or str(cur.get("sender", "")).lower() in ("system", "grok")):
+                    continue   # only your own chat messages
+                if text == cur.get("text"):
+                    continue
+                import time as _tedit
+                updated = store.update_message(mid, {"text": text, "edited": _tedit.time()})
+                if updated:
+                    payload = json.dumps({"type": "edit", "message": updated})
+                    for client in list(ws_clients):
+                        try:
+                            await client.send_text(payload)
+                        except Exception:
+                            pass
+                continue
+
             elif event.get("type") == "todo_add":
                 msg_id = event.get("id")
                 if msg_id is not None:

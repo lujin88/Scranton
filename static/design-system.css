@@ -1380,3 +1380,11 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-rp-app { margin-left: 6px; font-weight: 500; font-size: 12px; color: var(--ds-text-2); }
 .sc-rp-props .sc-choice-card { transition: opacity .2s ease, transform .2s ease; }
 .sc-rp-props .sc-choice-card.sc-gone { opacity: 0; transform: translateY(-4px); }
+
+/* editing your own message in place */
+.sc-edit { display: flex; flex-direction: column; gap: 8px; min-width: min(520px, 70vw); }
+.sc-edit-input { width: 100%; resize: none; border: 1px solid var(--ds-accent); border-radius: 10px; padding: 8px 10px; background: var(--ds-surface); color: var(--ds-text); font: inherit; line-height: 1.5; }
+.sc-edit-input:focus { outline: none; }
+.sc-edit-bar { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.sc-edit-bar span { margin-right: auto; font-size: 12px; color: var(--ds-text-2); }
+.sc-edited { margin-left: 6px; font-size: 11px; color: var(--ds-text-2); }
