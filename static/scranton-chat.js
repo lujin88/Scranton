@@ -785,7 +785,7 @@
         if (!m || el.classList.contains('sc-pause-note')) return;
         pauseHops.set(msg.channel || 'general', Number(m[1]));
         el.classList.add('sc-pause-note');
-        el.innerHTML = `<span class="msg-text">${window.scIcon ? window.scIcon('hourglass', 14) : ''} Agents paused after ${Number(m[1])} hand-offs without you</span>`;
+        el.innerHTML = `<span class="msg-text">${window.scIcon ? window.scIcon('pause-circle', 14) : ''} Agents paused after ${Number(m[1])} hand-offs without you</span>`;
     }
     window.scSetPaused = (list) => {
         if (!Array.isArray(list)) return;
@@ -821,7 +821,7 @@
         const where = lastAgentThread(ch);
         // Say what happened, what each button does, and where to look (approval-card pattern:
         // the outcome is on the button, the decision is recorded in the conversation).
-        dock.innerHTML = `<span class="sc-pd-ic">${window.scIcon ? window.scIcon('hourglass', 16) : ''}</span>
+        dock.innerHTML = `<span class="sc-pd-ic">${window.scIcon ? window.scIcon('pause-circle', 18) : ''}</span>
             <div class="sc-pd-body">
                 <b>The agents paused and are waiting for you</b>
                 <small>They handed this back and forth${n ? ` ${n} times` : ''} without you. Continue, and they pick up where they stopped. Or reply in the thread to steer them first.</small>

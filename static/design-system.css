@@ -1318,3 +1318,4 @@ body:has(#mention-menu:not(.hidden)) #scroll-anchor { display: none !important; 
 /* Settings → Agents: "Add agent" clear of the close button */
 #sc-settings .sc-st-head.sc-st-head-row, .sc-st .sc-st-body > header.sc-st-head-row { padding-right: 48px !important; }
 #mention-menu { min-width: 380px !important; }
+.sc-pd-ic { color: var(--ds-accent) !important; }   /* pause sign, same blue as "Let them continue" */
