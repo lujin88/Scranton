@@ -243,7 +243,9 @@ function _showSidebarRenameDialog(oldName) {
 }
 
 function _sidebarConfirmDelete(name, row, label) {
-    if (name === 'general' || row.classList.contains('confirm-delete')) return;
+    if (name === 'general') return;
+    if (window.scConfirmDeleteChannel) { window.scConfirmDeleteChannel(name); return; }
+    if (row.classList.contains('confirm-delete')) return;
     const actions = row.querySelector('.channel-sidebar-row-actions');
     const originalText = label.textContent;
     const originalOnclick = row.onclick;
@@ -489,6 +491,7 @@ function showChannelRenameDialog(oldName) {
 
 function deleteChannel(name) {
     if (name === 'general') return;
+    if (window.scConfirmDeleteChannel) { window.scConfirmDeleteChannel(name); return; }
     const tab = document.querySelector(`.channel-tab[data-channel="${name}"]`);
     if (!tab || tab.classList.contains('confirm-delete')) return;
 
@@ -738,3 +741,55 @@ function _inlineFocusState(wrapper) {
     const a = input.selectionStart, b = input.selectionEnd;
     return () => { input.focus(); try { input.setSelectionRange(a, b); } catch (_) { /* ok */ } };
 }
+
+// Delete a channel only after a dialog that says what goes and what stays (Lu, 11-10: "删除 channel 需要
+// 确认 pop up 并说明利弊"). Cancel is the default; the numbers come from the server.
+window.scConfirmDeleteChannel = async function (name) {
+    if (!name || name === 'general') return;
+    document.getElementById('sc-dialog')?.remove();
+    let st = null;
+    try {
+        const r = await fetch(`/api/scranton/channel-stats?channel=${encodeURIComponent(name)}`, { headers: { 'X-Session-Token': window.SESSION_TOKEN } });
+        if (r.ok) st = await r.json();
+    } catch (_) { /* shown without numbers */ }
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const n = st ? st.messages : null, f = st ? st.files : 0, k = st ? (st.members || []).length : null;
+    const plural = (x, w) => `${x} ${w}${x === 1 ? '' : 's'}`;
+    const d = document.createElement('div');
+    d.id = 'sc-dialog';
+    d.innerHTML = `<div class="sc-dlg sc-del-dlg" role="alertdialog" aria-modal="true" aria-labelledby="sc-del-h" aria-describedby="sc-del-b">
+        <h2 id="sc-del-h">Delete #${esc(name)}?</h2>
+        <div id="sc-del-b" class="sc-del-body">
+            <p class="sc-del-k">Goes</p>
+            <ul>
+                <li>${n == null ? 'All its messages' : n ? `${plural(n, 'message')}, thread replies included` : 'The channel (it has no messages)'}. They can't be brought back in Scranton, only from the daily backup (Settings → Chat history, last 14 days).</li>
+                ${k ? `<li>${plural(k, 'teammate')} leave the channel. They keep running and stay in their other channels.</li>` : ''}
+            </ul>
+            <p class="sc-del-k">Stays</p>
+            <ul>
+                ${f ? `<li>${plural(f, 'attached file')} stay on this Mac; only the messages that showed them go.</li>` : ''}
+                <li>Work already pushed to GitHub, and every other channel.</li>
+            </ul>
+            <p class="sc-del-note">If you only want it out of the way, you can also keep it: a channel nobody writes in costs nothing.</p>
+        </div>
+        <div class="sc-del-actions">
+            <button type="button" class="sc-btn" data-a="cancel">Cancel</button>
+            <button type="button" class="sc-btn sc-btn-danger" data-a="delete">Delete channel</button>
+        </div>
+    </div>`;
+    document.body.appendChild(d);
+    const release = window.scModal ? window.scModal(d.querySelector('.sc-dlg')) : () => {};
+    const close = () => { d.remove(); release(); };
+    d.addEventListener('click', (e) => {
+        if (e.target === d) { close(); return; }
+        const a = e.target.closest('[data-a]')?.dataset.a;
+        if (a === 'cancel') close();
+        if (a === 'delete') {
+            if (window.ws && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'channel_delete', name }));
+            else if (window.scToast) window.scToast("Couldn't delete: not connected");
+            close();
+        }
+    });
+    d.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
+    d.querySelector('[data-a="cancel"]').focus();
+};

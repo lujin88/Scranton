@@ -47,7 +47,7 @@
         const float = document.createElement('div');
         float.id = 'sc-float-tools';
         float.innerHTML = `
-            <button type="button" class="sc-tool" data-t="expand" aria-label="Show sidebar" title="Show sidebar">${ic('sidebar', 20)}</button>
+            <button type="button" class="sc-tool" data-t="expand" aria-label="${window.matchMedia('(max-width: 760px)').matches ? 'Back' : 'Show sidebar'}" title="${window.matchMedia('(max-width: 760px)').matches ? 'Back' : 'Show sidebar'}">${ic(window.matchMedia('(max-width: 760px)').matches ? 'back' : 'sidebar', window.matchMedia('(max-width: 760px)').matches ? 24 : 20)}</button>
             <button type="button" class="sc-tool" data-t="search" aria-label="Search">${ic('search', 20)}</button>
             <button type="button" class="sc-rail-me" data-t="me" aria-label="You: status, settings, updates" aria-haspopup="menu"></button>`;
         float.addEventListener('click', (e) => {
@@ -170,7 +170,7 @@
                 ${row('description', 'Description', d.description || '', 'Add a description')}
                 ${d.started ? `<div class="sc-ch-row"><div class="sc-ch-rt">Started</div><div class="sc-ch-rv">${esc(fmtDate(d.started))}</div></div>` : ''}
                 ${(() => { const ms = (((window.scChannelMembers && window.scChannelMembers()) || {})[ch] || []).filter((m) => team()[m]);
-                    return `<button type="button" class="sc-ch-row sc-ch-members" data-i="members"><div class="sc-ch-rt">Members<span class="sc-ch-edit" data-i="add-people">Add people</span></div>
+                    return `<button type="button" class="sc-ch-row sc-ch-members" data-i="members"><div class="sc-ch-rt">Members<span class="sc-ch-edit" data-i="add-people">Edit</span></div>
                         <div class="sc-ch-avs">${ms.slice(0, 6).map((m) => `<span class="sc-ch-av">${window.scAvatarHtml ? window.scAvatarHtml(m) : ''}</span>`).join('')}<em>${ms.length + 1} with you</em></div></button>`; })()}
             </div>
             <h3 class="sc-ch-sub">Files</h3>

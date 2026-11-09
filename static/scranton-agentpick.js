@@ -58,6 +58,7 @@
             b.setAttribute('aria-haspopup', 'dialog');
             b.addEventListener('click', (e) => {
                 e.stopPropagation();
+                if (pop && !pop.isConnected) pop = null;   // closed from outside (another pop-up opened)
                 if (pop && slot === name) { closePop(); return; }
                 closePop();
                 slot = name; btn = b; current = state[name].current;

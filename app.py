@@ -2919,6 +2919,15 @@ async def scranton_team_permissions_set(request: Request):
         return JSONResponse({"error": str(e) or "permissions is full or ask"}, status_code=400)
 
 
+@app.get("/api/scranton/channel-stats")
+async def scranton_channel_stats(channel: str):
+    """What deleting a channel would take away: its messages, files and members (Lu, 11-10)."""
+    msgs = [m for m in store.get_since(-1) if (m.get("channel") or "general") == channel]
+    files = sum(1 for m in msgs for a in (m.get("attachments") or []) if isinstance(a, dict))
+    return JSONResponse({"messages": len(msgs), "files": files, "members": _channel_members(channel),
+                         "first": msgs[0].get("timestamp") if msgs else None})
+
+
 @app.get("/api/scranton/inbox-feed")
 async def scranton_inbox_feed(days: int = 7):
     """What Activity needs, without loading every message: from the last `days`, your own messages

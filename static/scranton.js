@@ -282,6 +282,8 @@
         btn.innerHTML = window.scIcon ? window.scIcon('flashlight', 18) : '⚡';
         btn.addEventListener('click', async (e) => {
             e.stopPropagation();
+            // (closed from outside — another pop-up opened — counts as closed)
+            if (shortcutPop && !shortcutPop.isConnected) shortcutPop = null;
             if (shortcutPop && shortcutPop._btn === btn) { closeShortcuts(); return; }
             closeShortcuts();
             const items = await fetch('/api/scranton/shortcuts', { headers: { 'X-Session-Token': window.SESSION_TOKEN } })

@@ -1400,7 +1400,7 @@ body.sc-report-open #scroll-anchor { display: none !important; }
     #sc-inbox .sc-inbox-side { position: absolute; top: 10px; right: 8px; padding-top: 0; gap: 6px; }
     #sc-inbox .sc-inbox-meta { padding-right: 112px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #sc-inbox .sc-inbox-time { font-size: 12px; }
-    #sc-inbox .sc-inbox-filters { display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 8px !important; }
+    #sc-inbox .sc-inbox-filters { display: grid !important; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); column-gap: 8px !important; }
     #sc-inbox .sc-inbox-filters .sc-tabs { grid-column: 1 / -1; overflow-x: auto; scrollbar-width: none; }
     #sc-inbox .sc-inbox-filters .sc-from { margin-left: 0 !important; min-width: 0; }
     #sc-inbox .sc-inbox-filters .sc-from { font-size: 0 !important; gap: 0 !important; }
@@ -1461,3 +1461,59 @@ body.sc-report-open #scroll-anchor { display: none !important; }
     .sc-search-dlg .sc-keys { display: none; }
     .sc-search-dlg { padding-top: env(safe-area-inset-top); }
 }
+
+/* ================================================================ phone: Home → Conversation → Details (Lu, 11-10)
+   Three full screens like Grok. Home is the sidebar at full width with your avatar and + on top and a
+   glass search bar at the bottom; the conversation keeps only ‹ back, the name and the members. */
+#sc-home-head, #sc-home-search { display: none; }
+.sc-glass { background: rgba(var(--float), 0.55) !important; -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.16), 0 0 0 0.5px rgba(var(--ink), 0.10), 0 6px 20px rgba(0, 0, 0, 0.22) !important;
+    border: 0; color: var(--ds-text); cursor: pointer; }
+:root[data-theme="light"] .sc-glass { background: rgba(var(--float), 0.62) !important;
+    box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.9), 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 6px 20px rgba(0, 0, 0, 0.10) !important; }
+@media (max-width: 760px) {
+    /* Home: the whole screen */
+    #channel-sidebar { width: 100vw !important; box-shadow: none !important; padding-top: env(safe-area-inset-top); }
+    body.sc-drawer-channels::after { display: none; }
+    #sc-side-tools, #channel-sidebar > #sc-me { display: none !important; }
+    #sc-home-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px 4px; }
+    #sc-home-head .sc-glass { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; padding: 0; overflow: hidden; }
+    #sc-home-head .sc-home-me img, #sc-home-head .sc-home-me > * { width: 36px; height: 36px; border-radius: 50%; }
+    #channel-sidebar .sc-side-scroll { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+    #sc-home-search { display: flex; align-items: center; gap: 10px; position: absolute; left: 16px; right: 16px;
+        bottom: calc(12px + env(safe-area-inset-bottom)); height: 52px; padding: 0 18px; border-radius: 26px;
+        font: inherit; font-size: 16px; color: var(--ds-text-2); text-align: left; z-index: 2; }
+    .sc-home-menu { position: fixed; z-index: 90; min-width: 220px; }
+    .sc-home-menu .sc-menu-item { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+
+    /* Conversation: ‹ back on the left, the name in the middle, members on the right; no search here */
+    #sc-float-tools [data-t="search"], #sc-float-tools .sc-rail-me { display: none !important; }
+    #sc-float-tools [data-t="expand"] { width: 44px !important; height: 44px !important; border-radius: 50% !important; }
+    #sc-pane-pill { max-width: calc(100vw - 210px); }   /* after ‹, never under the members pill */
+
+    /* Details, thread, Activity: ‹ back at the top left */
+    #sc-info .sc-info-x, .sc-thread-close, .sc-inbox-x { order: -1; }
+    #sc-info .sc-info-x { position: absolute; left: 12px; top: calc(8px + env(safe-area-inset-top)); right: auto; }
+}
+@media (max-width: 760px) {
+    #sc-home-head .sc-home-me > * { width: 36px !important; height: 36px !important; border-radius: 50%; display: grid !important; place-items: center; font-size: 16px; }
+    /* ‹ back: the same 44 px glass circle as on Grok */
+    #sc-info .sc-info-x, .sc-thread-close, .sc-inbox-x {
+        width: 44px !important; height: 44px !important; border-radius: 50% !important; display: inline-grid !important; place-items: center; padding: 0 !important;
+        background: rgba(var(--float), 0.55) !important; -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+        box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.16), 0 0 0 0.5px rgba(var(--ink), 0.10) !important; color: var(--ds-text) !important; }
+}
+/* Delete-channel dialog */
+.sc-del-dlg { width: min(440px, calc(100vw - 32px)); padding: 24px !important; border-radius: var(--ds-r-card); background: var(--ds-surface); }
+.sc-del-dlg h2 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
+.sc-del-body { font-size: 14px; color: var(--ds-text-2); line-height: 1.5; }
+.sc-del-body .sc-del-k { margin: 12px 0 4px; font-size: 12px; font-weight: 600; color: var(--ds-text-3); text-transform: uppercase; letter-spacing: .04em; }
+.sc-del-body ul { margin: 0; padding-left: 18px; }
+.sc-del-body li { margin: 4px 0; color: var(--ds-text); }
+.sc-del-note { margin: 14px 0 0; }
+.sc-del-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.sc-btn-danger { background: var(--ds-err-text) !important; color: #fff !important; border: 0 !important; }
+:root[data-theme="light"] .sc-btn-danger { background: #c4382e !important; }
+@media (pointer: coarse) { .sc-del-actions .sc-btn { min-height: 44px; flex: 1; } }
+.sc-del-actions .sc-btn.sc-btn-danger, :root[data-theme="light"] .sc-del-actions .sc-btn.sc-btn-danger { background: #d93a2f !important; color: #fff !important; border: 0 !important; }
+.sc-del-actions .sc-btn.sc-btn-danger:hover { background: #c4322a !important; }
