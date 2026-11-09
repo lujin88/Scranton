@@ -17,12 +17,14 @@ import datetime as _dt
 import json
 import os
 import re
+import threading
 import time
 from collections import Counter, defaultdict
 from pathlib import Path
 
 _SENDER = re.compile(r'\\?"sender\\?"\s*:\s*\\?"([A-Za-z0-9_-]{1,40})')
 _cache: dict = {}
+_lock = threading.Lock()   # the warm-up at start and a Report request must not read the same files at once
 
 
 def _ts(v) -> float:
@@ -160,6 +162,11 @@ def _codex_sessions(since: float, home: Path):
 
 
 def build(msgs: list[dict], team: dict, owner: str, days: int, home: Path | None = None) -> dict:
+    with _lock:
+        return _build(msgs, team, owner, days, home)
+
+
+def _build(msgs: list[dict], team: dict, owner: str, days: int, home: Path | None = None) -> dict:
     home = home or Path.home()
     since = time.time() - days * 86400
     key = (days, len(msgs), msgs[-1]["id"] if msgs else -1)
