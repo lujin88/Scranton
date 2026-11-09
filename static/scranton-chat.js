@@ -270,7 +270,7 @@
         catch (_) { toast('Copy failed'); }
     }
 
-    window.scToast = (text) => toast(text);
+    window.scToast = (text, action) => toast(text, action);
 
     // Unsent text is kept per conversation: switching away or reloading doesn't lose it.
     window.scDraft = (() => {
@@ -298,13 +298,24 @@
         });
         setTimeout(() => { const i = document.getElementById('input'); if (i && !i.value) window.scDraft.load(window.activeChannel); }, 1500);
     }
-    function toast(text) {
+    // toast(text) or toast(text, { label: 'Undo', run }) - with an action it stays 5 s and is clickable.
+    function toast(text, action) {
+        document.querySelectorAll('.sc-toast.sc-toast-act').forEach((x) => x.remove());
         const t = document.createElement('div');
-        t.className = 'sc-toast';
+        t.className = 'sc-toast' + (action ? ' sc-toast-act' : '');
         t.setAttribute('role', 'status');
-        t.textContent = text;
+        const span = document.createElement('span');
+        span.textContent = text;
+        t.appendChild(span);
+        if (action) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = action.label || 'Undo';
+            b.addEventListener('click', () => { t.remove(); action.run(); });
+            t.appendChild(b);
+        }
         document.body.appendChild(t);
-        setTimeout(() => t.remove(), 1600);
+        setTimeout(() => t.remove(), action ? 5000 : 1600);
     }
 
     function openEmoji(anchor, id) {
@@ -343,7 +354,7 @@
             ['copy', 'Copy text'],
             ...(inThread ? [] : [['quote', 'Quote in channel']]),   // also R
             ['forward', 'Forward to another channel'],
-            ...(inThread ? [] : [['unread', 'Mark unread']]),   // unread is per conversation, not per reply
+            ...(inThread ? [] : [['unread', 'Mark as unread']]),   // unread is per conversation, not per reply
             ['delete', 'Delete message', 'danger'],
         ];
         const pop = popAt(anchor, items.map(([k, label, cls]) =>
@@ -717,6 +728,7 @@
     window.scRepaintChoices = (m) => {
         if (!m || m.id == null) return;
         byId.set(Number(m.id), m);
+        if (window.scInboxUpdate) window.scInboxUpdate(m);
         const el = findEl(Number(m.id));
         if (el) { el.querySelector('.sc-choices')?.remove(); try { paintChoices(el, m); } catch (_) { /* never break */ } }
         if (activeThread != null) renderThread();

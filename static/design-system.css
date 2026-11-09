@@ -1233,3 +1233,25 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 #sc-offline.sc-on { display: flex; }
 #sc-offline code { font-size: 12px; padding: 1px 6px; border-radius: 6px; background: rgba(var(--ink), 0.08); }
 .sc-offline-dot { width: 8px; height: 8px; border-radius: 50%; background: #ff9f0a; flex-shrink: 0; }
+
+/* Activity read state (Gmail / Linear / Remote): the dot on each row is the switch.
+   Unread = filled dot; hovering a read row shows an empty ring to mark it unread again. */
+.sc-read-toggle { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; cursor: pointer; flex-shrink: 0; }
+.sc-read-toggle:hover { background: var(--ds-hover); }
+.sc-read-toggle:focus-visible { outline: 2px solid var(--ds-accent); outline-offset: 1px; }
+.sc-inbox-item .sc-read-toggle .sc-unread-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ds-accent) !important; transition: none; }
+.sc-inbox-item:not(.unread) .sc-read-toggle .sc-unread-dot { background: transparent !important; box-shadow: inset 0 0 0 1.5px var(--ds-text-3); opacity: 0; }
+.sc-inbox-item:not(.unread):hover .sc-read-toggle .sc-unread-dot, .sc-inbox-item:not(.unread) .sc-read-toggle:focus-visible .sc-unread-dot { opacity: 1; }
+#sc-inbox-markall { display: inline-flex; align-items: center; gap: 6px; }
+#sc-inbox-markall:disabled { opacity: 0.4; cursor: default; pointer-events: none; }
+/* The conversation's ↓ button belongs to the conversation, not to Activity laid over it. */
+body.sc-inbox-open #scroll-anchor { display: none !important; }
+/* Toast with an action (Undo) */
+.sc-toast.sc-toast-act { display: flex; align-items: center; gap: 14px; }
+.sc-toast button { border: 0; background: none; padding: 0; font: inherit; font-weight: 700; color: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+
+/* Activity: a question says whether it still needs you. */
+.sc-inbox-status { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; font-size: 12px; font-weight: 600; line-height: 18px; }
+.sc-inbox-status.todo { color: var(--ds-accent); }
+.sc-inbox-status.done { color: var(--ds-text-3); font-weight: 500; }
+.sc-inbox-status { align-self: flex-start; }

@@ -22,14 +22,49 @@
     let seenTs = parseFloat(LS.get('scranton-inbox-seen-ts', '0')) || 0;
     let readKeys;
     try { readKeys = new Set(JSON.parse(LS.get('scranton-inbox-read-keys', '[]') || '[]')); } catch (_) { readKeys = new Set(); }
-    const forceUnread = new Set();
-    const isUnread = (m) => forceUnread.has(keyOf(m)) || (tsOf(m) > seenTs && !readKeys.has(keyOf(m)));
+    // "Mark as unread" survives a reload (it used to live in memory only).
+    let forceUnread;
+    try { forceUnread = new Set(JSON.parse(LS.get('scranton-inbox-unread-keys', '[]') || '[]')); } catch (_) { forceUnread = new Set(); }
+    // What "needs you" means (Lu, 11-09: "我现在所有的东西都回复了", yet the number kept growing):
+    //  - a question (option card / decision) waits until you ANSWER it: card picked, or you replied to it;
+    //    just seeing it doesn't count.
+    //  - anything else waits until you've read it (opened from here, or seen in its conversation),
+    //    or you replied to it.
+    //  - "Mark as read" / "Mark all as read" always clear it; "Mark as unread" always brings it back.
+    const repliedTo = new Set();          // ids you replied to directly
+    const myLastInThread = new Map();     // thread parent id -> id of your latest message in it
+    const OPT_LINE = /(^|\n)\s*[A-H]\s*[.、:：)]/g;
+    const isQuestion = (m) => (m.type === 'decision' && Array.isArray((m.metadata || {}).choices) && m.metadata.choices.length > 0)
+        || (String(m.text || '').match(OPT_LINE) || []).length >= 2;
+    const answered = (m) => !!((m.type === 'decision' && (m.metadata || {}).resolved)
+        || repliedTo.has(Number(m.id))
+        || (m.reply_to != null && (myLastInThread.get(Number(m.reply_to)) || 0) > Number(m.id)));
+    const isUnread = (m) => {
+        const k = keyOf(m);
+        if (forceUnread.has(k)) return true;
+        if (readKeys.has(k) || answered(m)) return false;
+        return tsOf(m) > seenTs;
+    };
+    window.scInboxUpdate = (m) => {   // a decision answered (server message_update)
+        const item = m && inbox.get(Number(m.id));
+        if (item) { inbox.set(Number(m.id), { ...item, ...m, _kinds: item._kinds }); scheduleRender(); }
+    };
+    const saveRead = () => {
+        LS.set('scranton-inbox-read-keys', JSON.stringify([...readKeys].slice(-500)));
+        LS.set('scranton-inbox-unread-keys', JSON.stringify([...forceUnread].slice(-200)));
+    };
+    // One place that changes an item's read state: the row's dot, the message's "Mark as unread",
+    // clicking the row, and seeing the message in its conversation all go through here.
+    function setRead(m, read) {
+        const k = keyOf(m);
+        if (read) { readKeys.add(k); forceUnread.delete(k); } else { readKeys.delete(k); forceUnread.add(k); }
+        saveRead();
+        renderInboxBadge();
+        if (inboxOpen()) renderInbox();
+    }
     window.scMarkUnread = function (m) {
         const item = inbox.get(Number(m.id));
-        if (!item) return;
-        readKeys.delete(keyOf(item));
-        forceUnread.add(keyOf(item));
-        renderInboxBadge();
+        if (item) setRead(item, false);
     };
     const pendingUnknown = [];   // messages from senders we couldn't classify yet
 
@@ -56,7 +91,16 @@
         }
         const type = msg.type || 'chat';
         if (!['chat', 'message', 'decision'].includes(type)) return;
-        if (String(msg.sender || '').toLowerCase() === me().toLowerCase()) { myMsgIds.add(Number(msg.id)); return; }
+        if (String(msg.sender || '').toLowerCase() === me().toLowerCase()) {
+            myMsgIds.add(Number(msg.id));
+            if (msg.reply_to != null) {
+                const p = Number(msg.reply_to);
+                repliedTo.add(p);
+                myLastInThread.set(p, Math.max(myLastInThread.get(p) || 0, Number(msg.id)));
+                scheduleRender();
+            }
+            return;
+        }
         if (!isAgentSender(msg.sender)) {
             if (pendingUnknown.length < 1000) pendingUnknown.push(msg);
             return;
@@ -98,9 +142,14 @@
         b.classList.toggle('hidden', n === 0);
         const row = document.getElementById('sc-inbox-row');
         if (row) row.classList.toggle('has-unread', n > 0);
+        paintMarkAll();
     }
 
     const inboxOpen = () => !document.getElementById('sc-inbox')?.classList.contains('hidden');
+    function paintMarkAll() {
+        const b = document.getElementById('sc-inbox-markall');
+        if (b) b.disabled = unreadCount() === 0;
+    }
 
     let filterKind = 'mention';  // default: things that tag Lu
     function relTime(m) {
@@ -151,10 +200,21 @@
             const label = window.scLabelOf ? window.scLabelOf(sender) : m.sender;
             const pic = window.scAvatarHtml ? window.scAvatarHtml(sender) : '';
             const text = String(m.text || '').replace(/\s+/g, ' ').trim();
+            const q = isQuestion(m);
+            const done = answered(m);
+            const chosen = m.type === 'decision' && (m.metadata || {}).resolved ? String(m.metadata.chosen || '') : '';
+            const status = !q ? ''
+                : done ? `<span class="sc-inbox-status done">${window.scIcon ? window.scIcon('check', 14) : ''}Answered${chosen ? ': ' + esc(chosen.length > 40 ? chosen.slice(0, 40) + '…' : chosen) : ''}</span>`
+                : `<span class="sc-inbox-status todo">Needs your answer</span>`;
             row.innerHTML = `<span class="sc-inbox-avatar">${pic}</span>`
                 + `<span class="sc-inbox-body"><span class="sc-inbox-meta"><b>${esc(label)}</b> <span>${esc(where)}</span></span>`
-                + `<span class="sc-inbox-text">${esc(text.length > 240 ? text.slice(0, 240) + '…' : text)}</span></span>`
-                + `<span class="sc-inbox-side"><span class="sc-inbox-time">${esc(relTime(m))}</span>${unread ? '<span class="sc-unread-dot"></span>' : ''}</span>`;
+                + `<span class="sc-inbox-text">${esc(text.length > 240 ? text.slice(0, 240) + '…' : text)}</span>${status}</span>`
+                + `<span class="sc-inbox-side"><span class="sc-inbox-time">${esc(relTime(m))}</span>`
+                + `<span class="sc-read-toggle" role="button" tabindex="0" data-tip="${unread ? 'Mark as read' : 'Mark as unread'}" aria-label="${unread ? 'Mark as read' : 'Mark as unread'}"><span class="sc-unread-dot"></span></span></span>`;
+            const tog = row.querySelector('.sc-read-toggle');
+            const flip = (e) => { e.stopPropagation(); e.preventDefault(); setRead(m, isUnread(m)); };
+            tog.addEventListener('click', flip);
+            tog.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') flip(e); });
             row.addEventListener('click', () => jumpTo(m));
             list.appendChild(row);
         }
@@ -172,10 +232,7 @@
     }
 
     function jumpTo(m) {
-        readKeys.add(keyOf(m));
-        forceUnread.delete(keyOf(m));
-        LS.set('scranton-inbox-read-keys', JSON.stringify([...readKeys].slice(-500)));
-        renderInboxBadge();
+        setRead(m, true);
         window.scCloseInbox();
         // 4: the channel may have been renamed or deleted since; don't open a ghost channel.
         let ch = m.channel || 'general';
@@ -189,6 +246,7 @@
     window.scOpenInbox = function () {
         if (window.scCloseRightPanel) window.scCloseRightPanel();
         document.getElementById('sc-inbox')?.classList.remove('hidden');
+        document.body.classList.add('sc-inbox-open');
         document.getElementById('sc-inbox-row')?.classList.add('active');
         document.querySelectorAll('#channel-sidebar-list .channel-sidebar-row.active, #sc-dm-list .sc-side-row.active')
             .forEach((el) => el.classList.add('sc-dimmed'));
@@ -197,17 +255,49 @@
     };
     window.scCloseInbox = function () {
         document.getElementById('sc-inbox')?.classList.add('hidden');
+        document.body.classList.remove('sc-inbox-open');
         document.getElementById('sc-inbox-row')?.classList.remove('active');
         document.querySelectorAll('.sc-dimmed').forEach((el) => el.classList.remove('sc-dimmed'));
     };
     window.scInboxMarkRead = function () {
+        const n = unreadCount();
+        if (!n) return;
+        const before = { seenTs, read: [...readKeys], unread: [...forceUnread] };
         for (const m of inbox.values()) seenTs = Math.max(seenTs, tsOf(m));
         seenTs = Math.max(seenTs, Date.now() / 1000);
         LS.set('scranton-inbox-seen-ts', String(seenTs));
-        readKeys.clear(); forceUnread.clear(); LS.set('scranton-inbox-read-keys', '[]');
+        readKeys.clear(); forceUnread.clear(); saveRead();
         renderInboxBadge();
         renderInbox();
+        // Easy to hit by accident and it touches every tab, so it can be undone.
+        if (window.scToast) window.scToast(`Marked ${n} as read`, { label: 'Undo', run: () => {
+            seenTs = before.seenTs; LS.set('scranton-inbox-seen-ts', String(seenTs));
+            readKeys = new Set(before.read); forceUnread = new Set(before.unread); saveRead();
+            renderInboxBadge(); if (inboxOpen()) renderInbox();
+        } });
     };
+
+    // Reading a message where it was posted counts: once an unread Activity item has been on
+    // screen in its channel or thread for a moment (window in front), it turns read here too.
+    // Before, the same question stayed unread in Activity after you'd read and answered it.
+    const seenSince = new Map();
+    setInterval(() => {
+        if (document.hidden || !document.hasFocus() || inboxOpen()) { seenSince.clear(); return; }
+        const now = Date.now();
+        let changed = false;
+        for (const m of inbox.values()) {
+            if (!isUnread(m) || forceUnread.has(keyOf(m))) continue;   // you marked it unread on purpose
+            if (isQuestion(m)) continue;                                 // a question waits for your answer, not a glance
+            const el = document.querySelector(`#messages .message[data-id="${m.id}"]:not(.sc-in-thread), #sc-thread .sc-tmsg[data-mid="${m.id}"]`);
+            const r = el && el.getBoundingClientRect();
+            const box = el && (el.closest('#timeline, .sc-thread-body') || document.body).getBoundingClientRect();
+            const visible = r && r.height && r.top < box.bottom - 24 && r.bottom > box.top + 24;
+            if (!visible) { seenSince.delete(m.id); continue; }
+            if (!seenSince.has(m.id)) { seenSince.set(m.id, now); continue; }
+            if (now - seenSince.get(m.id) >= 1500) { readKeys.add(keyOf(m)); seenSince.delete(m.id); changed = true; }
+        }
+        if (changed) { saveRead(); renderInboxBadge(); }
+    }, 700);
 
     if (typeof appendMessage === 'function') {
         const origAppend = appendMessage;

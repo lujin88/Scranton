@@ -11,6 +11,7 @@
             [[A, '↑'], [A, '↓'], 'Previous / next channel or DM'],
             [[A, S, '↑'], [A, S, '↓'], 'Previous / next unread'],
             [[M, S, 'A'], 'Activity'],
+            [[S, 'Esc'], 'In Activity: mark all as read (Undo in the toast)'],
             [[M, ','], 'Settings'],
         ]],
         ['This conversation', [
@@ -70,6 +71,10 @@
         // ⌥↑ / ⌥↓ (+⇧ for unread): never types anything, so it works inside the message box too
         if (e.altKey && !mod && (code === 'ArrowUp' || code === 'ArrowDown')) {
             e.preventDefault(); go(code === 'ArrowUp' ? -1 : 1, e.shiftKey); return;
+        }
+        // ⇧Esc in Activity: mark all as read (Slack's shortcut)
+        if (e.key === 'Escape' && e.shiftKey && !mod && !e.altKey && document.body.classList.contains('sc-inbox-open')) {
+            e.preventDefault(); e.stopPropagation(); if (window.scInboxMarkRead) window.scInboxMarkRead(); return;
         }
         if (!mod || e.altKey) return;
         const k = code.replace(/^Key/, '').toLowerCase();
