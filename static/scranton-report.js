@@ -137,7 +137,7 @@
                 <span class="sc-rp-bar"><i style="width:${Math.round((x.tokens / maxA) * 100)}%"></i></span>
                 <span class="sc-rp-num">${fmtTok(x.tokens)}</span></div>`).join('')}</div>
             ${t.tips.length ? `<h3 class="sc-rp-h3">What would save the most</h3><ul class="sc-rp-tips">${t.tips.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
-            <p class="sc-rp-note">From Claude Code and Codex logs on this Mac. A task is the thread of the request each agent was answering at the time, so per-task numbers are estimates.${t.not_counted.length ? ` Cursor keeps no token log, so ${t.not_counted.map((a) => esc(label(a))).join(', ')} ${t.not_counted.length === 1 ? 'isn\'t' : 'aren\'t'} counted.` : ''}</p>`;
+            <p class="sc-rp-note">From Claude Code and Codex logs on this Mac. A task is the thread of the request each agent was answering at the time, so per-task numbers are estimates.${t.not_counted.length ? ` Cursor keeps no token log, so ${t.not_counted.map((a) => esc(label(a))).join(', ')} ${t.not_counted.length === 1 ? 'isn\'t' : 'aren\'t'} counted.` : ''}${t.unassigned ? ` Another ${fmtTok(t.unassigned)} came from sessions that never posted in Scranton (for example ones you ran yourself) and is left out.` : ''}</p>`;
     }
 
     function open() {
