@@ -1319,3 +1319,5 @@ body:has(#mention-menu:not(.hidden)) #scroll-anchor { display: none !important; 
 #sc-settings .sc-st-head.sc-st-head-row, .sc-st .sc-st-body > header.sc-st-head-row { padding-right: 48px !important; }
 #mention-menu { min-width: 380px !important; }
 .sc-pd-ic { color: var(--ds-accent) !important; }   /* pause sign, same blue as "Let them continue" */
+.sc-tmention .mention-model { display: none !important; }   /* the thread's @ list is narrow: status only, no model (Lu, 11-09) */
+.sc-tmention .mention-meta { margin-left: auto; padding-left: 12px; }
