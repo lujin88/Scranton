@@ -1824,12 +1824,18 @@ async def websocket_endpoint(websocket: WebSocket):
 
             elif event.get("type") == "channel_reorder":
                 # Scranton: drag channels (or Alt+↑/↓) to reorder. Same set of names, new order.
+                # The sidebar only lists some of them (DMs live in their own list), so the order
+                # covers a subset: those take each other's places, the rest stay put. (It used to
+                # need every name, so dragging silently did nothing once a DM existed.)
                 order = [str(n).strip().lower() for n in (event.get("order") or [])]
-                cur = room_settings["channels"]
-                if sorted(order) == sorted(cur) and len(set(order)) == len(order):
-                    room_settings["channels"] = order
-                    _save_settings()
-                    await broadcast_settings()
+                cur = list(room_settings["channels"])
+                if order and len(set(order)) == len(order) and set(order) <= set(cur):
+                    it = iter(order)
+                    new = [next(it) if c in set(order) else c for c in cur]
+                    if new != cur:
+                        room_settings["channels"] = new
+                        _save_settings()
+                        await broadcast_settings()
 
             elif event.get("type") == "channel_rename":
                 old_name = (event.get("old_name") or "").strip().lower()

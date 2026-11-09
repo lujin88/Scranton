@@ -492,6 +492,32 @@
     window.scShowDm = (h) => { setHiddenDms(hiddenDms().filter((x) => x !== h)); renderDms(); };
     window.scHiddenDms = hiddenDms;
 
+    // Direct messages: drag to put them in your own order (kept on this device).
+    const DM_MIME = 'application/x-scranton-dm';
+    const dmOrder = () => { try { return JSON.parse(LS.get('scranton-dm-order', '[]')) || []; } catch (_) { return []; } };
+    document.addEventListener('dragover', (e) => {
+        if (![...(e.dataTransfer?.types || [])].includes(DM_MIME)) return;
+        const row = e.target.closest && e.target.closest('#sc-dm-list .sc-dm-row');
+        document.querySelectorAll('#sc-dm-list .sc-drop-before, #sc-dm-list .sc-drop-after').forEach((r) => r.classList.remove('sc-drop-before', 'sc-drop-after'));
+        if (!row) return;
+        e.preventDefault();
+        const r = row.getBoundingClientRect();
+        row.classList.add(e.clientY < r.top + r.height / 2 ? 'sc-drop-before' : 'sc-drop-after');
+    }, true);
+    document.addEventListener('drop', (e) => {
+        if (![...(e.dataTransfer?.types || [])].includes(DM_MIME)) return;
+        e.preventDefault(); e.stopPropagation();
+        const h = e.dataTransfer.getData(DM_MIME);
+        const row = e.target.closest && e.target.closest('#sc-dm-list .sc-dm-row');
+        if (!row || !h || row.dataset.h === h) { renderDms(); return; }
+        const before = e.clientY < row.getBoundingClientRect().top + row.getBoundingClientRect().height / 2;
+        const shown = [...document.querySelectorAll('#sc-dm-list .sc-dm-row')].map((r) => r.dataset.h).filter((x) => x !== h);
+        shown.splice(shown.indexOf(row.dataset.h) + (before ? 0 : 1), 0, h);
+        // keep people not shown right now in the order too, after the ones on screen
+        LS.set('scranton-dm-order', JSON.stringify([...shown, ...dmOrder().filter((x) => !shown.includes(x))]));
+        renderDms();
+    }, true);
+
     function renderDms() {
         const list = document.getElementById('sc-dm-list');
         if (!list) return;
@@ -505,6 +531,12 @@
         // one open right now. "+" starts a new one; a new message brings someone back.
         const recent = (h) => dmActivity[`dm-${h}`.slice(0, 20)] || 0;
         handles.sort((a, b) => recent(b) - recent(a));
+        // Once you've dragged them into an order, that order holds; new people go at the end.
+        const mine = dmOrder();
+        if (mine.length) {
+            const at = (h) => { const i = mine.indexOf(h); return i < 0 ? 1e6 : i; };
+            handles.sort((a, b) => at(a) - at(b));
+        }
         let shown = 0;
         for (const h of handles) {
             const ch = `dm-${h}`.slice(0, 20);
@@ -530,6 +562,9 @@
             x.addEventListener('click', (e) => { e.stopPropagation(); setHiddenDms([...hiddenDms(), h]); renderDms(); });
             row.appendChild(x);
             row.addEventListener('click', () => openDm(h));
+            row.draggable = true;
+            row.addEventListener('dragstart', (e) => { e.dataTransfer.setData(DM_MIME, h); e.dataTransfer.effectAllowed = 'move'; row.classList.add('sc-dragging'); });
+            row.addEventListener('dragend', () => { row.classList.remove('sc-dragging'); list.querySelectorAll('.sc-drop-before, .sc-drop-after').forEach((r) => r.classList.remove('sc-drop-before', 'sc-drop-after')); });
             list.appendChild(row);
         }
         if (!shown) {
