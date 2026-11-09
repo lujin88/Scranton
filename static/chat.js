@@ -2417,7 +2417,8 @@ function getMentionCandidates() {
         if (cfg.state === 'pending' || seen.has(name)) continue;
         candidates.push({ name, label: cfg.label || name, color: cfg.color });
     }
-    candidates.push({ name: 'all agents', label: 'all agents', color: 'var(--accent)' });
+    // No "all agents" row (Lu, 11-09): waking all 17 at once is never what you want here;
+    // the PM hands work out. Typing @all yourself still works.
     return candidates;
 }
 
