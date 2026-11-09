@@ -1255,3 +1255,6 @@ body.sc-inbox-open #scroll-anchor { display: none !important; }
 .sc-inbox-status.todo { color: var(--ds-accent); }
 .sc-inbox-status.done { color: var(--ds-text-3); font-weight: 500; }
 .sc-inbox-status { align-self: flex-start; }
+
+.sc-inbox-group { margin: 18px 0 4px; padding: 0 12px; font-size: 12px; font-weight: 600; color: var(--ds-text-3); }
+.sc-inbox-group:first-child { margin-top: 0; }

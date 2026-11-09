@@ -2751,6 +2751,52 @@ async def scranton_dm_activity():
     return JSONResponse(last)
 
 
+# --- PR state for Activity ----------------------------------------------------------------
+# "Please merge #93" in Activity is done once #93 is merged on GitHub: Lu doesn't report back
+# (Lu, 11-09). Read-only `gh pr view`, cached; on any GitHub error we back off instead of retrying.
+import re as _re_pr
+import shutil as _shutil_pr
+import time as _time_pr
+import subprocess as _sp_pr
+
+_PR_URL = _re_pr.compile(r"^https://github\.com/([\w.-]+)/([\w.-]+)/pull/(\d+)$")
+_pr_cache: dict = {}          # url -> (state, checked_at)
+_pr_backoff_until = [0.0]
+_PR_TTL = {"MERGED": 24 * 3600, "CLOSED": 24 * 3600}   # final states rarely change; OPEN is rechecked
+
+
+def _pr_state(url: str):
+    now = _time_pr.time()
+    hit = _pr_cache.get(url)
+    if hit and now - hit[1] < _PR_TTL.get(hit[0], 180):
+        return hit[0]
+    if now < _pr_backoff_until[0] or not _shutil_pr.which("gh"):
+        return hit[0] if hit else None
+    try:
+        r = _sp_pr.run(["gh", "pr", "view", url, "--json", "state", "-q", ".state"],
+                       capture_output=True, text=True, timeout=15)
+    except Exception:
+        return hit[0] if hit else None
+    out = (r.stdout or "").strip().upper()
+    if r.returncode != 0 or out not in ("OPEN", "MERGED", "CLOSED"):
+        err = (r.stderr or "").lower()
+        if any(k in err for k in ("rate limit", "403", "429", "suspended", "abuse")):
+            _pr_backoff_until[0] = now + 1800   # harness rule: GitHub said stop, so stop for a while
+            log.warning("PR state: GitHub refused (%s); not asking again for 30 min", err.strip()[:120])
+        return hit[0] if hit else None
+    _pr_cache[url] = (out, now)
+    return out
+
+
+@app.get("/api/scranton/pr-state")
+async def scranton_pr_state(request: Request):
+    urls = [u for u in request.query_params.getlist("u") if _PR_URL.match(u)][:20]
+    states = {}
+    for u in urls:
+        states[u] = await asyncio.to_thread(_pr_state, u)
+    return JSONResponse(states)
+
+
 @app.get("/api/scranton/report")
 async def scranton_report(days: int = 7):
     days = max(1, min(int(days), 31))

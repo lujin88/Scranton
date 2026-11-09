@@ -36,7 +36,33 @@
     const OPT_LINE = /(^|\n)\s*[A-H]\s*[.、:：)]/g;
     const isQuestion = (m) => (m.type === 'decision' && Array.isArray((m.metadata || {}).choices) && m.metadata.choices.length > 0)
         || (String(m.text || '').match(OPT_LINE) || []).length >= 2;
-    const answered = (m) => !!((m.type === 'decision' && (m.metadata || {}).resolved)
+    // "Please merge #93": done once GitHub says merged (or closed). Lu doesn't report back.
+    const PR_RE = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
+    const prUrls = (m) => [...new Set(String(m.text || '').match(PR_RE) || [])];
+    const prState = {};   // url -> OPEN | MERGED | CLOSED
+    const prDone = (m) => { const u = prUrls(m); return u.length > 0 && u.every((x) => prState[x] === 'MERGED' || prState[x] === 'CLOSED'); };
+    async function refreshPrs() {
+        if (document.hidden) return;
+        const want = new Set();
+        for (const m of inbox.values()) {
+            if (readKeys.has(keyOf(m))) continue;
+            for (const u of prUrls(m)) if (prState[u] !== 'MERGED' && prState[u] !== 'CLOSED') want.add(u);
+        }
+        const list = [...want].slice(0, 20);
+        if (!list.length) return;
+        try {
+            const q = list.map((u) => 'u=' + encodeURIComponent(u)).join('&');
+            const r = await fetch('/api/scranton/pr-state?' + q, { headers: { 'X-Session-Token': window.SESSION_TOKEN } });
+            if (!r.ok) return;
+            const got = await r.json();
+            let changed = false;
+            for (const [u, st] of Object.entries(got)) if (st && prState[u] !== st) { prState[u] = st; changed = true; }
+            if (changed) scheduleRender();
+        } catch (_) { /* offline: try again next round */ }
+    }
+    setTimeout(refreshPrs, 3000);
+    setInterval(refreshPrs, 120000);
+    const answered = (m) => !!(prDone(m) || (m.type === 'decision' && (m.metadata || {}).resolved)
         || repliedTo.has(Number(m.id))
         || (m.reply_to != null && (myLastInThread.get(Number(m.reply_to)) || 0) > Number(m.id)));
     const isUnread = (m) => {
@@ -177,12 +203,15 @@
         if (!list) return;
         renderFromOptions();
         const from = document.getElementById('sc-inbox-from')?.value || '';
-        const unreadOnly = !!document.getElementById('sc-inbox-unread')?.checked;
+        // One "Show" control instead of a toggle plus a sort: needs-you first (default), newest first,
+        // or only what still needs you. The choice is remembered.
+        const sortSel = document.getElementById('sc-inbox-sort');
+        const mode = sortSel ? sortSel.value : 'needs';
         const items = [...inbox.values()]
             .filter((m) => filterKind === 'all' || m._kinds.has(filterKind))
             .filter((m) => !from || String(m.sender).toLowerCase() === from)
-            .filter((m) => !unreadOnly || isUnread(m))
-            .sort((a, b) => b.id - a.id).slice(0, 300);
+            .filter((m) => mode !== 'only' || isUnread(m))
+            .sort((a, b) => (mode === 'needs' ? (isUnread(b) - isUnread(a)) : 0) || (b.id - a.id)).slice(0, 300);
         if (!items.length) {
             list.innerHTML = `<div class="sc-empty">${window.scIcon ? window.scIcon('bell', 28) : ''}<h3>${inbox.size ? 'Nothing matches' : 'No activity yet'}</h3><p>${inbox.size
                 ? 'Try another filter.'
@@ -190,7 +219,14 @@
             return;
         }
         list.innerHTML = '';
+        const needN = items.filter(isUnread).length;
+        let doneHead = false;
+        if (mode === 'needs' && needN) list.insertAdjacentHTML('beforeend', `<div class="sc-inbox-group">Needs you · ${needN}</div>`);
         for (const m of items) {
+            if (mode === 'needs' && needN && !doneHead && !isUnread(m)) {
+                doneHead = true;
+                list.insertAdjacentHTML('beforeend', '<div class="sc-inbox-group">Done</div>');
+            }
             const row = document.createElement('button');
             row.type = 'button';
             const unread = isUnread(m);
@@ -203,7 +239,11 @@
             const q = isQuestion(m);
             const done = answered(m);
             const chosen = m.type === 'decision' && (m.metadata || {}).resolved ? String(m.metadata.chosen || '') : '';
-            const status = !q ? ''
+            const prs = prUrls(m);
+            const status = prs.length ? (done
+                    ? `<span class="sc-inbox-status done">${window.scIcon ? window.scIcon('check', 14) : ''}${prDone(m) ? 'Merged on GitHub' : 'Answered'}</span>`
+                    : `<span class="sc-inbox-status todo">Merge on GitHub</span>`)
+                : !q ? ''
                 : done ? `<span class="sc-inbox-status done">${window.scIcon ? window.scIcon('check', 14) : ''}Answered${chosen ? ': ' + esc(chosen.length > 40 ? chosen.slice(0, 40) + '…' : chosen) : ''}</span>`
                 : `<span class="sc-inbox-status todo">Needs your answer</span>`;
             row.innerHTML = `<span class="sc-inbox-avatar">${pic}</span>`
@@ -227,7 +267,12 @@
             renderInbox();
         }));
         document.getElementById('sc-inbox-from')?.addEventListener('change', renderInbox);
-        document.getElementById('sc-inbox-unread')?.addEventListener('change', renderInbox);
+        const sortSel = document.getElementById('sc-inbox-sort');
+        if (sortSel) {
+            sortSel.value = LS.get('scranton-inbox-sort', 'needs');
+            if (!sortSel.value) sortSel.value = 'needs';
+            sortSel.addEventListener('change', () => { LS.set('scranton-inbox-sort', sortSel.value); renderInbox(); });
+        }
         setInterval(() => { if (inboxOpen()) renderInbox(); }, 60000);  // keep "x minutes ago" fresh
     }
 
@@ -287,7 +332,7 @@
         let changed = false;
         for (const m of inbox.values()) {
             if (!isUnread(m) || forceUnread.has(keyOf(m))) continue;   // you marked it unread on purpose
-            if (isQuestion(m)) continue;                                 // a question waits for your answer, not a glance
+            if (isQuestion(m) || prUrls(m).length) continue;             // a question / a PR to merge waits for the real thing, not a glance
             const el = document.querySelector(`#messages .message[data-id="${m.id}"]:not(.sc-in-thread), #sc-thread .sc-tmsg[data-mid="${m.id}"]`);
             const r = el && el.getBoundingClientRect();
             const box = el && (el.closest('#timeline, .sc-thread-body') || document.body).getBoundingClientRect();

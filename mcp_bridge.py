@@ -212,6 +212,8 @@ def chat_send(
     Don't add an option that needs more words to act on (e.g. "Needs changes"): the card always
     ends with a "Something else" row where the user types their own answer or reason.
     Don't repeat the options in the message text; the card shows them.
+    Never add an option that only reports back something you can check yourself (e.g. "Merged it"
+    for a PR: check with `gh pr view <url> --json state` instead; Scranton marks merged PRs done).
     For normal messages without choices, pass choices=[]:
       chat_send(sender="claude", message="Done.", choices=[])"""
     sender, err = _resolve_tool_identity(sender, ctx, field_name="sender", required=True)
