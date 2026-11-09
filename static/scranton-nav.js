@@ -41,6 +41,12 @@
     const prUrls = (m) => [...new Set(String(m.text || '').match(PR_RE) || [])];
     const prState = {};   // url -> OPEN | MERGED | CLOSED
     const isAsk = (m) => isQuestion(m) || (prUrls(m).length > 0 && /合|merge/i.test(String(m.text || '')));
+    // For the notification sound: an ask addressed to you (mention, DM, or a reply to you), not yet done.
+    window.scIsAskForMe = (m) => {
+        if (!m || !isAgentSender(m.sender) || !['chat', 'message', 'decision'].includes(m.type || 'chat')) return false;
+        const forMe = mentionsMe(m.text) || isDm(m.channel) || (m.reply_to != null && myMsgIds.has(Number(m.reply_to)));
+        return forMe && isAsk(m) && !answered(m);
+    };
     const prDone = (m) => { const u = prUrls(m); return u.length > 0 && u.every((x) => prState[x] === 'MERGED' || prState[x] === 'CLOSED'); };
     async function refreshPrs() {
         if (document.hidden) return;

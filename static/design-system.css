@@ -1263,3 +1263,9 @@ body.sc-inbox-open #scroll-anchor { display: none !important; }
     border-radius: 8px; font: inherit; font-size: 12px; font-weight: 500; color: var(--ds-text-2); cursor: pointer; }
 .sc-inbox-markall:hover { background: var(--ds-hover); color: var(--ds-text); }
 .sc-inbox-menu { position: fixed; z-index: 1000; min-width: 200px; }
+
+/* "Something else": a send button appears once you've typed something (Enter still works). */
+.sc-choice-send { display: none; flex-shrink: 0; width: 28px; height: 28px; margin-left: auto; border: 0; border-radius: 8px;
+    place-items: center; cursor: pointer; background: var(--ds-accent-fill); color: #fff; }
+.sc-choice-other.has-text .sc-choice-send { display: grid; }
+.sc-choice-send:hover { background: var(--ds-accent-fill-hover); }

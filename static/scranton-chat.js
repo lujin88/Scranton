@@ -556,6 +556,10 @@
             if (m) { try { paintChoices(el, m); } catch (_) { /* never break rendering */ } }
         });
     });
+    // What you're typing in a card's "Something else" row survives the card being redrawn
+    // (a thread is redrawn on every new reply; before, the text and focus vanished mid-typing).
+    const otherDraft = new Map();   // "msgId:q" -> text
+    let otherFocus = null;          // "msgId:q" of the row you're typing in
     function paintChoices(el, msg) {
         const sender = String(msg.sender || '').split('-')[0];
         const team = (window.scGetTeam && window.scGetTeam()) || {};
@@ -629,21 +633,54 @@
                         // the last row: your own answer, typed right here (Grok Bot's "Something else")
                         const k = String.fromCharCode(65 + b.options.length);
                         const mine = picked === k;
-                        return `<label class="sc-choice sc-choice-other${mine ? ' on' : ''}"><span class="sc-choice-key">${k}</span>
+                        const draft = otherDraft.get(`${msg.id}:${qi}`) || '';
+                        return `<label class="sc-choice sc-choice-other${mine ? ' on' : ''}${!picked && draft ? ' has-text' : ''}"><span class="sc-choice-key">${k}</span>
                             <input type="text" data-other="${k}" placeholder="Something else" aria-label="Your own answer" maxlength="500"
-                                value="${mine ? esc(typedOwn[qi] || '') : ''}"${picked ? ' disabled' : ''}></label>`;
+                                value="${mine ? esc(typedOwn[qi] || '') : esc(draft)}"${picked ? ' disabled' : ''}>`
+                            + (picked ? '' : `<button type="button" class="sc-choice-send" data-send aria-label="Send your answer" data-tip="Send (Enter)">${window.scIcon ? window.scIcon('send', 16) : '→'}</button>`)
+                            + '</label>';
                     })()}
                 </div>`;
             }).join('');
+            // put the cursor back if you were typing here when it was redrawn
+            if (otherFocus && otherFocus.startsWith(`${msg.id}:`)) {
+                const qi = otherFocus.split(':')[1];
+                const inp = wrap.querySelector(`[data-q="${qi}"] [data-other]`);
+                if (inp && !inp.disabled) requestAnimationFrame(() => { if (inp.isConnected) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); } });
+            }
         };
         paint();
         wrap._paint = paint;
+        wrap.addEventListener('input', (e) => {
+            const inp = e.target.closest?.('[data-other]');
+            if (!inp) return;
+            const key = `${msg.id}:${inp.closest('[data-q]').dataset.q}`;
+            if (inp.value) otherDraft.set(key, inp.value); else otherDraft.delete(key);
+            inp.closest('.sc-choice-other')?.classList.toggle('has-text', !!inp.value.trim());
+        });
+        wrap.addEventListener('focusin', (e) => { const inp = e.target.closest?.('[data-other]'); if (inp) otherFocus = `${msg.id}:${inp.closest('[data-q]').dataset.q}`; });
+        wrap.addEventListener('focusout', (e) => {
+            const inp = e.target.closest?.('[data-other]');
+            // a redraw also blurs; only forget when focus really went elsewhere
+            if (inp) setTimeout(() => { if (!document.activeElement?.closest?.('.sc-choice-other')) otherFocus = null; }, 0);
+        });
+        wrap.addEventListener('click', (e) => {
+            const btn = e.target.closest?.('[data-send]');
+            if (!btn) return;
+            e.preventDefault(); e.stopPropagation();
+            submitOther(btn.closest('.sc-choice-other').querySelector('[data-other]'));
+        }, true);
         wrap.addEventListener('keydown', (e) => {
             const inp = e.target.closest?.('[data-other]');
-            if (!inp || e.key !== 'Enter' || e.isComposing || e.shiftKey) return;
+            if (!inp || e.key !== 'Enter' || e.isComposing || e.keyCode === 229 || e.shiftKey) return;
             e.preventDefault(); e.stopPropagation();
+            submitOther(inp);
+        });
+        function submitOther(inp) {
+            if (!inp) return;
             const v = inp.value.trim();
-            if (!v || !window.ws || window.ws.readyState !== WebSocket.OPEN) return;
+            if (!v) { inp.focus(); return; }
+            if (!isDecision && (!window.ws || window.ws.readyState !== WebSocket.OPEN)) { toast('Not connected. Your answer has not been sent.'); return; }
             const qi = Number(inp.closest('[data-q]').dataset.q);
             const block = blocks[qi], k = inp.dataset.other;
             const tag = blocks.length > 1 || block.num ? `${block.num || qi + 1}${k}` : k;
@@ -654,10 +691,12 @@
                     channel: msg.channel || 'general', reply_to: Number(root), attachments: [] }));
             }
             typedOwn[qi] = v;
+            otherDraft.delete(`${msg.id}:${qi}`);
+            otherFocus = null;
             chosenStore.set(msg.id, qi, k);
             paint();
             toast(`Answered ${tag}`);
-        });
+        }
         wrap.addEventListener('click', (e) => {
             const own = e.target.closest('[data-own]');
             if (own) {

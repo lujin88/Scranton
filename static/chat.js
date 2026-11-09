@@ -561,7 +561,10 @@ function handleServerEvent(event) {
         if (document.getElementById(`message-${event.data.id}`)) return;
         if (window.scNoteDmMessage) window.scNoteDmMessage(event.data);
         // Play notification sound for new messages from others (not joins, not when focused)
-        if (soundEnabled && !document.hasFocus() && event.data.type !== 'join' && event.data.type !== 'leave' && event.data.type !== 'summary' && event.data.sender && event.data.sender.toLowerCase() !== username.toLowerCase()) {
+        // Sound only for something that needs Lu (a question for her, a PR for her to merge),
+        // not for the team working among themselves (Lu, 11-09: "背景音一直咚咚咚").
+        if (soundEnabled && event.data.sender && event.data.sender.toLowerCase() !== username.toLowerCase()
+            && window.scIsAskForMe && window.scIsAskForMe(event.data)) {
             playNotificationSound(event.data.sender);
         }
         appendMessage(event.data);
@@ -1092,9 +1095,7 @@ function appendMessage(msg, options = {}) {
             channelUnread[msgChannel] = (channelUnread[msgChannel] || 0) + 1;
             renderChannelTabs();
             // Play soft pluck for cross-channel chat messages from others (only when focused)
-            if (document.hasFocus() && msg.type === 'chat' && msg.sender && msg.sender.toLowerCase() !== username.toLowerCase()) {
-                playCrossChannelSound();
-            }
+            // (no second sound here: the one above already covers what needs you)
         }
     }
 
