@@ -980,7 +980,11 @@ def _create_server(port: int) -> FastMCP:
         instructions=_MCP_INSTRUCTIONS,
     )
     for func in _ALL_TOOLS:
-        server.tool()(func)
+        # Scranton: plain text results only. With the default, FastMCP also sends
+        # structuredContent {"result": "<the same text>"}; Claude Code shows that one, so chat_read's
+        # JSON arrived escaped twice (a backslash showed as two, quotes as \") and agents "fixed"
+        # commands that were right (Scranton issue, 2026-11-09).
+        server.tool(structured_output=False)(func)
     return server
 
 
