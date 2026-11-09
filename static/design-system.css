@@ -264,6 +264,14 @@ select, input[type="text"], input[type="search"], textarea { border-color: trans
 .sc-info-sub { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; color: var(--ds-text); font-weight: 600; }
 .sc-info-hero { padding-bottom: var(--ds-5); }
 .sc-stuck-btn { display: inline-flex; margin-top: 8px; height: 32px; padding: 0 14px; align-items: center; }
+/* an agent's terminal question, answered from the chat */
+.sc-prompt { margin-top: 10px; max-width: 560px; }
+.sc-prompt .sc-choice-card { padding: 14px 14px 8px; }
+.sc-prompt-ctx { display: flex; flex-direction: column; gap: 4px; margin: -2px 4px 8px; }
+.sc-prompt-ctx code { font-size: 12px; color: var(--ds-text-2); white-space: pre-wrap; word-break: break-all; }
+.sc-prompt-warn { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 6px; font-size: 11px; line-height: 16px;
+    background: color-mix(in srgb, var(--ds-danger, #e5484d) 14%, transparent); color: var(--ds-danger, #e5484d); vertical-align: 1px; }
+.sc-prompt-none { color: var(--ds-text-2); font-size: var(--ds-fs-sm); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 /* return key: never a box, in any state */
 #send, #send:hover, #send:focus, #send:active, .send-group:not(.inactive) #send, .send-group:not(.inactive) #send:hover,
 #input-row .send-group:not(.inactive) #send:hover { background: transparent !important; box-shadow: none !important; }

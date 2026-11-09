@@ -267,7 +267,7 @@ _PROBLEMS = [
     ("login", re.compile(r"please (?:run )?/login|not logged in|log ?in again|invalid api key|authentication (?:failed|error)|token (?:has )?expired", re.I),
      "I stopped: {app} needs you to sign in again. Settings → Connections → Switch account."),
     ("question", re.compile(r"(?!x)x"),
-     "I stopped: my terminal is waiting on a question. Open it to answer."),
+     "I stopped: my terminal is waiting on a question. Answer it here."),
     ("error", re.compile(r"\bAPI Error\b|Internal server error|overloaded_error|Connection error", re.I),
      "I hit an error from {app} and stopped. Open my terminal to see it, or restart me."),
 ]

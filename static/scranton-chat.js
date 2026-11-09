@@ -862,15 +862,128 @@
         input.dispatchEvent(new Event('input', { bubbles: true }));
     }, true);
 
+    // "I stopped: my terminal is waiting on a question" → the question itself, with its options as
+    // buttons right in the chat (Lu, 11-09: she had to open a terminal and couldn't see the choices).
+    // Read from the agent's screen; a click sends just that number key. Older notices only link.
+    const stuckNewest = new Map();   // agent -> id of its latest "I stopped" notice
+    const PROMPT_OPT = /^\s*(?:[❯›>▶]\s*)?(\d)[.)]\s+(.+?)\s*$/;
+    // Options that change a setting for good (every project, every agent) get a warning. No option is
+    // marked recommended: whether to let it read or run something depends on what it is (shown above).
+    const WIDE = /keep allowing|don'?t ask again|always|from now on|for all projects|for this session/i;
+    function parsePrompt(text) {
+        const lines = String(text || '').split('\n').map((l) => l.replace(/\s+$/, ''));
+        let last = -1;
+        for (let i = lines.length - 1; i >= 0; i--) if (PROMPT_OPT.test(lines[i])) { last = i; break; }
+        if (last < 0) return null;
+        let first = last;
+        while (first > 0 && (PROMPT_OPT.test(lines[first - 1]) || /^\s{3,}\S/.test(lines[first - 1]) && !/\?\s*$/.test(lines[first - 1]))) first--;
+        const opts = [];
+        for (let i = first; i <= last; i++) {
+            const m = lines[i].match(PROMPT_OPT);
+            if (m) opts.push({ key: m[1], text: m[2] });
+            else if (opts.length) opts[opts.length - 1].text += ' ' + lines[i].trim();
+        }
+        if (opts.length < 2) return null;
+        // the question: the closest line above ending in "?", else the closest non-empty line
+        let q = '';
+        for (let i = first - 1; i >= Math.max(0, first - 8); i--) {
+            const t = lines[i].trim().replace(/^[│|]\s*|\s*[│|]$/g, '');
+            if (!t || /^[─━-]{6,}$/.test(t)) continue;
+            if (/\?\s*$/.test(t)) { q = t; break; }
+            if (!q) q = t;
+        }
+        // a few lines of context above the question (which file, which command)
+        const ctx = [];
+        for (let i = first - 1; i >= Math.max(0, first - 14) && ctx.length < 3; i--) {
+            const t = lines[i].trim();
+            // the tool call it wants to make: Read(/path), Bash(git push …), or a "$ command" line
+            if (/^[A-Z][A-Za-z]*\(.+\)$/.test(t) || /^\$ \S/.test(t)) ctx.unshift(t);
+        }
+        return { q, opts, ctx: [...new Set(ctx)].slice(-2) };
+    }
+    async function screenOf(agent) {
+        const r = await fetch(`/api/scranton/teammate/${encodeURIComponent(agent)}/screen`, { headers: { 'X-Session-Token': window.SESSION_TOKEN || '' } }).then((x) => x.json()).catch(() => null);
+        return r && typeof r.text === 'string' ? r.text : null;
+    }
+    async function paintPrompt(box, agent, msgId) {
+        if (!box.isConnected) return;
+        const answered = (() => { try { return JSON.parse(localStorage.getItem('scranton-term-answers') || '{}')[msgId]; } catch (_) { return null; } })();
+        if (answered) {
+            box.innerHTML = `<div class="sc-choice-card done"><div class="sc-choice-q">${esc(answered.q || 'Answered')}</div>
+                <div class="sc-choice on"><span class="sc-choice-key">${esc(answered.key)}</span><span>${esc(answered.text)}</span></div></div>`;
+            return;
+        }
+        const scr = await screenOf(agent);
+        if (!box.isConnected) return;
+        const p = scr == null ? null : parsePrompt(scr.split('\n').slice(-40).join('\n'));
+        const open = `<button type="button" class="sc-choice-own" data-open>${scr == null ? 'Open terminal' : 'Open terminal to see more'}</button>`;
+        if (!p) {
+            box.innerHTML = scr == null
+                ? `<div class="sc-prompt-none">Couldn't read the terminal. ${open}</div>`
+                : `<div class="sc-prompt-none">Not waiting on a question anymore. ${open}</div>`;
+        } else {
+            box.innerHTML = `<div class="sc-choice-card">
+                <div class="sc-choice-q">${esc(p.q || 'Its terminal asks:')}</div>
+                ${p.ctx.length ? `<div class="sc-prompt-ctx">${p.ctx.map((c) => `<code>${esc(c)}</code>`).join('')}</div>` : ''}
+                ${p.opts.map((o) => `<button type="button" class="sc-choice" data-key="${esc(o.key)}">
+                    <span class="sc-choice-key">${esc(o.key)}</span><span>${esc(o.text)}${WIDE.test(o.text) ? ' <span class="sc-prompt-warn">changes a setting for good</span>' : ''}</span></button>`).join('')}
+                <div class="sc-choice-foot">${open}</div></div>`;
+            box.querySelectorAll('[data-key]').forEach((b) => b.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const o = p.opts.find((x) => x.key === b.dataset.key);
+                box.querySelectorAll('[data-key]').forEach((x) => { x.disabled = true; });
+                b.classList.add('on');
+                // Check the screen still shows this same question before pressing anything.
+                const now = await screenOf(agent);
+                const again = now && parsePrompt(now.split('\n').slice(-40).join('\n'));
+                if (!again || again.q !== p.q || again.opts.length !== p.opts.length) {
+                    toast('The question changed. Here is what it asks now.');
+                    paintPrompt(box, agent, msgId);
+                    return;
+                }
+                const r = await fetch(`/api/scranton/teammate/${encodeURIComponent(agent)}/keys`, {
+                    method: 'POST', headers: { 'X-Session-Token': window.SESSION_TOKEN || '', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: o.key }) }).then((x) => x.json()).catch(() => null);
+                if (!r || !r.ok) { toast("Couldn't answer. Open the terminal instead."); paintPrompt(box, agent, msgId); return; }
+                try {
+                    const a = JSON.parse(localStorage.getItem('scranton-term-answers') || '{}');
+                    a[msgId] = { q: p.q, key: o.key, text: o.text };
+                    localStorage.setItem('scranton-term-answers', JSON.stringify(a));
+                } catch (_) { /* ok */ }
+                paintPrompt(box, agent, msgId);
+            }));
+        }
+        box.querySelector('[data-open]')?.addEventListener('click', (e) => { e.stopPropagation(); window.scOpenAgent && window.scOpenAgent(agent, 'terminal'); });
+    }
     function paintStuck(el, msg) {
-        // Every "I stopped…" post from a teammate gets a way to look at its terminal.
-        if (!/^(I stopped|I hit an error|I can't read this yet)/i.test(String(msg.text || '').trim())) return;
+        const text = String(msg.text || '').trim();
+        if (!/^(I stopped|I hit an error|I can't read this yet)/i.test(text)) return;
         const col = el.querySelector('.chat-bubble');
-        if (!col || col.querySelector('.sc-stuck-btn')) return;
+        if (!col || col.querySelector('.sc-stuck-btn, .sc-prompt')) return;
+        const agent = String(msg.sender).replace(/-\d+$/, '');
+        const asking = /waiting on a question/i.test(text);
+        const fresh = Date.now() / 1000 - Number(msg.timestamp || 0) < 12 * 3600;
+        if (asking && fresh && Number(msg.id) >= (stuckNewest.get(agent) || 0)) {
+            stuckNewest.set(agent, Number(msg.id));
+            // an older notice from the same agent drops back to a plain link
+            document.querySelectorAll(`.sc-prompt[data-agent="${CSS.escape(agent)}"]`).forEach((old) => {
+                const b = document.createElement('button');
+                b.type = 'button'; b.className = 'sc-choice-own sc-stuck-btn';
+                b.textContent = 'Open terminal';
+                b.onclick = (e) => { e.stopPropagation(); window.scOpenAgent && window.scOpenAgent(agent, 'terminal'); };
+                old.replaceWith(b);
+            });
+            const box = document.createElement('div');
+            box.className = 'sc-prompt'; box.dataset.agent = agent;
+            box.innerHTML = '<div class="sc-prompt-none">Reading its terminal…</div>';
+            col.appendChild(box);
+            paintPrompt(box, agent, String(msg.id));
+            return;
+        }
         const b = document.createElement('button');
-        b.type = 'button'; b.className = 'sc-btn primary sc-stuck-btn';
+        b.type = 'button'; b.className = asking ? 'sc-choice-own sc-stuck-btn' : 'sc-btn primary sc-stuck-btn';
         b.textContent = 'Open terminal';
-        b.onclick = (e) => { e.stopPropagation(); window.scOpenAgent && window.scOpenAgent(String(msg.sender).replace(/-\d+$/, ''), 'terminal'); };
+        b.onclick = (e) => { e.stopPropagation(); window.scOpenAgent && window.scOpenAgent(agent, 'terminal'); };
         col.appendChild(b);
     }
     // Touch screens have no hover: tap a message to show its toolbar.
