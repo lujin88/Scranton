@@ -912,18 +912,45 @@
     let pausedChannels = new Set();
     const keptPaused = new Set();   // channels where you chose "Keep paused" for this pause
     const pauseHops = new Map();    // channel -> hand-offs, from the latest notice
+    let pauseKnown = false;          // false until the server first says which channels are paused
+    const newestPause = new Map();   // channel -> id of the latest pause notice
     function paintPause(el, msg) {
         const m = PAUSE_RE.exec(String(msg.text || ''));
         if (!m || el.classList.contains('sc-pause-note')) return;
-        pauseHops.set(msg.channel || 'general', Number(m[1]));
+        const ch = msg.channel || 'general';
+        const id = Number(msg.id);
+        if (!(newestPause.get(ch) >= id)) { newestPause.set(ch, id); pauseHops.set(ch, Number(m[1])); }
+        // A notice that just arrived means the server paused them; its status update can land a moment
+        // later, so don't show the fresh notice as "resumed" in between.
+        if (pauseKnown && newestPause.get(ch) === id && Date.now() / 1000 - Number(msg.timestamp || 0) < 15 && !pausedChannels.has(ch)) {
+            pausedChannels.add(ch);
+            renderPauseDock();
+        }
         el.classList.add('sc-pause-note');
-        el.innerHTML = `<span class="msg-text">${window.scIcon ? window.scIcon('pause-circle', 14) : ''} Agents paused after ${Number(m[1])} hand-offs without you</span>`;
+        el.dataset.scPauseCh = ch;
+        el.dataset.scPauseId = String(id);
+        el.dataset.scPauseN = String(Number(m[1]));
+        paintPauseText(el);
+    }
+    // Only the newest notice of a pause that is still on reads as "paused"; every other one says it's
+    // over (Lu, 11-09: the line stayed after they resumed and looked like they were still stopped).
+    function paintPauseText(el) {
+        const ch = el.dataset.scPauseCh, n = el.dataset.scPauseN;
+        const live = !pauseKnown || (pausedChannels.has(ch) && Number(el.dataset.scPauseId) === newestPause.get(ch));
+        const ic = window.scIcon ? window.scIcon(live ? 'pause-circle' : 'play-circle', 14) : '';
+        el.classList.toggle('sc-pause-over', !live);
+        el.innerHTML = `<span class="msg-text">${ic} ${live ? `Agents paused after ${n} hand-offs without you` : `Paused after ${n} hand-offs · resumed`}</span>`;
+    }
+    function refreshPauseNotes() {
+        document.querySelectorAll('.message.sc-pause-note').forEach((el) => { try { paintPauseText(el); } catch (_) {} });
     }
     window.scSetPaused = (list) => {
         if (!Array.isArray(list)) return;
         const now = new Set(list);
         for (const ch of keptPaused) if (!now.has(ch)) keptPaused.delete(ch);   // that pause is over
         pausedChannels = now;
+        pauseKnown = true;
+        refreshPauseNotes();
         renderPauseDock();
     };
     function renderPauseDock() {

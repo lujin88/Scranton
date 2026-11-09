@@ -854,7 +854,8 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 
 /* Loop-guard pause: a one-line note in the conversation, the decision docked above the box */
 .message.sc-pause-note { display: flex; justify-content: center; }
-.message.sc-pause-note .msg-text { display: inline-flex; align-items: center; gap: 6px; color: var(--ds-warn-text) !important; }
+.message.sc-pause-note .msg-text, .message.system-msg.sc-pause-note .msg-text { display: inline-flex; align-items: center; gap: 6px; color: var(--ds-warn-text) !important; }
+.message.system-msg.sc-pause-note.sc-pause-over .msg-text { color: var(--ds-text-3) !important; }
 #sc-pause-dock { display: flex; align-items: flex-start; gap: 10px; max-width: var(--ds-read-w); margin: 0 auto 8px; padding: 12px 14px;
     border-radius: var(--ds-r-card); background: var(--ds-raised); box-shadow: 0 0 0 1px rgba(var(--ink), 0.08), 0 4px 16px rgba(0, 0, 0, 0.06); }
 .sc-pd-ic { color: var(--ds-warn-text); display: grid; place-items: center; height: 20px; flex: none; }   /* centred on the title's line */
