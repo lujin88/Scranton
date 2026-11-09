@@ -329,6 +329,9 @@ def codex_shape(home: Path | None = None, files: int = 5) -> dict:
                     kinds[k] += 1
                     if _SENDER.search(line):
                         kinds[k + "/found"] += 1
+                        if _codex_call(line):
+                            for name in _SENDER.findall(line)[:3]:
+                                kinds["name:" + name[:20]] += 1
         except OSError:
             pass
     return dict(kinds)
