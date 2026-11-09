@@ -8,7 +8,44 @@
 (function () {
     const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const me = () => (typeof username === 'string' ? username : 'Lu');
-    const QUICK = ['👍', '❤️', '😂', '🎉', '👀', '✅', '🙏', '🔥'];
+    // Reactions, Slack-style: a row of the ones you use most (OK is in it from the start), then
+    // "+" for every emoji with search, in English or Chinese (Lu, 11-09: there was no OK).
+    const QUICK = ['👍', '👌', '✅', '❤️', '🎉', '👀', '🙏', '😂'];
+    const EMOJI = [
+        ['👍', 'thumbs up yes good 赞 好'], ['👎', 'thumbs down no 不 踩'], ['👌', 'ok okay fine 好的 可以 行'], ['🆗', 'ok button 好的'],
+        ['✅', 'done check yes 完成 对 好了'], ['☑️', 'check box 勾'], ['✔️', 'check mark 对'], ['❌', 'no wrong cross 不对 错'], ['⭕', 'circle yes 对'],
+        ['❤️', 'love heart 爱心 喜欢'], ['🎉', 'party tada celebrate 庆祝 恭喜'], ['🙌', 'raised hands hooray 好耶'], ['👏', 'clap applause 鼓掌'],
+        ['🙏', 'thanks please pray 谢谢 拜托'], ['💪', 'strong muscle 加油'], ['🤝', 'handshake deal 合作 成交'], ['👋', 'wave hi bye 你好 再见'],
+        ['✋', 'stop hand 停'], ['🤞', 'fingers crossed 祈祷 希望'], ['👀', 'eyes looking 看 在看'], ['🔥', 'fire hot 火 厉害'],
+        ['💯', 'hundred perfect 满分'], ['⭐', 'star 星 收藏'], ['✨', 'sparkles new 闪 新'], ['🚀', 'rocket ship launch 上线 发布'],
+        ['⚡', 'fast lightning 快'], ['💡', 'idea bulb 想法 主意'], ['📌', 'pin 置顶 记下'], ['📝', 'note memo 记录 笔记'],
+        ['🔍', 'search look 查 找'], ['⏳', 'waiting hourglass 等 稍等'], ['⏰', 'alarm time 时间 提醒'], ['🐛', 'bug 虫 问题'],
+        ['🛠️', 'tools fix 修 工具'], ['⚠️', 'warning 注意 警告'], ['🚫', 'no forbidden 禁止'], ['❓', 'question 问题 疑问'],
+        ['❗', 'important exclamation 重要'], ['➕', 'plus add 加 同意'], ['💬', 'comment speech 评论 说'], ['📎', 'attachment clip 附件'],
+        ['🔗', 'link 链接'], ['📈', 'chart up growth 增长'], ['📉', 'chart down 下降'], ['💰', 'money 钱'],
+        ['🎯', 'target goal 目标 准'], ['🧠', 'brain smart 聪明'], ['🤖', 'robot bot agent 机器人'], ['☕', 'coffee break 咖啡 休息'],
+        ['😀', 'grin smile happy 开心'], ['😄', 'smile happy 笑'], ['😂', 'joy laugh 哭笑 笑死'], ['🤣', 'rofl laugh 笑翻'],
+        ['😊', 'blush smile 微笑'], ['🙂', 'slight smile 嗯'], ['😉', 'wink 眨眼'], ['😍', 'heart eyes love 喜欢'],
+        ['🥰', 'love 爱'], ['😎', 'cool sunglasses 酷'], ['🤩', 'star struck wow 哇'], ['🥳', 'party 派对'],
+        ['🤔', 'thinking hmm 想想 思考'], ['🧐', 'monocle check 仔细看'], ['😐', 'neutral 无语'], ['😅', 'sweat smile 尴尬'],
+        ['😬', 'grimace oops 糟糕'], ['🙃', 'upside down 呵呵'], ['😮', 'wow surprised 惊讶'], ['😱', 'scream shock 震惊'],
+        ['😢', 'cry sad 难过'], ['😭', 'sob cry 大哭'], ['😤', 'triumph huff 生气'], ['😡', 'angry 愤怒'],
+        ['🤯', 'mind blown 炸裂'], ['😴', 'sleep tired 困'], ['🤷', 'shrug dunno 不知道'], ['🤦', 'facepalm 捂脸'],
+        ['🫡', 'salute yes sir 收到 遵命'], ['🫶', 'heart hands 比心'], ['🥲', 'smile tear 苦笑'], ['😇', 'angel innocent 天使'],
+        ['💚', 'green heart 绿心'], ['💙', 'blue heart 蓝心'], ['💜', 'purple heart 紫心'], ['🧡', 'orange heart 橙心'],
+        ['🌟', 'glowing star 闪耀'], ['🏆', 'trophy win 冠军'], ['🎨', 'art design palette 设计'], ['📱', 'phone mobile 手机'],
+        ['💻', 'laptop computer 电脑'], ['🖼️', 'picture image 图片'], ['🎬', 'video film 视频'], ['📦', 'package ship 包 打包'],
+    ];
+    const emojiUse = {
+        all() { try { return JSON.parse(localStorage.getItem('scranton-emoji-use') || '{}'); } catch (_) { return {}; } },
+        bump(e) { const a = this.all(); a[e] = (a[e] || 0) + 1; try { localStorage.setItem('scranton-emoji-use', JSON.stringify(a)); } catch (_) {} },
+        // your most used first, topped up with the defaults
+        row() {
+            const a = this.all();
+            const used = Object.keys(a).sort((x, y) => a[y] - a[x]);
+            return [...new Set([...used, ...QUICK])].slice(0, 8);
+        },
+    };
 
     const byId = new Map();          // id -> msg (as received, plus reactions)
     window.scMsgs = byId;            // read-only use elsewhere (who has not answered yet)
@@ -319,10 +356,43 @@
     }
 
     function openEmoji(anchor, id) {
-        const pop = popAt(anchor, QUICK.map((e) => `<button type="button" class="sc-emoji" data-emoji="${e}">${e}</button>`).join(''), 'sc-emoji-pop');
-        pop.addEventListener('click', (e) => {
-            const b = e.target.closest('[data-emoji]');
-            if (b) { react(id, b.dataset.emoji); closePops(); }
+        const btn = (e) => `<button type="button" class="sc-emoji" data-emoji="${e}" title="${esc((EMOJI.find((x) => x[0] === e) || ['', ''])[1].split(' ')[0])}">${e}</button>`;
+        const pop = popAt(anchor, `<div class="sc-emoji-row">${emojiUse.row().map(btn).join('')}
+            <button type="button" class="sc-emoji sc-emoji-more" data-more aria-label="More emoji" data-tip="More emoji">${window.scIcon ? window.scIcon('add', 18) : '+'}</button></div>`, 'sc-emoji-pop');
+        const pick = (e) => { emojiUse.bump(e); react(id, e); closePops(); };
+        pop.addEventListener('click', (ev) => {
+            const b = ev.target.closest('[data-emoji]');
+            if (b) { pick(b.dataset.emoji); return; }
+            if (!ev.target.closest('[data-more]') || pop.querySelector('.sc-emoji-all')) return;
+            // the full set, with search
+            const all = document.createElement('div');
+            all.className = 'sc-emoji-all';
+            all.innerHTML = `<input type="text" class="sc-emoji-search" placeholder="Search emoji (ok, 好, 完成…)" aria-label="Search emoji">
+                <div class="sc-emoji-grid">${EMOJI.map(([e]) => btn(e)).join('')}</div>
+                <div class="sc-emoji-empty" hidden>No match. Try another word.</div>`;
+            pop.appendChild(all);
+            pop.querySelector('[data-more]').classList.add('on');
+            const q = all.querySelector('input');
+            const grid = all.querySelector('.sc-emoji-grid');
+            q.addEventListener('input', () => {
+                const t = q.value.trim().toLowerCase();
+                let n = 0;
+                grid.querySelectorAll('[data-emoji]').forEach((b) => {
+                    const hit = !t || (EMOJI.find((x) => x[0] === b.dataset.emoji) || ['', ''])[1].toLowerCase().includes(t) || b.dataset.emoji === t;
+                    b.hidden = !hit; if (hit) n++;
+                });
+                all.querySelector('.sc-emoji-empty').hidden = n > 0;
+            });
+            q.addEventListener('keydown', (k) => {
+                if (k.isComposing || k.keyCode === 229) return;
+                if (k.key === 'Enter') { const f = grid.querySelector('[data-emoji]:not([hidden])'); if (f) { k.preventDefault(); pick(f.dataset.emoji); } }
+                if (k.key === 'Escape') { k.stopPropagation(); closePops(); }
+            });
+            // keep it on screen now that it's taller
+            const r = pop.getBoundingClientRect();
+            if (r.bottom > window.innerHeight - 8) pop.style.top = `${Math.max(8, window.innerHeight - 8 - r.height)}px`;
+            if (r.right > window.innerWidth - 8) pop.style.left = `${Math.max(8, window.innerWidth - 8 - r.width)}px`;
+            q.focus();
         });
     }
 
