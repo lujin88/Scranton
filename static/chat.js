@@ -738,6 +738,7 @@ function handleServerEvent(event) {
                     placeholder.remove();
                 }
             }
+            if (window.scOnEdited) window.scOnEdited(event);
         }
     } else if (event.type === 'clear') {
         if (window.scInboxClear) window.scInboxClear(event.channel || null);

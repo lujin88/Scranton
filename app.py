@@ -1143,6 +1143,17 @@ async def _handle_new_message(msg: dict):
     allowed_agent = session_engine.get_allowed_agent(channel) if session_engine and sender_is_agent else None
 
     # Scranton: if this message is a thread reply, woken agents answer in that thread.
+    thread_root = _thread_root_of(msg, channel)
+
+    for target in targets:
+        # Session guard: suppress out-of-turn agent triggers
+        if allowed_agent and target != allowed_agent:
+            continue
+        await _wake_teammate(target, chat_msg, channel, custom_prompt, thread_root)
+
+
+def _thread_root_of(msg: dict, channel: str):
+    """The id of the thread this message is in (None if it's top level)."""
     thread_root = None
     try:
         rt = msg.get("reply_to")
@@ -1156,19 +1167,43 @@ async def _handle_new_message(msg: dict):
             rt = parent.get("reply_to")
     except Exception:
         thread_root = None
+    return thread_root
 
+
+
+def _team_handles() -> set:
+    """Teammates a message can be handed to (Grok Bot reads its own mentions, so it isn't one)."""
+    return {str(a).lower() for a in (config or {}).get("agents", {})} - {_sc_grok.HANDLE}
+
+
+def _is_humans_chat(m) -> bool:
+    """A chat message you wrote (not a teammate's, the system's or Grok Bot's)."""
+    if not m or m.get("type", "chat") != "chat":
+        return False
+    who = str(m.get("sender", "")).lower()
+    agents_lc = {str(a).lower() for a in (config or {}).get("agents", {})}
+    return not (who in agents_lc or who.rsplit("-", 1)[0] in agents_lc or who in ("system", "grok"))
+
+
+def _added_mentions(old: str, new: str) -> list:
+    """Teammates @-ed in the new text but not in the old one."""
+    if not router:
+        return []
+    before = {m.lower() for m in router.parse_mentions(old or "")}
+    after = [m.lower() for m in router.parse_mentions(new or "")]
+    return sorted({m for m in after if m not in before} & _team_handles())
+
+async def _wake_teammate(target: str, chat_msg: str, channel: str, custom_prompt: str = "", thread_root=None):
+    """Hand one message to one teammate: start them if needed, add them to the channel, trigger."""
     import mcp_bridge
-    for target in targets:
+    if True:
         # Skip pending instances — they haven't been named/claimed yet
         if registry:
             inst = registry.get_instance(target)
             if inst and inst.get("state") == "pending":
-                continue
-        # Session guard: suppress out-of-turn agent triggers
-        if allowed_agent and target != allowed_agent:
-            continue
+                return
         if target == _sc_grok.HANDLE:
-            continue   # Grok Bot isn't a CLI here: it reads its mentions with `scranton.sh grok mentions`
+            return   # Grok Bot isn't a CLI here: it reads its mentions with `scranton.sh grok mentions`
         available = agents.is_available(target)
         if not available and target in (config or {}).get("agents", {}):
             # Scranton: @-ing a teammate who isn't running starts them; the message waits in
@@ -1176,12 +1211,12 @@ async def _handle_new_message(msg: dict):
             res = await asyncio.to_thread(_scranton_ops.ensure_running, [target], config)
             if target in res.get("failed", {}):
                 _report_start(res, channel, "mentioned")
-                continue
+                return
             if res.get("started"):
                 _report_start(res, channel, "mentioned")
         elif not available:
             store.add("system", f"{target} isn't on the team, so nobody got this.", msg_type="system", channel=channel)
-            continue
+            return
         elif not mcp_bridge.is_online(target):
             store.add("system", f"{_label_of(target)} isn't running. They'll get this when they start.", msg_type="system", channel=channel)
         if not channel.startswith("dm-") and _add_members(channel, [target]):
@@ -1562,23 +1597,45 @@ async def websocket_endpoint(websocket: WebSocket):
                 if not text or len(text) > 20000:
                     continue
                 cur = store.get_by_id(mid)
-                agents_lc = {str(a).lower() for a in (config or {}).get("agents", {})}
-                if (not cur or cur.get("type", "chat") != "chat"
-                        or str(cur.get("sender", "")).lower().rsplit("-", 1)[0] in agents_lc
-                        or str(cur.get("sender", "")).lower() in agents_lc
-                        or str(cur.get("sender", "")).lower() in ("system", "grok")):
+                if not _is_humans_chat(cur):
                     continue   # only your own chat messages
                 if text == cur.get("text"):
                     continue
+                # Teammates the edit @s for the first time never got this message: the page offers
+                # to send it to them (Lu, 11-09). Nobody is woken without that click.
+                added = _added_mentions(cur.get("text", ""), text)
                 import time as _tedit
                 updated = store.update_message(mid, {"text": text, "edited": _tedit.time()})
                 if updated:
-                    payload = json.dumps({"type": "edit", "message": updated})
+                    payload = json.dumps({"type": "edit", "message": updated, "added_mentions": added})
                     for client in list(ws_clients):
                         try:
                             await client.send_text(payload)
                         except Exception:
                             pass
+                continue
+
+            elif event.get("type") == "edit_resend":
+                # Scranton: after an edit added @someone, you chose to send the edited message to them.
+                try:
+                    mid = int(event.get("id"))
+                except (TypeError, ValueError):
+                    continue
+                cur = store.get_by_id(mid)
+                if not _is_humans_chat(cur):
+                    continue
+                mentioned = {m.lower() for m in router.parse_mentions(cur.get("text", ""))} if router else set()
+                to = [str(t).lower() for t in (event.get("to") or []) if isinstance(t, str)]
+                to = [t for t in dict.fromkeys(to) if t in mentioned and t in _team_handles()]
+                if not to:
+                    continue
+                ch = cur.get("channel", "general")
+                root = _thread_root_of(cur, ch)
+                note = f"{cur.get('sender')} (edited this message and added you): {cur.get('text', '')}"
+                for t in to:
+                    await _wake_teammate(t, note, ch, "", root)
+                store.add("system", "Sent the edited message to " + ", ".join(_label_of(t) for t in to) + ".",
+                          msg_type="system", channel=ch, reply_to=root)
                 continue
 
             elif event.get("type") == "todo_add":

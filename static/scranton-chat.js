@@ -441,6 +441,7 @@
                 if (t === String(m.text || '').trim()) { done(); return; }
                 if (!(window.ws && window.ws.readyState === WebSocket.OPEN)) { toast("Couldn't save: not connected"); return; }
                 window.ws.send(JSON.stringify({ type: 'edit_text', id, text: t }));
+                myEdits.add(id);
                 done();   // the server sends the edited message back and it's drawn again
             };
             ta.addEventListener('keydown', (e) => {
@@ -466,7 +467,46 @@
         e.preventDefault();
         startEdit(Number(last.id));
     });
+    // An edit that @s someone new: they never got this message. Offer to send it (one line under the
+    // message, until you answer); nothing is sent without the click (Lu, 11-09).
+    const myEdits = new Set();          // ids you edited in this window
+    const editOffers = new Map();       // id -> handles the edit added
+    window.scOnEdited = (ev) => {
+        const m = ev && ev.message;
+        if (!m || m.id == null) return;
+        const id = Number(m.id);
+        if (!myEdits.has(id)) return;   // another window's edit asks there
+        myEdits.delete(id);
+        const added = Array.isArray(ev.added_mentions) ? ev.added_mentions : [];
+        if (added.length) editOffers.set(id, added); else editOffers.delete(id);
+        document.querySelectorAll(`.message[data-id="${id}"]`).forEach((el) => { try { paintEditOffer(el, m); } catch (_) {} });
+    };
+    function paintEditOffer(el, msg) {
+        el.querySelector('.sc-edit-offer')?.remove();
+        const who = editOffers.get(Number(msg.id));
+        if (!who || !who.length) return;
+        const names = who.map((h) => labelOf(h)).join(', ');
+        const bar = document.createElement('div');
+        bar.className = 'sc-edit-offer';
+        bar.innerHTML = `<span>${esc(names)} ${who.length > 1 ? "haven't" : "hasn't"} seen this message. Send the edited version?</span>
+            <button type="button" class="sc-btn sm primary" data-eo="send">Send</button>
+            <button type="button" class="sc-pd-link" data-eo="no">Not now</button>`;
+        bar.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const a = e.target.closest('[data-eo]')?.dataset.eo;
+            if (!a) return;
+            if (a === 'send') {
+                if (!(window.ws && window.ws.readyState === WebSocket.OPEN)) { toast("Couldn't send: not connected"); return; }
+                window.ws.send(JSON.stringify({ type: 'edit_resend', id: Number(msg.id), to: who }));
+            }
+            editOffers.delete(Number(msg.id));
+            document.querySelectorAll(`.message[data-id="${Number(msg.id)}"] .sc-edit-offer`).forEach((x) => x.remove());
+        });
+        const col = el.querySelector('.msg-text')?.parentElement || el;
+        col.appendChild(bar);
+    }
     function paintEdited(el, msg) {
+        try { paintEditOffer(el, msg); } catch (_) { /* never break */ }
         if (!msg.edited) return;
         const t = el.querySelector('.bubble-header .msg-time');
         if (!t || t.parentElement.querySelector('.sc-edited')) return;

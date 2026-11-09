@@ -1389,3 +1389,4 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-edit-bar { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
 .sc-edit-bar span { margin-right: auto; font-size: 12px; color: var(--ds-text-2); }
 .sc-edited { margin-left: 6px; font-size: 11px; color: var(--ds-text-2); }
+.sc-edit-offer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; color: var(--ds-text-2); }
