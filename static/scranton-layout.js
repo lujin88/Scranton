@@ -170,7 +170,7 @@
                 ${row('description', 'Description', d.description || '', 'Add a description')}
                 ${d.started ? `<div class="sc-ch-row"><div class="sc-ch-rt">Started</div><div class="sc-ch-rv">${esc(fmtDate(d.started))}</div></div>` : ''}
                 ${(() => { const ms = (((window.scChannelMembers && window.scChannelMembers()) || {})[ch] || []).filter((m) => team()[m]);
-                    return `<button type="button" class="sc-ch-row sc-ch-members" data-i="members"><div class="sc-ch-rt">Members<span class="sc-ch-edit">View</span></div>
+                    return `<button type="button" class="sc-ch-row sc-ch-members" data-i="members"><div class="sc-ch-rt">Members<span class="sc-ch-edit" data-i="add-people">Add people</span></div>
                         <div class="sc-ch-avs">${ms.slice(0, 6).map((m) => `<span class="sc-ch-av">${window.scAvatarHtml ? window.scAvatarHtml(m) : ''}</span>`).join('')}<em>${ms.length + 1} with you</em></div></button>`; })()}
             </div>
             <h3 class="sc-ch-sub">Files</h3>
@@ -209,6 +209,7 @@
         const i = t.closest('[data-i]')?.dataset.i;
         const ch = window.activeChannel || 'general';
         if (i === 'close') return toggleInfo(false);
+        if (i === 'add-people') return window.scAddPeople ? window.scAddPeople() : document.getElementById('sc-members-btn')?.click();
         if (i === 'members') return document.getElementById('sc-members-btn')?.click();
         if (i === 'edit') return fillAbout(ch, t.closest('[data-key]').dataset.key);
         if (i === 'edit-cancel') return fillAbout(ch);
@@ -293,7 +294,7 @@
             box.innerHTML = `<span class="sc-empty-av">${window.scAvatarHtml ? window.scAvatarHtml(h) : ''}</span><h3>${esc(label(h))}</h3>
                 ${t.role ? `<p>${esc(String(t.role).split(/[|｜:：]/)[0].trim().slice(0, 80))}</p>` : ''}<p class="sc-empty-hint">Ask anything. They start when you send.</p>`;
         } else {
-            box.innerHTML = `<span class="sc-empty-av sc-empty-hash">#</span><h3>${esc(ch)}</h3><p class="sc-empty-hint">@ someone to give them a task.</p>`;
+            box.innerHTML = `<span class="sc-empty-av sc-empty-hash">#</span><h3>${esc(ch)}</h3><p class="sc-empty-hint">@ someone to give them a task.</p>${ch !== 'general' && !ch.startsWith('dm-') && !((((window.scChannelMembers && window.scChannelMembers()) || {})[ch] || []).length) ? `<button type="button" class="sc-btn primary sc-empty-add" onclick="window.scAddPeople && window.scAddPeople()">${window.scIcon ? window.scIcon('add', 16) : '+'}Add people</button>` : ''}`;
         }
     }
 

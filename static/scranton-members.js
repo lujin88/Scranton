@@ -79,6 +79,8 @@
         draft = null; order = null; draftCh = null; editing = false;
     }
     function togglePanel() { panelOpen() ? closePanel(true) : renderPanel(); }
+    // Straight to choosing people (Lu, 11-09: "我哪里可以增加队员？"): from channel details and an empty channel.
+    window.scAddPeople = () => { editing = true; draft = null; renderPanel(); };
 
     function stateText(h) {
         const s = state(h);
@@ -97,7 +99,7 @@
         return `
             <div class="sc-mp-head">
                 <div class="sc-mp-title"><b>#${esc(ch)}</b><span>${inCh.length + 1} members</span></div>
-                <button type="button" class="sc-btn sm" data-edit="1">Add people</button>
+                <button type="button" class="sc-btn sm primary sc-mp-add" data-edit="1">${window.scIcon ? window.scIcon('add', 14) : '+'}Add people</button>
             </div>
             <div class="sc-mp-view">
                 <div class="sc-mv-row me"><span class="sc-mv-av">${window.scMyAvatarHtml ? window.scMyAvatarHtml() : ''}</span>
