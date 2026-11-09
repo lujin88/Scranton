@@ -442,7 +442,11 @@ def model_label(pid: str, model: str) -> str:
         if m and m[0] == (model or "") and model:
             return m[1]
     if model:
-        return model
+        # ids the app lists itself (e.g. Cursor's "cursor-grok-4.6-high"): make them readable
+        m = re.sub(r"^cursor-", "", model)
+        m = re.sub(r"-(high|medium|low|xhigh|max|none|minimal)(-fast)?$", lambda x: " Fast" if x.group(2) else "", m)
+        parts = [p for p in re.split(r"[-_]", m) if p]
+        return " ".join(p.upper() if p in ("gpt", "glm") else p.capitalize() if p.isalpha() else p for p in parts) or model
     return PROVIDERS.get(pid, {}).get("name", "").split(" (")[0]
 
 
