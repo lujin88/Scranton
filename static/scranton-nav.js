@@ -218,7 +218,7 @@
     const inboxOpen = () => !document.getElementById('sc-inbox')?.classList.contains('hidden');
     function paintMarkAll() { /* the button lives in the list now and is drawn only when something needs you */ }
 
-    let filterKind = 'all';  // default: everything, so nothing that needs you hides in another tab
+    let filterKind = 'mention';  // default: Mentions (Lu, 11-09). Asks count only when they @ you, so they're all here
     function relTime(m) {
         const ts = Number(m.timestamp) * (Number(m.timestamp) < 1e12 ? 1000 : 1);
         if (!ts) return m.time || '';
