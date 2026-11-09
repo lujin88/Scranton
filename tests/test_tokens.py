@@ -48,6 +48,28 @@ class Tokens(unittest.TestCase):
             self.assertEqual(r["not_counted"], ["web"])
             self.assertTrue(r["tips"])
 
+    def test_incremental_no_double_count(self):
+        now = time.time()
+        iso = lambda t: time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(t))  # noqa: E731
+        with tempfile.TemporaryDirectory() as d:
+            home = Path(d)
+            cx = home / ".codex" / "sessions" / "2026"; cx.mkdir(parents=True)
+            f = cx / "rollout-b.jsonl"
+            call = {"timestamp": iso(now - 40), "type": "response_item",
+                    "payload": {"type": "function_call", "arguments": json.dumps({"sender": "visual"})}}
+            tc = lambda n: {"timestamp": iso(now - 30), "type": "event_msg", "payload": {"type": "token_count",  # noqa: E731
+                            "info": {"last_token_usage": {"input_tokens": n, "cached_input_tokens": 0, "output_tokens": 0}}}}
+            f.write_text(json.dumps(call) + "\n" + json.dumps(tc(100)))       # last line not yet terminated
+            team = {"visual": {"command": "codex"}}
+            tk._cache.clear(); tk._files_seen.clear()
+            self.assertEqual(tk.build([], team, "Lu", 7, home=home)["total"], 100)
+            with open(f, "a") as fh:
+                fh.write("\n" + json.dumps(tc(5)) + "\n")
+            tk._cache.clear()
+            self.assertEqual(tk.build([], team, "Lu", 7, home=home)["total"], 105)
+            tk._cache.clear()
+            self.assertEqual(tk.build([], team, "Lu", 7, home=home)["total"], 105)
+
 
 if __name__ == "__main__":
     unittest.main()

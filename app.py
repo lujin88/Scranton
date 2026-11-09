@@ -2897,14 +2897,39 @@ _report_cache: dict = {}
 import scranton_tokens as _sc_tokens  # noqa: E402
 
 
+_tok_last: dict = {}
+_tok_jobs: dict = {}
+
+
 @app.get("/api/scranton/report/tokens")
 async def scranton_report_tokens(days: int = 7):
     """Tokens from Claude Code / Codex session logs on this Mac, per teammate and per task."""
     days = max(1, min(int(days), 31))
-    owner = str(room_settings.get("username") or config.get("team", {}).get("owner", "Lu"))
-    team = {n: a for n, a in config.get("agents", {}).items()}
-    data = await asyncio.to_thread(_sc_tokens.build, store.get_since(-1), team, owner, days)
-    return JSONResponse(data)
+    last = _tok_last.get(days)
+    if last and _time_pr.time() - last[0] < 120:
+        return JSONResponse(last[1])
+    task = _tok_jobs.get(days)
+    if task is None or task.done():
+        owner = str(room_settings.get("username") or config.get("team", {}).get("owner", "Lu"))
+        team = {n: a for n, a in config.get("agents", {}).items()}
+
+        async def run():
+            t0 = _time_pr.time()
+            data = await asyncio.to_thread(_sc_tokens.build, store.get_since(-1), team, owner, days)
+            data = {**data, "took_s": round(_time_pr.time() - t0, 1)}
+            _tok_last[days] = (_time_pr.time(), data)
+            return data
+        task = _tok_jobs[days] = asyncio.create_task(run())
+    try:
+        # first read of big logs can take a while: don't hold the request (or the page) on it
+        return JSONResponse(await asyncio.wait_for(asyncio.shield(task), 6))
+    except asyncio.TimeoutError:
+        if last:
+            return JSONResponse({**last[1], "stale": True})
+        return JSONResponse({"pending": True})
+    except Exception as e:  # noqa: BLE001
+        log.warning("token report failed: %s", e)
+        return JSONResponse({"available": False, "error": str(e)[:200]})
 
 
 @app.post("/api/scranton/report/settings")

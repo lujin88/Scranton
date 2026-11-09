@@ -47,72 +47,105 @@ def _files(base: Path, pattern: str, since: float):
     return out
 
 
-def _claude_sessions(since: float, home: Path):
-    """Yield (agent_or_None, [(ts, fresh_in, cached_in, out)]) per Claude Code session file."""
-    for f in _files(home / ".claude" / "projects", "*/*.jsonl", since):
-        seen: dict = {}
-        senders: Counter = Counter()
+# Per-file parse cache: logs only grow, so each call reads just the new tail.
+# path -> {"ino", "off", "senders": Counter, "rows": {key: row}}
+_files_seen: dict = {}
+
+
+def _scan(f: Path, parse_line):
+    """Read f from where we stopped last time; return (senders, rows). Partial last lines wait."""
+    try:
+        st = f.stat()
+    except OSError:
+        return None
+    c = _files_seen.get(str(f))
+    if not c or c["ino"] != st.st_ino or st.st_size < c["off"]:
+        c = {"ino": st.st_ino, "off": 0, "senders": Counter(), "rows": {}}
+        _files_seen[str(f)] = c
+    if st.st_size > c["off"]:
         try:
-            with open(f, encoding="utf-8", errors="replace") as fh:
-                for line in fh:
-                    if "sender" in line:
-                        senders.update(_SENDER.findall(line))
-                    if '"usage"' not in line:
-                        continue
-                    try:
-                        d = json.loads(line)
-                    except ValueError:
-                        continue
-                    msg = d.get("message") or {}
-                    u = msg.get("usage") or {}
-                    if not u or d.get("type") != "assistant":
-                        continue
-                    t = _ts(d.get("timestamp"))
-                    if t < since:
-                        continue
-                    key = (msg.get("id"), d.get("requestId"))   # streamed chunks repeat the same usage
-                    seen[key] = (t,
-                                 int(u.get("input_tokens") or 0) + int(u.get("cache_creation_input_tokens") or 0),
-                                 int(u.get("cache_read_input_tokens") or 0),
-                                 int(u.get("output_tokens") or 0))
+            with open(f, "rb") as fh:
+                fh.seek(c["off"])
+                chunk = fh.read()
         except OSError:
+            return c["senders"], c["rows"]
+        cut = chunk.rfind(b"\n") + 1
+        pos = c["off"]
+        for raw in chunk[:cut].split(b"\n")[:-1]:
+            line = raw.decode("utf-8", "replace")
+            if "sender" in line:
+                c["senders"].update(_SENDER.findall(line))
+            r = parse_line(line, pos)
+            if r:
+                c["rows"][r[0]] = r[1]
+            pos += len(raw) + 1
+        c["off"] += cut
+        # an unterminated last line: count it if it's whole JSON, but read it again next time
+        # (rows are keyed, so the re-read replaces it rather than adding)
+        tail = chunk[cut:].decode("utf-8", "replace")
+        if tail.strip():
+            r = parse_line(tail, c["off"])
+            if r:
+                c["rows"][r[0]] = r[1]
+    return c["senders"], c["rows"]
+
+
+def _claude_line(line, pos):
+    if '"usage"' not in line:
+        return None
+    try:
+        d = json.loads(line)
+    except ValueError:
+        return None
+    msg = d.get("message") or {}
+    u = msg.get("usage") or {}
+    if not u or d.get("type") != "assistant":
+        return None
+    # streamed chunks repeat the same usage: keep one per (message, request)
+    return (msg.get("id"), d.get("requestId")), (
+        _ts(d.get("timestamp")),
+        int(u.get("input_tokens") or 0) + int(u.get("cache_creation_input_tokens") or 0),
+        int(u.get("cache_read_input_tokens") or 0),
+        int(u.get("output_tokens") or 0))
+
+
+def _codex_line(line, pos):
+    if "token_count" not in line:
+        return None
+    try:
+        d = json.loads(line)
+    except ValueError:
+        return None
+    p = d.get("payload") or {}
+    if p.get("type") != "token_count":
+        return None
+    u = ((p.get("info") or {}).get("last_token_usage")) or {}
+    if not u:
+        return None
+    cached = int(u.get("cached_input_tokens") or 0)
+    return pos, (_ts(d.get("timestamp")), max(0, int(u.get("input_tokens") or 0) - cached), cached,
+                         int(u.get("output_tokens") or 0) + int(u.get("reasoning_output_tokens") or 0))
+
+
+def _sessions(base: Path, pattern: str, since: float, parse_line, app: str):
+    """Yield (agent_or_None, [(ts, fresh_in, cached_in, out)], app) per session file."""
+    for f in _files(base, pattern, since):
+        got = _scan(f, parse_line)
+        if not got:
             continue
-        if seen:
-            yield (senders.most_common(1)[0][0] if senders else None), list(seen.values()), "claude"
+        senders, rows = got
+        rows = [r for r in rows.values() if r[0] >= since]
+        if rows:
+            yield (senders.most_common(1)[0][0] if senders else None), rows, app
+
+
+def _claude_sessions(since: float, home: Path):
+    return _sessions(home / ".claude" / "projects", "*/*.jsonl", since, _claude_line, "claude")
 
 
 def _codex_sessions(since: float, home: Path):
     base = Path(os.environ.get("CODEX_HOME") or home / ".codex") / "sessions"
-    for f in _files(base, "**/rollout-*.jsonl", since):
-        rows = []
-        senders: Counter = Counter()
-        try:
-            with open(f, encoding="utf-8", errors="replace") as fh:
-                for line in fh:
-                    if "sender" in line:
-                        senders.update(_SENDER.findall(line))
-                    if "token_count" not in line:
-                        continue
-                    try:
-                        d = json.loads(line)
-                    except ValueError:
-                        continue
-                    p = d.get("payload") or {}
-                    if p.get("type") != "token_count":
-                        continue
-                    u = ((p.get("info") or {}).get("last_token_usage")) or {}
-                    if not u:
-                        continue
-                    t = _ts(d.get("timestamp"))
-                    if t < since:
-                        continue
-                    cached = int(u.get("cached_input_tokens") or 0)
-                    rows.append((t, max(0, int(u.get("input_tokens") or 0) - cached), cached,
-                                 int(u.get("output_tokens") or 0) + int(u.get("reasoning_output_tokens") or 0)))
-        except OSError:
-            continue
-        if rows:
-            yield (senders.most_common(1)[0][0] if senders else None), rows, "codex"
+    return _sessions(base, "**/rollout-*.jsonl", since, _codex_line, "codex")
 
 
 def build(msgs: list[dict], team: dict, owner: str, days: int, home: Path | None = None) -> dict:
@@ -120,7 +153,7 @@ def build(msgs: list[dict], team: dict, owner: str, days: int, home: Path | None
     since = time.time() - days * 86400
     key = (days, len(msgs), msgs[-1]["id"] if msgs else -1)
     hit = _cache.get(key)
-    if hit and time.time() - hit[0] < 600:
+    if hit and time.time() - hit[0] < 120:
         return hit[1]
 
     handles = {h.lower() for h in team}

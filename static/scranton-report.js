@@ -108,6 +108,12 @@
         let t;
         try { t = await api(`/api/scranton/report/tokens?days=${days}`); } catch (_) { t = null; }
         if (want !== days || !box.isConnected) return;
+        if (t && t.pending) {
+            // first read of the logs runs on the server in the background; check back
+            box.innerHTML = '<p class="sc-rp-muted">Reading Claude Code and Codex logs on this Mac… the first time takes a minute.</p>';
+            setTimeout(renderTokens, 4000);
+            return;
+        }
         if (!t || !t.available) {
             box.innerHTML = '<p class="sc-rp-muted">No token data found for this period. Scranton reads it from Claude Code and Codex on this Mac.</p>';
             return;
