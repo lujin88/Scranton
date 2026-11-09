@@ -19,6 +19,7 @@ How it works:
 """
 
 import json
+import re as _re_sub
 import os
 import re
 import shutil
@@ -909,6 +910,37 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
 # Main
 # ---------------------------------------------------------------------------
 
+
+def _subagent_args(agent_cfg: dict, command) -> list[str]:
+    """Sub-agents for this teammate only (Lu, 11-10: cheaper models for bulk read-only work).
+    `subagents` in its config block points at files in roles/subagents/:
+    a .json for Claude Code (passed as --agents), .toml files for Codex (one custom agent each,
+    passed as -c agents.<name>.* so nothing is written to ~/.codex or the project)."""
+    files = agent_cfg.get("subagents") or []
+    if isinstance(files, str):
+        files = [files]
+    provider = _provider_from_command(command)
+    out: list[str] = []
+    for rel in files:
+        path = (ROOT / str(rel)).resolve()
+        if not path.is_file() or ROOT.resolve() not in path.parents:
+            continue
+        try:
+            if provider == "claude" and path.suffix == ".json":
+                data = json.loads(path.read_text("utf-8"))
+                if isinstance(data, dict) and data:
+                    out += ["--agents", json.dumps(data, ensure_ascii=False)]
+            elif provider == "codex" and path.suffix == ".toml":
+                import tomllib
+                d = tomllib.loads(path.read_text("utf-8"))
+                name = str(d.get("name") or "")
+                if _re_sub.fullmatch(r"[a-z][a-z0-9_]{0,40}", name) and d.get("description"):
+                    out += ["-c", f"agents.{name}.description={json.dumps(str(d['description']), ensure_ascii=False)}",
+                            "-c", f"agents.{name}.config_file={json.dumps(str(path))}"]
+        except (OSError, ValueError):
+            continue
+    return out
+
 def main():
     # Scranton: Stop/Restart send SIGTERM; exit through `finally` so we deregister cleanly.
     import signal as _signal
@@ -946,6 +978,7 @@ def main():
     # scranton.sh passes the teammate's own git worktree here (see "worktree" in config.toml)
     cwd = os.environ.get("SCRANTON_CWD") or agent_cfg.get("cwd", ".")
     command = agent_cfg.get("command", agent)
+    extra = [*extra, *_subagent_args(agent_cfg, command)]
     data_dir = ROOT / config.get("server", {}).get("data_dir", "./data")
     _HANDOVER["command"] = command
     _HANDOVER["handoff_dir"] = data_dir / "handoffs"

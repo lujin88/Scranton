@@ -120,6 +120,7 @@ color = "#a6da95"
 role = "Code Review & QA: reviews PRs and merges code PRs with scripts/merge-pr.sh"
 avatar = "04-code-review-qa-snake.jpg"
 role_card = "roles/code-review-qa.md"
+subagents = "roles/subagents/qa.json"   # test-runner (Haiku), diff-scout (Sonnet): read-only helpers
 
 [agents.visual]           # 原设定是 GPT
 label = "视觉设计师"
@@ -140,6 +141,7 @@ color = "#eed49f"
 role = "Visual QA: checks designs and pages against the design system and bar.md"
 avatar = "06-visual-qa-lynx.jpg"
 role_card = "roles/visual-qa.md"
+subagents = ["roles/subagents/visualqa-shots.toml"]   # shot_checker: one per screen width, low effort
 
 [agents.motion]
 label = "动效设计师"

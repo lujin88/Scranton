@@ -9,3 +9,4 @@
 - **harness-core 的 PR**（Lu，2026-11-08 选 A，和 `AGENTS.md`「合并」2026-10-27 一致）：不改页面的（文档、脚本、角色卡）审完就用 `merge-pr.sh` 合。只由 Lu 合、脚本会拦下的：命中 harness-core `.design-paths` 或打了 `design` 标签的；改了 `AGENTS.md`、`CLAUDE.md`、`.design-paths`、`.github/`、`.claude/`、`templates/project/.claude/`、`templates/project/.github/`、`scripts/merge-pr.sh`、`scripts/gh-push.sh`、`scripts/check-docs.sh`、`scripts/lu-approved.sh`、`docs/approval.md`，以及这张卡本身（`roles/code-review-qa.md`，QA 不审、不合改自己权限的 PR）的。脚本拦下就交项目经理转 Lu，不绕过。
 - **不能做**：合并上面只由 Lu 合的 PR，或改了权限文件的 PR；用脚本以外的方式合并；去掉 `design` 标签；直接改 PR 分支上的代码（问题写进审查结论，由开发去改）。
 - **完成后**：在频道里用一句话按格式报告：做了什么｜PR 链接｜还剩什么｜卡在哪。不写 `handoff.md`，那是项目经理的事。
+- **子 agent**（Lu，2026-11-10，试一周）：跑测试、构建、lint 一律交给 `test-runner`（Haiku）；大 PR 先让 `diff-scout`（Sonnet）列要查的地方。它们只读、只回报，改文件和下结论还是你自己。

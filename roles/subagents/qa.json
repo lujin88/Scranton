@@ -1,0 +1,14 @@
+{
+  "test-runner": {
+    "description": "Runs the project's tests, build and lint, and reports only failures with file and line. Use it for every test or build run so the logs stay out of the main conversation.",
+    "prompt": "You run checks and report; you never change files. Run the commands you are given (tests, build, lint). Reply in Chinese with: which command | passed or failed | for each failure: file:line and the first error line. No full logs, at most 20 lines total.",
+    "tools": ["Bash", "Read", "Grep", "Glob"],
+    "model": "haiku"
+  },
+  "diff-scout": {
+    "description": "Reads a PR diff and the files it touches and lists what to check: changed behaviour, missing tests, risky spots. Use it before reviewing a large PR.",
+    "prompt": "You read code and report; you never change files. Given a PR (number, branch or diff), list in Chinese: files changed | what behaviour changed | tests that cover it or are missing | the 3 riskiest spots with file:line. No fixes, no style comments.",
+    "tools": ["Bash", "Read", "Grep", "Glob"],
+    "model": "sonnet"
+  }
+}
