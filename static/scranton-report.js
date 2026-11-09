@@ -73,6 +73,9 @@
                 <div><b>${w.avg_minutes == null ? '–' : w.avg_minutes < 60 ? w.avg_minutes + ' min' : Math.round(w.avg_minutes / 6) / 10 + ' h'}</b><span>Your average answer time</span></div>
             </div>
 
+            <h2>Tokens: what used the most</h2>
+            <div id="sc-rp-tokens"><p class="sc-rp-muted">Counting tokens…</p></div>
+
             <h2>Pull requests</h2>
             ${(r.shipped || []).length ? `<div class="sc-rp-list">${r.shipped.map((p) => `<a class="sc-rp-row" href="${esc(p.url)}" target="_blank" rel="noopener">
                 <span class="sc-rp-ic">${ic('git-pr', 18)}</span>
@@ -80,9 +83,6 @@
                 <span class="sc-rp-tag ${p.merged ? 'ok' : ''}"${p.checked === false ? ' title="Not checked on GitHub, taken from the chat"' : ''}>${p.merged ? 'Merged' : 'Open'}${p.checked === false ? '?' : ''}</span></a>`).join('')}</div>
                ${c.unverified ? `<p class="sc-rp-muted">${c.unverified === (r.shipped || []).length ? 'GitHub couldn\'t be reached, so' : `For ${c.unverified} of these`} "Merged" is taken from the chat, not checked on GitHub (marked ?).</p>` : ''}`
                 : '<p class="sc-rp-muted">No pull requests in this period yet. They show up here when an agent posts a PR link.</p>'}
-
-            <h2>Tokens</h2>
-            <div id="sc-rp-tokens"><p class="sc-rp-muted">Counting tokens…</p></div>
 
             <h2>Who worked</h2>
             ${(r.work || []).length ? `<div class="sc-rp-list">${r.work.map((x) => `<div class="sc-rp-row static">

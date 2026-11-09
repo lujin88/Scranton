@@ -702,6 +702,18 @@ def configure(cfg: dict, session_token: str = ""):
 
     threading.Thread(target=_background_checks, daemon=True).start()
 
+    # Report → Tokens: read the Claude Code / Codex logs once in the background after a start, so
+    # the Report doesn't wait ~30 s the first time (every update restarts the server).
+    def _warm_tokens():
+        import time as _tw
+        _tw.sleep(20)
+        try:
+            owner = str(room_settings.get("username") or config.get("team", {}).get("owner", "Lu"))
+            _sc_tokens.build(store.get_since(-1), dict(config.get("agents", {})), owner, 7)
+        except Exception:
+            _log_rate_limited("token warm-up failed")
+    threading.Thread(target=_warm_tokens, daemon=True).start()
+
     # --- Schedule runner: fires due scheduled prompts every 30s ---
     def _schedule_runner():
         import time as _time
