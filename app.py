@@ -1122,6 +1122,11 @@ async def _handle_new_message(msg: dict):
         else:
             targets.append(t)
     targets = list(dict.fromkeys(targets))  # dedupe, preserve order
+    # Only the project manager @s Lu (Lu, 11-10). A teammate who opens with @Lu outside a DM
+    # reaches the project manager instead: it isn't in Lu's Mentions, and the PM decides
+    # whether it goes on her list.
+    if _lu_ask_for_pm(sender, text, channel) and _mentions_from() not in targets:
+        targets.append(_mentions_from())
 
     if router.is_paused(channel):
         # Only emit the loop guard notice once per pause
@@ -1153,6 +1158,30 @@ async def _handle_new_message(msg: dict):
         if allowed_agent and target != allowed_agent:
             continue
         await _wake_teammate(target, chat_msg, channel, custom_prompt, thread_root)
+
+
+def _mentions_from() -> str:
+    """[team] mentions_from: the one teammate whose @owner reaches the owner's Mentions
+    ("" = anyone). Lu's own choice is "pm" (11-10); it's a setting, not a rule of Scranton."""
+    return str((config or {}).get("team", {}).get("mentions_from", "") or "").strip().lower()
+
+
+_LEAD_RE = _re.compile(r"^\s*(?:@[\w-]+[\s,，、]*)+")
+
+
+def _lu_ask_for_pm(sender: str, text: str, channel: str) -> bool:
+    """True when a teammate other than [team] mentions_from opens a channel message with @owner."""
+    who = str(sender or "").lower()
+    owner = str(room_settings.get("username", "") or "").lower()
+    via = _mentions_from()
+    if (not owner or not via or who in ("", "system", owner) or _re.sub(r"-\d+$", "", who) == via
+            or str(channel or "").startswith("dm-")
+            or via not in ((config or {}).get("agents") or {})):
+        return False
+    lead = _LEAD_RE.match(str(text or ""))
+    if not lead:
+        return False
+    return bool(_re.search(r"(^|[^\w])@(" + _re.escape(owner) + r"|lu)(?![\w-])", lead.group(0), _re.I))
 
 
 def _thread_root_of(msg: dict, channel: str):
@@ -2693,6 +2722,7 @@ def _scranton_team() -> dict:
             # what the @ list shows on the right: model and effort, not the handle
             "model_name": _sc_team.model_label(_sc_team.provider_of(command), str(cfg.get("model", "") or "")),
             "effort": str(cfg.get("effort", "") or ""),
+            "mentions_owner": name.lower() == _mentions_from(),
         }
     return out
 

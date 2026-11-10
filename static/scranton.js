@@ -336,7 +336,7 @@
         addAttachButton(chips);
         addShortcutButton(chips);
         renderTeam();
-        loadTeam();
+        window.scTeamReady = loadTeam();   // Activity waits for it: who may @ you is in the team info
 
         // Tap outside a drawer closes it; picking a channel closes the channel drawer.
         document.addEventListener('click', (e) => {

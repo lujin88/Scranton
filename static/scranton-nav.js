@@ -162,8 +162,14 @@
     // An @Lu further down ("…then send it to @Lu") is talk about you, not to you.
     function addressedToMe(m) {
         if (isDm(m.channel)) return true;
-        return mentionsMe(leadOf(m.text));
+        return fromPm(m) && mentionsMe(leadOf(m.text));
     }
+    // [team] mentions_from in config.toml (Lu's: pm). Nobody set: anyone's @Lu counts.
+    const fromPm = (m) => {
+        const team = (window.scGetTeam && window.scGetTeam()) || {};
+        const via = Object.keys(team).find((k) => team[k] && team[k].mentions_owner);
+        return !via || String(m.sender || '').toLowerCase().replace(/-\d+$/, '') === via;
+    };
     const leadOf = (text) => (/^\s*(?:@[\w-]+[\s,，、]*)+/.exec(String(text || '')) || [''])[0];
 
     function mentionsMe(text) {
@@ -203,7 +209,9 @@
         const kinds = new Set();
         // Only when the message opens with @Lu, like the "needs you" count. "@Lu" further down is talk
         // about you, often "静默时段不 @Lu" (Lu, 11-09: why are these under Mentions?). They stay in All.
-        if (mentionsMe(leadOf(msg.text))) kinds.add('mention');
+        // And only from the project manager (Lu, 11-10: "只让 PM @我，别人 @PM"): anyone else's @Lu
+        // went to the PM (the server wakes them), so it stays in All as talk about you.
+        if (mentionsMe(leadOf(msg.text)) && (fromPm(msg) || isDm(msg.channel))) kinds.add('mention');
         else if (mentionsMe(msg.text)) kinds.add('about');
         if (isDm(msg.channel)) kinds.add('dm');
         if (msg.reply_to != null && myMsgIds.has(Number(msg.reply_to))) kinds.add('reply');
@@ -219,6 +227,7 @@
     // everything from the last 7 days that's to you, a reply to you, a DM, or yours (Lu, 11-10).
     window.scAfterHistory = async () => {
         try {
+            try { await window.scTeamReady; } catch (_) { /* classify with what we have */ }
             const r = await fetch('/api/scranton/inbox-feed?days=7', { headers: { 'X-Session-Token': window.SESSION_TOKEN } });
             if (!r.ok) return;
             const { messages } = await r.json();
