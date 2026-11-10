@@ -601,3 +601,48 @@ _ACTION_ADVICE = {
     "Files it opened": "Opened again and again: put the part it needs into its role card, or read just that part.",
     "Command output": "Same command many times: keep the output short (| tail, --quiet), and don't re-run to check what didn't change.",
 }
+
+
+# ---------------------------------------------------------------- per day (Lu, 11-10)
+# "选完了得让我看到改进": a day-by-day series, so the Report can show each change Lu picked with
+# the numbers before and after it. Only teammates' sessions (same as the rest of the Report).
+def daily(msgs: list[dict], team: dict, days: int = 14, home: Path | None = None) -> list[dict]:
+    with _lock:
+        home = home or Path.home()
+        since = time.time() - days * 86400
+        handles = {h.lower() for h in team}
+        base = lambda s: re.sub(r"-\d+$", "", str(s or "").lower())   # noqa: E731
+        day = lambda t: time.strftime("%Y-%m-%d", time.localtime(t))  # noqa: E731
+        out: dict = defaultdict(lambda: {"calls": 0, "ctx": 0, "tokens": 0,
+                                         "app": defaultdict(lambda: {"calls": 0, "ctx": 0, "tokens": 0}),
+                                         "wakes": 0, "pm_wakes": 0})
+        for gen in (_claude_sessions(since, home), _codex_sessions(since, home)):
+            for agent, rows, app, _f in gen:
+                if not agent or base(agent) not in handles:
+                    continue
+                for ts, fresh, cached, o in rows:
+                    d = out[day(ts)]
+                    for b in (d, d["app"][app]):
+                        b["calls"] += 1
+                        b["ctx"] += fresh + cached
+                        b["tokens"] += fresh + cached + o
+        for m in msgs:
+            t = float(m.get("timestamp") or 0)
+            if t < since or m.get("type", "chat") not in ("chat", "decision"):
+                continue
+            frm = base(m.get("sender"))
+            hit = {base(h) for h in re.findall(r"@([A-Za-z0-9_-]+)", str(m.get("text") or ""))} & handles
+            hit.discard(frm)
+            if hit:
+                out[day(t)]["wakes"] += len(hit)
+                if frm == "pm":
+                    out[day(t)]["pm_wakes"] += len(hit)
+        res = []
+        for k in sorted(out):
+            d = out[k]
+            res.append({"day": k, "calls": d["calls"], "tokens": d["tokens"], "wakes": d["wakes"], "pm_wakes": d["pm_wakes"],
+                        "ctx_k": round(d["ctx"] / d["calls"] / 1000) if d["calls"] else None,
+                        "apps": {a: {"calls": v["calls"], "tokens": v["tokens"],
+                                     "ctx_k": round(v["ctx"] / v["calls"] / 1000) if v["calls"] else None}
+                                 for a, v in d["app"].items()}})
+        return res

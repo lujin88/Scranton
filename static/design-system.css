@@ -1605,3 +1605,14 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-term-live .xterm .xterm-viewport { background-color: transparent !important; }   /* else xterm.css paints the padding #000 */
 .sc-term-touch { display: none !important; }
 @media (pointer: coarse) { .sc-term-touch { display: flex !important; } }
+
+/* Report → What changed: before → after for each change you picked */
+.sc-rp-change { align-items: flex-start; flex-wrap: wrap; row-gap: 8px; }
+.sc-rp-change .sc-rp-t { flex: 1 1 220px; }
+.sc-rp-cmps { display: flex; gap: var(--ds-5); flex-wrap: wrap; }
+.sc-rp-cmp { display: flex; flex-direction: column; gap: 2px; min-width: 150px; white-space: nowrap; font-size: var(--ds-fs-sm); color: var(--ds-text-2); }
+.sc-rp-cmp b { font-weight: 600; color: var(--ds-text); font-variant-numeric: tabular-nums; }
+.sc-rp-cmp i { font-style: normal; color: var(--ds-text-3, var(--ds-text-2)); }
+.sc-rp-cmp em { font-style: normal; font-variant-numeric: tabular-nums; }
+.sc-rp-cmp em.good { color: #34c759; }
+.sc-rp-cmp em.bad { color: #ff6b5e; }

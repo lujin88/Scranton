@@ -82,6 +82,7 @@
             </div>
 
             <h2>Tokens: what gets re-read, and what to change</h2>
+            <div id="sc-rp-trend"></div>
             <div id="sc-rp-tokens"><p class="sc-rp-muted">Counting tokens…</p></div>
 
             <h2>Pull requests</h2>
@@ -116,6 +117,7 @@
             </div>
         </div>`;
         renderTokens();
+        renderTrend();
     }
 
     // Tokens: read from the apps' own logs on this Mac; can take a few seconds, so it fills in after.
@@ -166,6 +168,73 @@
                 <span class="sc-rp-num">${fmtTok(x.tokens)}</span></div>`).join('')}</div></details>
             <p class="sc-rp-note">From Claude Code and Codex logs on this Mac, the ${heavy.length ? 'eight heaviest sessions' : 'sessions'} of this period. "Re-read" weighs each thing by its size and by how many replies came after it, so the numbers are estimates.${t.not_counted.length ? ` Cursor keeps no token log, so ${t.not_counted.map((a) => esc(label(a))).join(', ')} ${t.not_counted.length === 1 ? 'isn\'t' : 'aren\'t'} counted.` : ''}${t.unassigned ? ` ${fmtTok(t.unassigned)} more came from sessions that never posted in Scranton (for example ones you ran yourself) and is left out.` : ''}</p>`;
         renderProposals(t);
+    }
+
+    // ---------------------------------------------------------------- what changed (Lu, 11-10)
+    // "选完了得让我看到改进，否则我什么都看不到": every change you picked stays here with the numbers
+    // before and after it, worked out again each time the Report opens.
+    const TITLES = { 'fresh-sessions': 'Fresh sessions on', 'only-new-chat': 'Read only new chat',
+        'files-once': 'Stop reopening the same files', 'short-output': 'Keep command output short' };
+    const dayOf = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+    const today = () => dayOf(Date.now());
+    const avg = (xs) => { const v = xs.filter((x) => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+    function compare(series, at) {
+        const d0 = dayOf(at), now = today();
+        // days the team actually worked (an idle Saturday would make "before" look good)
+        const busy = (d) => (d.calls || 0) >= 50 || (d.wakes || 0) >= 50;
+        const before = series.filter((d) => d.day < d0 && busy(d)).slice(-3);
+        const full = series.filter((d) => d.day > d0 && d.day < now);      // whole days after it
+        const after = full.length ? full : series.filter((d) => d.day === now && d.day > d0);
+        const partial = !full.length;
+        const m = (rows, k) => avg(rows.map((r) => r[k]));
+        return { partial, n: full.length, before: before.length,
+            ctx: [m(before, 'ctx_k'), m(after, 'ctx_k')],
+            wakes: [m(before, 'wakes'), partial ? null : m(after, 'wakes')],
+            tokens: [m(before, 'tokens'), partial ? null : m(after, 'tokens')] };
+    }
+    const delta = (a, b) => (a && b != null ? Math.round((100 * (b - a)) / a) : null);
+    const cell = (label, [a, b], fmt) => {
+        if (!a) return '';
+        if (b == null) return `<span class="sc-rp-cmp"><small>${label}</small><span><b>${fmt(a)}</b> → <i>tomorrow</i></span></span>`;
+        const d = delta(a, b);
+        return `<span class="sc-rp-cmp"><small>${label}</small><span><b>${fmt(a)} → ${fmt(b)}</b>${d != null ? ` <em class="${d <= 0 ? 'good' : 'bad'}">${d > 0 ? '+' : ''}${d}%</em>` : ''}</span></span>`;
+    };
+    async function migrateLocalPicks() {
+        // picks made before 11-10 sit in this browser's localStorage: hand them to the server once
+        const got = picks(), items = Object.entries(got).filter(([, g]) => g && typeof g === 'object' && g.key && g.key !== 'C')
+            .map(([id, g]) => ({ id, key: g.key, at: g.at, title: TITLES[id] || id, merge_only: true }));
+        if (!items.length || localStorage.getItem(PROP_KEY + '-sent') === '1') return;
+        try { await api('/api/scranton/report/changes', { items }); localStorage.setItem(PROP_KEY + '-sent', '1'); } catch (_) { /* next time */ }
+    }
+    async function renderTrend() {
+        const box = document.getElementById('sc-rp-trend');
+        if (!box) return;
+        await migrateLocalPicks();
+        let tr;
+        try { tr = await api('/api/scranton/report/trend?days=14'); } catch (_) { tr = null; }
+        if (!box.isConnected || !tr || !Array.isArray(tr.days)) return;
+        const series = tr.days, changes = (tr.changes || []).slice().reverse();
+        const k = (n) => `${Math.round(n)}k`;
+        const per = (n) => `${Math.round(n)}/day`;
+        const tok = (n) => fmtTok(n) + '/day';
+        const fmtDate = (ms) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        const rows = changes.map((c) => {
+            const r = compare(series, c.at);
+            const note = r.before ? (r.partial ? 'Today so far; daily totals show tomorrow.' : `${r.n} full day${r.n > 1 ? 's' : ''} after vs ${r.before} before.`) : 'No numbers from before it.';
+            return `<div class="sc-rp-row static sc-rp-change">
+                <span class="sc-rp-t"><b>${esc(c.title)}</b><small>${fmtDate(c.at)}${c.by && c.by !== 'Lu' ? ` · ${esc(c.by)}` : ''} · ${note}</small></span>
+                <span class="sc-rp-cmps">${cell('Re-read per reply', r.ctx, k)}${cell('Wake-ups', r.wakes, per)}${cell('Tokens', r.tokens, tok)}</span>
+            </div>`;
+        }).join('');
+        const max = Math.max(1, ...series.map((d) => d.tokens));
+        const marks = new Set(changes.map((c) => dayOf(c.at)));
+        box.innerHTML = `${changes.length ? `<h3 class="sc-rp-h3">What changed since you picked</h3><div class="sc-rp-list">${rows}</div>` : ''}
+            <details class="sc-rp-more"><summary>Day by day (14 days)</summary>
+            <div class="sc-rp-list">${series.slice().reverse().map((d) => `<div class="sc-rp-row static sc-rp-day">
+                <span class="sc-rp-t"><b>${new Date(d.day + 'T12:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}${marks.has(d.day) ? ' <span class="sc-rp-app">change</span>' : ''}</b>
+                <small>${d.ctx_k != null ? `${d.ctx_k}k re-read per reply · ` : ''}${d.wakes} wake-ups${d.pm_wakes ? ` (${d.pm_wakes} by the project manager)` : ''}${d.day === today() ? ' · so far' : ''}</small></span>
+                <span class="sc-rp-bar"><i style="width:${Math.round((d.tokens / max) * 100)}%"></i></span>
+                <span class="sc-rp-num">${d.tokens ? fmtTok(d.tokens) : ''}</span></div>`).join('')}</div></details>`;
     }
 
     // ---------------------------------------------------------------- proposals
@@ -223,6 +292,8 @@
         // Once you've picked, it's done: the card goes away. It can come back after a week if the
         // numbers still say so.
         const got = picks();
+        // picked on another device (the phone, the Mac app) counts too
+        try { for (const c of (await api('/api/scranton/report/changes')).changes || []) if (!got[c.id] || got[c.id].at < c.at) got[c.id] = c; } catch (_) { /* local only */ }
         const open = list.filter((p) => { const g = got[p.id]; return !g || (typeof g === 'object' && Date.now() - g.at > 7 * 86400e3); });
         if (!open.length) { box.innerHTML = ''; return; }
         box.innerHTML = `<h3 class="sc-rp-h3">Suggestions: pick one</h3><div class="sc-choices sc-rp-props">${open.map((p) => {
@@ -255,6 +326,7 @@
             }
             if (!ok) { if (window.scToast) window.scToast("Couldn't do that. Is Scranton running?"); return; }
             const a = picks(); a[p.id] = { key: o.key, at: Date.now() }; localStorage.setItem(PROP_KEY, JSON.stringify(a));
+            if (o.key !== 'C' && o.act.type !== 'none') api('/api/scranton/report/changes', { items: [{ id: p.id, key: o.key, at: Date.now(), title: TITLES[p.id] || p.title }] }).then(renderTrend).catch(() => {});
             card.classList.add('sc-gone');
             setTimeout(() => renderProposals(t), 260);
         };

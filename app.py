@@ -3156,6 +3156,70 @@ _tok_last: dict = {}
 _tok_jobs: dict = {}
 
 
+# Report → "What changed": per-day numbers and the changes Lu picked (kept on the server, so the
+# Mac app and the phone show the same ones; they used to live in one browser's localStorage).
+# Changes made on Lu's say-so outside the Report's own cards, shown with the same before/after.
+_SEEDED_CHANGES = [
+    {"id": "at-only-who-acts", "title": "@ only whoever must act now", "key": "A", "at": 1794311400000, "by": "Claude, you agreed"},
+    {"id": "reports-no-at", "title": "Reports and 收到 without @", "key": "A", "at": 1794311520000, "by": "Claude, you agreed"},
+    {"id": "fresh-by-size", "title": "Fresh session past 100k re-read", "key": "A", "at": 1794312300000, "by": "Claude, you agreed"},
+]
+
+
+def _report_changes() -> list:
+    cur = [c for c in room_settings.get("report_changes", []) if isinstance(c, dict)]
+    seeded = set(room_settings.get("report_changes_seeded", []))
+    new = [c for c in _SEEDED_CHANGES if c["id"] not in seeded]
+    if new:
+        have = {c.get("id") for c in cur}
+        cur += [dict(c) for c in new if c["id"] not in have]
+        room_settings["report_changes"] = sorted(cur, key=lambda c: c.get("at", 0))[-40:]
+        room_settings["report_changes_seeded"] = sorted(seeded | {c["id"] for c in new})
+        _save_settings()
+    return room_settings.get("report_changes", [])
+
+
+@app.get("/api/scranton/report/changes")
+async def scranton_report_changes_get():
+    return JSONResponse({"changes": _report_changes()})
+
+
+@app.get("/api/scranton/report/trend")
+async def scranton_report_trend(days: int = 14):
+    days = max(3, min(int(days), 31))
+    team = {n: a for n, a in config.get("agents", {}).items()}
+    series = await asyncio.to_thread(_sc_tokens.daily, store.get_since(-1), team, days)
+    return JSONResponse({"days": series, "changes": _report_changes()})
+
+
+@app.post("/api/scranton/report/changes")
+async def scranton_report_changes(request: Request):
+    """Record a change Lu picked: {id, title, key, at (ms)}. Same id again replaces it."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = None
+    items = body.get("items") if isinstance(body, dict) else None
+    if not isinstance(items, list):
+        return JSONResponse({"error": "expected {items: [...]}"}, status_code=400)
+    cur = {c.get("id"): c for c in _report_changes() if isinstance(c, dict)}
+    for it in items[:20]:
+        if not isinstance(it, dict) or not str(it.get("id") or "").strip():
+            continue
+        try:
+            at = int(it.get("at") or 0)
+        except (TypeError, ValueError):
+            continue
+        cid = str(it["id"])[:60]
+        if cid in cur and it.get("merge_only"):
+            continue   # a browser's old local pick doesn't overwrite what the server has
+        cur[cid] = {"id": cid, "title": str(it.get("title") or cid)[:120], "key": str(it.get("key") or "")[:2],
+                    "at": at, "by": str(it.get("by") or "Lu")[:20]}
+    room_settings["report_changes"] = sorted(cur.values(), key=lambda c: c["at"])[-40:]
+    _save_settings()
+    return JSONResponse({"changes": room_settings["report_changes"]})
+
+
 @app.get("/api/scranton/report/tokens")
 async def scranton_report_tokens(days: int = 7, shape: int = 0):
     """Tokens from Claude Code / Codex session logs on this Mac, per teammate and per task."""
