@@ -24,6 +24,22 @@ class ProblemDetectionTest(unittest.TestCase):
     def test_spinner_means_still_working(self):
         self.assertIsNone(self.screen("  ⎿ rate limit in the docs\n✻ Thinking… (esc to interrupt)\n"))
 
+    def test_codex_switch_model_nudge_is_a_question_not_a_limit(self):
+        nudge = ("  Approaching rate limits\n  Switch to gpt-6.1-sol for lower credit usage?\n"
+                 "› 1. Switch to gpt-6.1-sol  Uses fewer credits for upcoming turns\n"
+                 "  2. Keep current model\n  3. Keep current model (never show again)\n"
+                 "     Hide future rate limit reminders about switching models\n"
+                 "  Press enter to confirm or esc to go back\n")
+        self.assertEqual(self.screen(nudge), "question")
+        self.assertTrue(wu._QUESTION_RE.search(nudge))   # so nothing is typed into it
+
+    def test_codex_real_usage_limit_still_counts(self):
+        self.assertEqual(self.screen("■ You've hit your usage limit. Try again at 8:32 AM.\n"), "limit")
+
+    def test_codex_launch_hides_switch_model_nudge(self):
+        self.assertEqual(wrapper._CODEX_ARGS, ["-c", "notice.hide_rate_limit_model_nudge=true"])
+        self.assertEqual(wrapper._provider_from_command("codex"), "codex")
+
     def test_question_when_waiting(self):
         wu._LAST_INJECTED["s"] = ""
         with mock.patch.object(wu, "pane_text", return_value="Do you want to proceed?\n❯ 1. Yes\n"), \
