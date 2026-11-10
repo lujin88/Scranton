@@ -1424,7 +1424,7 @@ body.sc-report-open #scroll-anchor { display: none !important; }
     #sc-thread { position: fixed !important; inset: 0 !important; width: 100vw !important; max-width: none !important; z-index: 70; padding-top: env(safe-area-inset-top); }
 }
 /* Swipe right to reply (phone): the reply icon comes in from the left as the message moves. */
-#messages .message.sc-msg, #sc-thread .sc-tmsg { position: relative; touch-action: pan-y; }
+#messages .message.sc-msg, #sc-thread .sc-tmsg { position: relative; touch-action: pan-y pinch-zoom; }   /* pinch must still work, or a zoomed page can't zoom back (Lu, 11-10) */
 .sc-swipe-ic { position: absolute; left: -44px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border-radius: 50%;
     display: grid; place-items: center; color: var(--ds-text-2); background: var(--ds-raised); opacity: .6; pointer-events: none; }
 .sc-swipe-ready > .sc-swipe-ic { color: #fff; background: var(--ds-accent-fill); opacity: 1; }
