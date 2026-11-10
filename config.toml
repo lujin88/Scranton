@@ -159,7 +159,7 @@ role_card = "roles/motion-designer.md"
 [agents.visintern]
 label = "视觉动效实习生"
 command = "agy"            # Gemini via Antigravity CLI (Lu, 11-10): a second plan, so visual/motion work can go on when ChatGPT's runs low
-model = "gemini-4-argon"
+model = "gemini-3.8-flash"   # Lu, 11-10: Flash for everyday visual work; Argon only for hard tasks
 cwd = "~/LuJin-Portfolio"
 worktree = true          # own git worktree next to the project, so parallel edits never collide
 color = "#a6da95"

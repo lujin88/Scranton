@@ -2533,7 +2533,8 @@ function updateMentionMenu() {
 function mentionMetaHtml(name, st) {
     const t = ((window.scGetTeam && window.scGetTeam()) || {})[name] || {};
     const state = { working: 'Working', available: 'Online', pending: 'Starting' }[st] || 'Not running';
-    const model = [t.model_name, t.effort ? ({ xhigh: 'extra high' }[t.effort] || t.effort) : ''].filter(Boolean).join(' · ');
+    // just the app, the same for everyone (Lu, 11-10: "Gemini · medium" read as quota and broke the column)
+    const model = { claude: 'Claude', codex: 'ChatGPT', cursor: 'Cursor', gemini: 'Gemini' }[t.provider] || t.model_name || '';
     // one line, right-aligned: "● Working  Opus 5.5" (two lines didn't line up with the names)
     return `<span class="mention-meta"><span class="mention-st ${st || 'offline'}">${state}</span>${model ? `<span class="mention-model">${escapeHtml(model)}</span>` : ''}</span>`;
 }

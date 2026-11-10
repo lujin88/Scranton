@@ -1565,3 +1565,5 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 }
 #sc-thread .sc-thread-compose #sc-tquote { flex: none; }
 #input-row > #sc-quote { margin-right: -48px !important; flex-basis: calc(100% + 48px); }   /* full width: the send button sits lower, not beside it */
+
+#mention-menu .mention-model, .sc-tmention .mention-model { min-width: 64px; text-align: right; }   /* status dots line up whatever the app */
