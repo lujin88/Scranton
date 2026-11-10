@@ -23,6 +23,7 @@ from rules import RuleStore
 from summaries import SummaryStore
 from jobs import JobStore
 from schedules import ScheduleStore, parse_schedule_spec
+import scranton_quota as _sc_quota
 from router import Router
 from agents import AgentTrigger
 from registry import RuntimeRegistry
@@ -762,6 +763,20 @@ def configure(cfg: dict, session_token: str = ""):
 
     threading.Thread(target=_schedule_runner, daemon=True).start()
 
+    # ChatGPT plan watch: once a minute, read Agent Monitor's usage file; when it crosses
+    # the threshold either way, tell the project manager once.
+    def _quota_watch():
+        import time as _tq
+        while True:
+            try:
+                low, changed = _sc_quota.check(config)
+                if changed:
+                    store.add("scranton", _sc_quota.notice(config, low), channel="general")
+            except Exception:
+                _log_rate_limited("quota watch failed")
+            _tq.sleep(60)
+    threading.Thread(target=_quota_watch, daemon=True).start()
+
 
 # --- Store → WebSocket bridge ---
 
@@ -1127,6 +1142,14 @@ async def _handle_new_message(msg: dict):
     # whether it goes on her list.
     if _lu_ask_for_pm(sender, text, channel) and _mentions_from() not in targets:
         targets.append(_mentions_from())
+    # ChatGPT plan running low (Agent Monitor's numbers): visual/motion work goes to the
+    # Gemini interns instead (Lu, 11-10). DMs are left alone.
+    targets, _quota_moved = _sc_quota.reroute(config, targets, channel, sender)
+    if _quota_moved:
+        pct = _sc_quota.status().get("percent")
+        pairs = "、".join(f"{_label_of(a)} → {_label_of(b)}" for a, b in _quota_moved.items())
+        store.add("system", f"转给 {pairs}（ChatGPT 额度 {pct:.0f}%）" if pct is not None else f"转给 {pairs}",
+                  msg_type="system", channel=channel)
 
     if router.is_paused(channel):
         # Only emit the loop guard notice once per pause
@@ -1157,7 +1180,12 @@ async def _handle_new_message(msg: dict):
         # Session guard: suppress out-of-turn agent triggers
         if allowed_agent and target != allowed_agent:
             continue
-        await _wake_teammate(target, chat_msg, channel, custom_prompt, thread_root)
+        msg_for = chat_msg
+        orig = next((a for a, b in _quota_moved.items() if b == target), "")
+        if orig and chat_msg:
+            msg_for = (f"{chat_msg}\n\n(Scranton: this was addressed to @{orig}; ChatGPT's plan is low, "
+                       f"so it's yours. Read the thread for context and do it as @{orig} would.)")
+        await _wake_teammate(target, msg_for, channel, custom_prompt, thread_root)
 
 
 def _mentions_from() -> str:

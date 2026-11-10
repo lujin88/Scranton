@@ -58,6 +58,15 @@ brief = "Address {owner} as {owner}. {owner} is not online all day, so nobody wa
 lu-portfolio = ["pm", "harness", "dev", "qa", "visual", "visualqa", "motion", "visintern", "motionintern", "research", "copy"]
 scranton-feedback = ["help"]
 
+# When ChatGPT's plan runs low, work addressed to visual/motion goes to the Gemini interns
+# (Lu, 11-10). Numbers come from Agent Monitor's ~/agent-monitor/usage.json (read only; no key).
+# 90 / 80 are a starting point, not measured. Private messages are never moved.
+[team.quota_handoff]
+enabled = true
+threshold = 90     # % used of ChatGPT's 5-hour or weekly window
+back_below = 80
+map = { visual = "visintern", motion = "motionintern" }
+
 # Recurring posts made by Scranton itself (no teammate has to stay awake for them).
 # Created once; delete one in the UI and it stays deleted. Times are this Mac's local time.
 [[team.schedules]]
