@@ -23,6 +23,18 @@
     window.scTerm = function mount(el, handle) {
         let closed = false, ws = null, term = null, ro = null;
         el.classList.add('sc-xterm');
+        // Fill what's left of the window below it, so the page itself never scrolls (Lu, 11-10).
+        const fillDown = () => {
+            const box = el.closest('.sc-st-main, #sc-info');
+            if (!box) return;
+            let pad = 0; for (let n = el.parentElement; n && n !== box.parentElement; n = n.parentElement) pad += parseFloat(getComputedStyle(n).paddingBottom) || 0;
+            const room = box.getBoundingClientRect().bottom - el.getBoundingClientRect().top - pad - 10
+                - [...el.parentElement.children].filter((c) => c !== el && c.getBoundingClientRect().top > el.getBoundingClientRect().top)
+                    .reduce((n, c) => n + c.getBoundingClientRect().height + 8, 0);
+            el.style.height = `${Math.max(220, Math.floor(room))}px`;
+        };
+        fillDown();
+        window.addEventListener('resize', fillDown);
         el.textContent = 'Connecting…';
         load().then(() => {
             if (closed) return;
@@ -54,6 +66,7 @@
         }).catch(() => { el.textContent = "Couldn't load the terminal. Reload Scranton."; });
         function stop() {
             closed = true;
+            window.removeEventListener('resize', fillDown);
             try { ro && ro.disconnect(); } catch (_) {}
             try { ws && ws.close(); } catch (_) {}
             try { term && term.dispose(); } catch (_) {}

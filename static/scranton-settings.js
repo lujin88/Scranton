@@ -357,7 +357,7 @@
                 <div class="sc-id-row"><span>@handle</span><code>@${esc(p.handle)}</code></div>
             </div>`;
         } else if (agentTab === 'terminal') {
-            content = `<p class="sc-st-note sc-term-note">${esc(p.label)}'s own terminal, live. Click inside to type: Enter, arrows and letters go straight to it.</p>
+            content = `<p class="sc-st-note sc-term-note">Live. Click inside to type.</p>
                 <div class="sc-term-live" id="sc-term-live"></div>
                 <div class="sc-term-keys sc-term-touch">${['Enter', 'Escape', 'Up', 'Down'].map((k) => `<button type="button" class="sc-btn sm" data-key="${k}">${{ Escape: 'Esc', Up: '↑', Down: '↓' }[k] || k}</button>`).join('')}</div>
                 <p class="sc-st-note" id="sc-term-msg" role="status"></p>`;
