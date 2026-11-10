@@ -164,7 +164,7 @@ cwd = "~/LuJin-Portfolio"
 worktree = true          # own git worktree next to the project, so parallel edits never collide
 color = "#a6da95"
 role = "Visual intern: exploration frames and assets under the visual designer, pictures only; does not set style or merge"
-avatar = "18-visual-motion-intern-chick.jpg"
+avatar = "19-visual-intern-penguin.jpg"
 role_card = "roles/visual-motion-intern.md"
 autostart = false        # starts when someone @s it
 
@@ -176,6 +176,7 @@ cwd = "~/LuJin-Portfolio"
 worktree = true
 color = "#8bd5ca"
 role = "Motion intern: motion plans, key frames and motion drafts under the motion designer, motion only; does not set direction or merge"
+avatar = "20-motion-intern-koala.jpg"
 role_card = "roles/motion-intern.md"
 autostart = false
 
