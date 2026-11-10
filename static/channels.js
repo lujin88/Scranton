@@ -34,6 +34,30 @@ function renderChannelTabs() {
     const container = document.getElementById('channel-tabs');
     if (!container) return;
 
+    // Fast path (switching channel): same channels in the same order, so only the active tab and
+    // the unread dots change. Rebuilding every tab with its icons on each switch cost ~60 ms on a
+    // slow phone, for a tab row Scranton doesn't even show (the sidebar is the channel list).
+    const tabs = container.querySelectorAll(':scope > .channel-tab');
+    if (!container.querySelector('.channel-inline-create') && tabs.length === window.channelList.length
+        && [...tabs].every((t, i) => t.dataset.channel === window.channelList[i])) {
+        tabs.forEach((tab) => {
+            const name = tab.dataset.channel;
+            tab.classList.toggle('active', name === window.activeChannel);
+            const unread = window.channelUnread[name] || 0;
+            let dot = tab.querySelector('.channel-unread-dot');
+            if (unread > 0 && name !== window.activeChannel) {
+                if (!dot) {
+                    dot = document.createElement('span');
+                    dot.className = 'channel-unread-dot';
+                    tab.insertBefore(dot, tab.querySelector('.channel-tab-actions'));
+                }
+                dot.textContent = unread > 99 ? '99+' : unread;
+            } else if (dot) dot.remove();
+        });
+        renderChannelSidebar();
+        return;
+    }
+
     // Preserve inline create input if it exists
     const existingCreate = container.querySelector('.channel-inline-create');
     const keepFocus = _inlineFocusState(existingCreate);

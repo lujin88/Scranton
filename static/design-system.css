@@ -1331,7 +1331,8 @@ body.sc-inbox-open #scroll-anchor { display: none !important; }
 #mention-menu .mention-st.available::before, .sc-tmention .mention-st.available::before { background: #34c759; }
 #mention-menu .mention-model, .sc-tmention .mention-model { font-size: 12px; min-width: 64px; text-align: right; }
 /* the @ list sits above the conversation's ↓ button */
-body:has(#mention-menu:not(.hidden)) #scroll-anchor { display: none !important; }
+/* body.sc-mention-open, set from JS: a body:has() rule made WebKit (Mac app, iPhone) restyle the whole page on every change */
+body.sc-mention-open #scroll-anchor { display: none !important; }
 /* Settings → Agents: "Add agent" clear of the close button */
 #sc-settings .sc-st-head.sc-st-head-row, .sc-st .sc-st-body > header.sc-st-head-row { padding-right: 48px !important; }
 #mention-menu { min-width: 380px !important; }

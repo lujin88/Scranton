@@ -4812,3 +4812,16 @@ function initHelpTour() {
 // --- Start ---
 
 document.addEventListener('DOMContentLoaded', function() { init(); initHelpTour(); });
+
+// The @ list hides the ↓ button. A class on <body>, not a CSS body:has() rule: in WebKit (the Mac app
+// and iPhone) a body:has() rule restyles the whole page on every DOM change anywhere.
+(function () {
+    const watch = () => {
+        const m = document.getElementById('mention-menu');
+        if (!m) return;
+        const sync = () => document.body.classList.toggle('sc-mention-open', !m.classList.contains('hidden'));
+        new MutationObserver(sync).observe(m, { attributes: true, attributeFilter: ['class'] });
+        sync();
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch); else watch();
+})();
