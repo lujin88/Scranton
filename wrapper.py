@@ -1004,6 +1004,13 @@ def _subagent_args(agent_cfg: dict, command) -> list[str]:
             continue
     return out
 
+# Codex's "Approaching rate limits · switch model?" stops the teammate until someone picks an answer,
+# and Scranton read it as "usage limit reached" (visualqa, 11-10). Same as picking "Keep current model
+# (never show again)", for Scranton's Codex teammates only: nothing is written to ~/.codex. The real
+# "Usage limit reached" still shows.
+_CODEX_ARGS = ["-c", "notice.hide_rate_limit_model_nudge=true"]
+
+
 def main():
     # Scranton: Stop/Restart send SIGTERM; exit through `finally` so we deregister cleanly.
     import signal as _signal
@@ -1041,7 +1048,8 @@ def main():
     # scranton.sh passes the teammate's own git worktree here (see "worktree" in config.toml)
     cwd = os.environ.get("SCRANTON_CWD") or agent_cfg.get("cwd", ".")
     command = agent_cfg.get("command", agent)
-    extra = [*extra, *_subagent_args(agent_cfg, command)]
+    extra = [*extra, *_subagent_args(agent_cfg, command),
+             *(_CODEX_ARGS if _provider_from_command(command) == "codex" else [])]
     data_dir = ROOT / config.get("server", {}).get("data_dir", "./data")
     _HANDOVER["command"] = command
     _HANDOVER["handoff_dir"] = data_dir / "handoffs"
