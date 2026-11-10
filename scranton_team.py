@@ -65,7 +65,14 @@ PROVIDERS = {
     "gemini": {
         "name": "Gemini (Antigravity)", "plan": "Google AI Pro / Ultra", "commands": ["agy"],
         "login": "agy", "login_hint": "In the window that opens, sign in with Google in the browser.",
-        "models": [["", "Default", "Antigravity picks"], ["gemini-4-argon", "Gemini 4 Argon", ""]],
+        # Argon has its own weekly quota; the Flash and Pro models share one pool that refills
+        # every few hours. Pictures come from agy's own image tool (Nano Banana), whichever is picked.
+        # (third field = the group in the menu)
+        "models": [["", "Default", ""],
+                   ["gemini-4-argon", "Gemini 4 Argon", "Recommended"],
+                   ["gemini-3.8-flash", "Gemini 3.8 Flash", "Recommended"],
+                   ["gemini-3.7-flash", "Gemini 3.7 Flash", "Older"],
+                   ["gemini-3.1-pro", "Gemini 3.1 Pro", "Older"]],
     },
 }
 
