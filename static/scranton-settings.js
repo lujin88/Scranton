@@ -445,17 +445,19 @@
     function connectionsView(list) {
         if (!Array.isArray(list)) return '<p class="sc-st-note">Couldn\'t check sign-ins. Reload to try again.</p>';
         // Brand marks from Remix Icon's Logos set, on each brand's own colour
-        const badge = { claude: ['claude', '#d97757', '#fff'], codex: ['openai', '#ffffff', '#000'], cursor: ['cursor-ai', '#000000', '#fff'] };
+        // [icon, tile, mark, size]: each mark's own padding differs, so sizes are set by eye to look equal (Lu, 11-10)
+        const badge = { claude: ['claude', '#d97757', '#fff', 26], codex: ['openai', '#ffffff', '#000', 26],
+            cursor: ['cursor-ai', '#000000', '#fff', 25], gemini: ['gemini', '#ffffff', '#4c8df6', 26] };
         return `<header class="sc-st-head"><h2>Connections</h2><p>Agents run on the apps you already pay for. Sign in once per app. No API keys.</p></header>
             <div class="sc-conn-hd"><span>Default model</span></div>
             <div class="sc-conn">${list.map((c) => {
-                const [b, col, fg] = badge[c.id] || ['robot', '#444', '#fff'];
+                const [b, col, fg, sz] = badge[c.id] || ['robot', '#444', '#fff', 22];
                 const status = !c.installed ? ['missing', 'Not installed'] : c.connected === true ? ['ok', 'Connected']
                     : c.connected === false ? ['off', 'Not signed in'] : ['unknown', 'Installed'];
                 const n = c.teammates.length;
                 const models = (c.models || []).map((m) => m[0] === '' ? ['', 'App default', m[2] || ''] : m);
                 return `<div class="sc-conn-r">
-                    <span class="sc-conn-logo" style="background:${col};color:${fg}">${icon(b, 22)}</span>
+                    <span class="sc-conn-logo" style="background:${col};color:${fg}">${icon(b, sz)}</span>
                     <span class="sc-conn-txt"><b>${esc(c.name)} <span class="sc-pill ${status[0]}"${c.account ? ` title="${esc(c.account)}"` : ''}>${status[1]}</span></b><small>${esc(c.plan)} · ${n} agent${n === 1 ? '' : 's'}</small></span>
                     ${c.installed ? `<select data-default="${esc(c.id)}" aria-label="${esc(c.name)} default model">${modelOptions(models, c.default_model || '')}</select>` : '<span></span>'}
                     ${c.installed ? `<button type="button" class="sc-btn${c.connected === true ? '' : ' primary'}" data-connect="${esc(c.id)}">${c.connected === true ? 'Switch account' : 'Connect'}</button>`

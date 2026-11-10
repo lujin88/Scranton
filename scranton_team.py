@@ -290,9 +290,13 @@ def _logged_in(pid: str, home: Path) -> tuple[bool | None, str]:
                         return True, str(info.get("email") or "")
             return None, ""
         if pid == "gemini":
-            # agy keeps its Google sign-in encrypted here (or in the keychain): presence is all we can see
+            # agy keeps its Google sign-in in the macOS keychain (or credentials.enc); we can't read it.
+            # Saved conversations only exist once it has been signed in and used.
             d = home / ".gemini" / "antigravity-cli"
-            return (True, "Google sign-in") if (d / "credentials.enc").exists() else (None, "")
+            conv = d / "conversations"
+            if (d / "credentials.enc").exists() or (conv.is_dir() and any(conv.iterdir())):
+                return True, "Google sign-in"
+            return None, ""
     except FileNotFoundError:
         return False, ""
     except (OSError, ValueError):
