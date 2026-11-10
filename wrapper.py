@@ -37,6 +37,18 @@ SERVER_NAME = "agentchattr"
 # Per-instance provider config
 # ---------------------------------------------------------------------------
 
+def _restrict(path: Path) -> None:
+    """Token files: owner read/write only (0600); our own provider-config dir 0700.
+    Hygiene against other OS users and backups that copy permissions. It does NOT
+    stop an agent running as the same user from reading them."""
+    try:
+        os.chmod(path, 0o600)
+        if path.parent.name == "provider-config":
+            os.chmod(path.parent, 0o700)
+    except OSError:
+        pass
+
+
 def _drop_our_server(config_file: Path) -> None:
     """Remove Scranton's entry from a shared MCP config (an older version wrote it there with one
     teammate's token); everything else in the file stays as it is."""
@@ -97,6 +109,7 @@ def _write_json_mcp_settings(config_file: Path, url: str, transport: str = "http
     existing["security"] = security
 
     config_file.write_text(json.dumps(existing, indent=2) + "\n", "utf-8")
+    _restrict(config_file)
     return config_file
 
 
@@ -139,6 +152,7 @@ def _write_claude_mcp_config(
 
     payload = {"mcpServers": servers}
     config_file.write_text(json.dumps(payload, indent=2) + "\n", "utf-8")
+    _restrict(config_file)
     return config_file
 
 
@@ -314,6 +328,7 @@ def _apply_mcp_inject(
                             servers[name] = entry
                     data["mcpServers"] = servers
                     settings_path.write_text(json.dumps(data, indent=2) + "\n", "utf-8")
+                    _restrict(settings_path)
                 except Exception:
                     pass
         inject_env[env_var] = str(settings_path)
