@@ -449,13 +449,15 @@
                 <div class="sc-edit-bar"><span>Enter to save · Esc to cancel</span>
                 <button type="button" class="sc-btn sm" data-ed="cancel">Cancel</button><button type="button" class="sc-btn sm primary" data-ed="save">Save</button></div></div>`;
             const ta = box.querySelector('textarea');
-            ta.value = own;
+            // @ works here like in the message box: the list opens, @pm shows as @项目经理 (Lu, 11-10)
+            ta.value = window.scShowLabels ? window.scShowLabels(own) : own;
+            attachMentions(ta);   // before our Enter handler, so Enter picks a name instead of saving
             const fit = () => { ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, 320)}px`; };
             fit(); ta.addEventListener('input', fit);
             ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
             const done = () => { box.innerHTML = was; };
             const save = () => {
-                const mine = ta.value.trim();
+                const mine = (window.scNormalizeMentions ? window.scNormalizeMentions(ta.value) : ta.value).trim();
                 if (!mine) { toast("A message can't be empty. Delete it instead."); return; }
                 const t = prefix + mine;
                 if (t.trim() === String(m.text || '').trim()) { done(); return; }
@@ -510,7 +512,7 @@
         myEdits.delete(id);
         const added = Array.isArray(ev.added_mentions) ? ev.added_mentions : [];
         if (added.length) editOffers.set(id, added); else editOffers.delete(id);
-        document.querySelectorAll(`.message[data-id="${id}"]`).forEach((el) => { try { paintEditOffer(el, m); } catch (_) {} });
+        document.querySelectorAll(`.message[data-id="${id}"], #sc-thread .sc-tmsg[data-mid="${id}"]`).forEach((el) => { try { paintEditOffer(el, m); } catch (_) {} });
     };
     function paintEditOffer(el, msg) {
         el.querySelector('.sc-edit-offer')?.remove();
@@ -531,9 +533,9 @@
                 window.ws.send(JSON.stringify({ type: 'edit_resend', id: Number(msg.id), to: who }));
             }
             editOffers.delete(Number(msg.id));
-            document.querySelectorAll(`.message[data-id="${Number(msg.id)}"] .sc-edit-offer`).forEach((x) => x.remove());
+            document.querySelectorAll(`.message[data-id="${Number(msg.id)}"] .sc-edit-offer, #sc-thread .sc-tmsg[data-mid="${Number(msg.id)}"] .sc-edit-offer`).forEach((x) => x.remove());
         });
-        const col = el.querySelector('.msg-text')?.parentElement || el;
+        const col = el.querySelector('.msg-text, .sc-tmsg-text')?.parentElement || el;
         col.appendChild(bar);
     }
     // Sent for you by another tool (a Claude session): your name, plus "via Claude" (Lu, 11-09, 4B).
