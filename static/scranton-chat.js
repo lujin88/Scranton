@@ -206,10 +206,22 @@
         el.querySelectorAll(sel).forEach((m) => {
             const h = (m.dataset.handle || m.textContent.replace(/^@/, '')).trim();
             const isMe = h.toLowerCase() === me().toLowerCase();
+            // Only an @ that really reaches you keeps the chip (Lu, 11-10: "他们可以提我，但是不要艾特我"):
+            // from anyone but [team] mentions_from it went to them instead, so it reads as plain "Lu".
+            const holder = m.closest('[data-mid]') || m.closest('[id^="message-"]');
+            const msg = holder && byId.get(Number(holder.dataset.mid || String(holder.id).replace('message-', '')));
+            if (isMe && msg && !atReachesMe(msg)) { m.replaceWith(document.createTextNode(me())); return; }
             const lab = isMe ? me() : labelOf(h);
             if (lab && lab !== h) { m.dataset.handle = h; m.textContent = '@' + lab; m.title = '@' + h.toLowerCase(); }
             m.classList.toggle('sc-mention-me', isMe);
         });
+    }
+    function atReachesMe(msg) {
+        const who = String(msg.sender || '').toLowerCase().replace(/-\d+$/, '');
+        if (who === me().toLowerCase() || String(msg.channel || '').startsWith('dm-')) return true;
+        const team = (window.scGetTeam && window.scGetTeam()) || {};
+        const via = Object.keys(team).find((k) => team[k] && team[k].mentions_owner);
+        return !via || who === via || !(team[who]);   // system and people keep their @
     }
     // 22:19:50 → 22:19 (seconds stay in the tooltip)
     function shortTime(t) {

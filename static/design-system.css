@@ -1519,3 +1519,44 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 @media (pointer: coarse) { .sc-del-actions .sc-btn { min-height: 44px; flex: 1; } }
 .sc-del-actions .sc-btn.sc-btn-danger, :root[data-theme="light"] .sc-del-actions .sc-btn.sc-btn-danger { background: #d93a2f !important; color: #fff !important; border: 0 !important; }
 .sc-del-actions .sc-btn.sc-btn-danger:hover { background: #c4322a !important; }
+
+/* ================================================================ mark up a picture (Lu, 11-10: 豆包 / GPT 式圈图打字) */
+.sc-mk-open { position: absolute; top: 16px; right: 16px; display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 16px;
+    border: 1px solid rgba(255,255,255,.18); border-radius: 999px; background: rgba(40,40,40,.55); color: #fff; font: 600 14px/1 var(--ds-font, system-ui);
+    -webkit-backdrop-filter: blur(16px) saturate(1.6); backdrop-filter: blur(16px) saturate(1.6); cursor: pointer; z-index: 2; }
+.sc-mk-open:hover { background: rgba(60,60,60,.7); }
+#sc-markup { position: fixed; inset: 0; z-index: 260; background: #0b0b0b; display: grid; grid-template-rows: auto 1fr auto; color: #fff;
+    padding: max(12px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); gap: 12px; }
+.sc-mk-top { display: flex; align-items: center; gap: 12px; }
+.sc-mk-spacer { width: 44px; flex: none; }
+.sc-mk-x { width: 44px; height: 44px; flex: none; border-radius: 50%; border: 0; background: rgba(255,255,255,.1); color: #fff; display: grid; place-items: center; cursor: pointer; }
+.sc-mk-tools { flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap; }
+.sc-mk-tools > button { height: 40px; min-width: 40px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 999px;
+    background: transparent; color: rgba(255,255,255,.75); font: 600 13px/1 var(--ds-font, system-ui); cursor: pointer; }
+.sc-mk-tools > button:hover { background: rgba(255,255,255,.08); color: #fff; }
+.sc-mk-tools > button[data-tool][aria-pressed="true"] { background: #fff; color: #111; }
+.sc-mk-tools .sc-mk-color { width: 28px; min-width: 28px; height: 28px; padding: 0; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px rgba(0,0,0,.25); margin: 0 2px; }
+.sc-mk-tools .sc-mk-color[aria-pressed="true"] { box-shadow: 0 0 0 2px #0b0b0b, 0 0 0 4px #fff; }
+.sc-mk-sep { width: 1px; height: 24px; background: rgba(255,255,255,.16); margin: 0 6px; }
+.sc-mk-stage { min-height: 0; display: grid; place-items: center; overflow: hidden; }
+.sc-mk-stage canvas { touch-action: none; border-radius: 10px; cursor: crosshair; display: block; }
+.sc-mk-send { justify-self: center; width: min(720px, 100%); display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 18px; border-radius: 999px;
+    background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.14); }
+.sc-mk-send input { flex: 1; min-width: 0; border: 0; background: transparent; color: #fff; font: 16px/1.4 var(--ds-font, system-ui); outline: none; }
+.sc-mk-send input::placeholder { color: rgba(255,255,255,.5); }
+.sc-mk-go { width: 40px; height: 40px; flex: none; border-radius: 50%; border: 0; background: #fff; color: #111; display: grid; place-items: center; cursor: pointer; }
+.sc-mk-go:disabled { opacity: .5; cursor: default; }
+.sc-mk-note { position: absolute; left: 50%; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 64px); transform: translateX(-50%); font-size: 13px; color: rgba(255,255,255,.8); pointer-events: none; }
+.sc-mk-noteinput { position: fixed; transform: translate(0, -50%); z-index: 261; min-width: 140px; height: 34px; padding: 0 10px; border-radius: 8px; border: 0;
+    background: var(--c); color: #fff; font: 600 16px/1 var(--ds-font, system-ui); outline: 2px solid #fff; }
+.sc-mk-noteinput::placeholder { color: rgba(255,255,255,.7); }
+@media (max-width: 640px) {
+    .sc-mk-tools > button[data-tool] span { display: none; }
+    .sc-mk-tools > button { padding: 0 8px; min-width: 36px; }
+    .sc-mk-tools { gap: 2px; flex-wrap: nowrap; justify-content: flex-end; }
+    .sc-mk-spacer { display: none; }
+    .sc-mk-tools .sc-mk-color { width: 24px; min-width: 24px; height: 24px; }
+    .sc-mk-tools .sc-mk-color[data-color="#0a84ff"], .sc-mk-tools .sc-mk-color[data-color="#ffffff"] { display: none; }   /* phone: red, yellow, green */
+    .sc-mk-sep { margin: 0 3px; }
+    .sc-mk-open span { display: none; } .sc-mk-open { width: 44px; padding: 0; justify-content: center; }
+}
