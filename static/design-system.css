@@ -1468,8 +1468,9 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 }
 
 /* ================================================================ phone: Home → Conversation → Details (Lu, 11-10)
-   Three full screens like Grok. Home is the sidebar at full width with your avatar and + on top and a
-   glass search bar at the bottom; the conversation keeps only ‹ back, the name and the members. */
+   Three full screens like Grok. Home is the sidebar at full width with one row on top: your avatar,
+   search, + (Lu, 11-10: search at the bottom felt odd; keep it close to the desktop, where search is
+   at the top of the sidebar). The conversation keeps only ‹ back, the name and the members. */
 #sc-home-head, #sc-home-search { display: none; }
 .sc-glass { background: rgba(var(--float), 0.55) !important; -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
     box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.16), 0 0 0 0.5px rgba(var(--ink), 0.10), 0 6px 20px rgba(0, 0, 0, 0.22) !important;
@@ -1481,13 +1482,13 @@ body.sc-report-open #scroll-anchor { display: none !important; }
     #channel-sidebar { width: 100vw !important; box-shadow: none !important; padding-top: env(safe-area-inset-top); }
     body.sc-drawer-channels::after { display: none; }
     #sc-side-tools, #channel-sidebar > #sc-me { display: none !important; }
-    #sc-home-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px 4px; }
+    #sc-home-head { display: flex; align-items: center; gap: 10px; padding: 8px 16px 8px; }
     #sc-home-head .sc-glass { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; padding: 0; overflow: hidden; }
     #sc-home-head .sc-home-me img, #sc-home-head .sc-home-me > * { width: 36px; height: 36px; border-radius: 50%; }
-    #channel-sidebar .sc-side-scroll { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
-    #sc-home-search { display: flex; align-items: center; gap: 10px; position: absolute; left: 16px; right: 16px;
-        bottom: calc(12px + env(safe-area-inset-bottom)); height: 52px; padding: 0 18px; border-radius: 26px;
-        font: inherit; font-size: 16px; color: var(--ds-text-2); text-align: left; z-index: 2; }
+    #channel-sidebar .sc-side-scroll { padding-bottom: env(safe-area-inset-bottom); }
+    #sc-home-head #sc-home-search { display: flex; place-items: initial; align-items: center; justify-content: flex-start; gap: 8px; flex: 1; width: auto; min-width: 0; height: 44px; padding: 0 14px;
+        border-radius: 22px; font: inherit; font-size: 16px; color: var(--ds-text-2); text-align: left; }
+    #sc-home-search svg { flex: none; }
     .sc-home-menu { position: fixed; z-index: 90; min-width: 220px; }
     .sc-home-menu .sc-menu-item { display: flex; align-items: center; gap: 10px; min-height: 44px; }
 

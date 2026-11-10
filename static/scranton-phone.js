@@ -1,5 +1,5 @@
 // Scranton on a phone (Lu, 11-10, "like Grok, three screens left to right"):
-//   Home (channels and people, search at the bottom) → Conversation (‹ back, name, members) → Details (‹ back).
+//   Home (avatar | search | + on top, then channels and people) → Conversation (‹ back, name, members) → Details (‹ back).
 // Only below 760 px; the desktop layout is unchanged.
 (function () {
     'use strict';
@@ -46,13 +46,22 @@
         bar.type = 'button';
         bar.id = 'sc-home-search';
         bar.className = 'sc-glass';
-        bar.innerHTML = `${ic('search', 22)}<span>Search</span>`;
+        bar.innerHTML = `${ic('search', 20)}<span>Search</span>`;
         bar.addEventListener('click', (e) => { e.stopPropagation(); document.getElementById('sc-search-btn')?.click(); });
-        side.appendChild(bar);
+        head.insertBefore(bar, head.querySelector('.sc-home-new'));   // avatar | search | +
     }
 
     // ‹ back instead of ×: thread and details go back to the conversation, Activity and Report to Home.
+    // Runs on DOM changes: cheap when not a phone, and at most once per frame (every message
+    // added used to run a whole-page query, on the desktop too).
+    let backPending = false;
+    function backButtonsSoon() {
+        if (backPending || !phone()) return;
+        backPending = true;
+        requestAnimationFrame(() => { backPending = false; backButtons(); });
+    }
     function backButtons() {
+        if (!phone()) return;
         const back = ic('back', 24);
         document.querySelectorAll('.sc-thread-close, #sc-info .sc-info-x, .sc-inbox-x').forEach((b) => {
             if (!phone() || b.dataset.scBack) return;
@@ -65,7 +74,7 @@
     function init() {
         home();
         backButtons();
-        new MutationObserver(backButtons).observe(document.body, { childList: true, subtree: true });
+        new MutationObserver(backButtonsSoon).observe(document.body, { childList: true, subtree: true });
         // ‹ in Activity goes back to Home, as on Grok. Only that button: other things close Activity too
         // (switching channel), and those must not send you Home.
         document.addEventListener('click', (e) => { if (phone() && e.target.closest('.sc-inbox-x')) goHome(); });
