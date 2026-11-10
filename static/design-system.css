@@ -217,9 +217,12 @@ select, input[type="text"], input[type="search"], textarea { border-color: trans
 .sc-bubble-col .sc-unread-dot { background: var(--ds-accent) !important; }
 
 /* ================================================================ reply here (quote) */
+/* Inside the message box, first line: one outlined, single-line pill (Lu, 11-10: like Grok Bot) */
 #sc-quote, #sc-tquote {
-    display: flex; align-items: center; gap: 8px; max-width: var(--ds-read-w); margin: 0 auto 6px !important; padding: 8px 8px 8px 12px;
-    background: var(--ds-raised); border-radius: var(--ds-r-card); color: var(--ds-text-2); font-size: var(--ds-fs-sm);
+    order: -1; flex: 0 0 100%; box-sizing: border-box; display: flex; align-items: center; gap: 8px; min-width: 0;
+    margin: 0 0 4px !important; padding: 4px 4px 4px 14px; height: 40px;
+    background: transparent; border: 1px solid var(--ds-line-strong, rgba(127,127,127,.3)); border-radius: 12px;
+    color: var(--ds-text-2); font-size: var(--ds-fs-sm);
 }
 .sc-quote-ic { display: grid; place-items: center; color: var(--ds-accent); }
 .sc-quote-t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1560,3 +1563,5 @@ body.sc-report-open #scroll-anchor { display: none !important; }
     .sc-mk-sep { margin: 0 3px; }
     .sc-mk-open span { display: none; } .sc-mk-open { width: 44px; padding: 0; justify-content: center; }
 }
+#sc-thread .sc-thread-compose #sc-tquote { flex: none; }
+#input-row > #sc-quote { margin-right: -48px !important; flex-basis: calc(100% + 48px); }   /* full width: the send button sits lower, not beside it */

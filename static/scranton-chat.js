@@ -621,10 +621,11 @@
         if (!bar) {
             bar = document.createElement('div');
             bar.id = 'sc-quote';
+            // inside the message box, on its own line at the top (Lu, 11-10: like Grok Bot)
             const row = document.getElementById('input-row');
-            row?.parentElement?.insertBefore(bar, row);
+            row?.insertBefore(bar, row.firstChild);
         }
-        bar.innerHTML = `<span class="sc-quote-ic">${ri('reply')}</span><span class="sc-quote-t"><b>${esc(who)}</b> ${esc(snippet)}</span>`
+        bar.innerHTML = `<span class="sc-quote-t"><b>${esc(who)}</b> ${esc(snippet)}</span>`
             + `<button type="button" class="sc-quote-x" aria-label="Cancel reply">${ri('close')}</button>`;
         bar.querySelector('.sc-quote-x').onclick = clearQuote;
         document.getElementById('input')?.focus();
@@ -643,10 +644,10 @@
         if (!bar && compose) {
             bar = document.createElement('div');
             bar.id = 'sc-tquote';
-            compose.parentElement.insertBefore(bar, compose);
+            compose.insertBefore(bar, compose.firstChild);
         }
         if (bar) {
-            bar.innerHTML = `<span class="sc-quote-ic">${ri('reply')}</span><span class="sc-quote-t"><b>${esc(who)}</b> ${esc(snippet)}</span>`
+            bar.innerHTML = `<span class="sc-quote-t"><b>${esc(who)}</b> ${esc(snippet)}</span>`
                 + `<button type="button" class="sc-quote-x" aria-label="Cancel quote">${ri('close')}</button>`;
             bar.querySelector('.sc-quote-x').onclick = clearThreadQuote;
         }
