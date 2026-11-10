@@ -33,5 +33,19 @@ class GeminiProvider(unittest.TestCase):
             self.assertEqual(ours["serverUrl"], "http://127.0.0.1:8200/mcp")
             self.assertEqual(ours["headers"], {"Authorization": "Bearer t0k"})
 
+    def test_only_agys_trust_question_is_answered(self):
+        import wrapper_unix
+        trust = "Do you trust the contents of this project?\n\n> Yes, I trust this folder\n  No, exit\n"
+        other = "Run rm -rf build?\nDo you want to proceed?\n> Yes\n  No\n"
+        no_selected = "Do you trust the contents of this project?\n\n  Yes, I trust this folder\n> No, exit\n"
+        for screen, expect in ((trust, True), (other, False), (no_selected, False)):
+            sent = []
+            with mock.patch.object(wrapper_unix, "pane_text", return_value=screen), \
+                 mock.patch.object(wrapper_unix.subprocess, "run", side_effect=lambda *a, **k: sent.append(a)), \
+                 mock.patch.object(wrapper_unix, "waiting_on_question", return_value=False):
+                wrapper_unix._answer_agy_trust("agentchattr-x")
+            self.assertEqual(bool(sent), expect, screen)
+
+
 if __name__ == "__main__":
     unittest.main()

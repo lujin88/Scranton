@@ -138,9 +138,32 @@ def _still_in_input(tmux_session: str, head: str) -> bool:
     return False
 
 
+# Antigravity's one-time "trust this folder" question, with "Yes" highlighted. Scranton made that
+# folder (the teammate's own worktree of Lu's project), so it answers Yes itself (Lu, 11-10: she
+# couldn't answer it from Scranton). Nothing else is ever answered automatically.
+_AGY_TRUST = re.compile(r"Do you trust the contents of this project\?")
+_AGY_TRUST_YES = re.compile(r"^\s*>\s*Yes, I trust this folder\s*$", re.M)
+
+
+def _answer_agy_trust(tmux_session: str) -> bool:
+    screen = _bottom(pane_text(tmux_session, 30), 14)
+    if not (_AGY_TRUST.search(screen) and _AGY_TRUST_YES.search(screen)):
+        return False
+    subprocess.run(["tmux", "send-keys", "-t", _exact_pane(tmux_session), "-H", "0d"],
+                   capture_output=True, timeout=TMUX_COMMAND_TIMEOUT)
+    print("  TRUST: answered Antigravity's \"trust this folder\" with Yes (its own worktree)", flush=True)
+    for _ in range(10):
+        time.sleep(0.5)
+        if not waiting_on_question(tmux_session):
+            return True
+    return False
+
+
 def inject(text: str, *, tmux_session: str, delay: float = 0.3):
     """Returns True when delivered, "question" when the agent's screen shows a
     question (nothing was typed), False when tmux failed."""
+    if waiting_on_question(tmux_session):
+        _answer_agy_trust(tmux_session)
     if waiting_on_question(tmux_session):
         print(f"  WAITING: {tmux_session} shows a question; not typing into it", flush=True)
         return "question"
@@ -151,7 +174,7 @@ def inject(text: str, *, tmux_session: str, delay: float = 0.3):
         # (e.g. the CLI was still drawing). Press it once more.
         time.sleep(1.5)
         if not waiting_on_question(tmux_session) and _still_in_input(tmux_session, text[:30]):
-            subprocess.run(["tmux", "send-keys", "-t", _exact_pane(tmux_session), "Enter"],
+            subprocess.run(["tmux", "send-keys", "-t", _exact_pane(tmux_session), "-H", "0d"],
                            capture_output=True, timeout=TMUX_COMMAND_TIMEOUT)
             print("  INJECT: pressed Enter again (prompt was still in the input box)", flush=True)
     return ok
@@ -222,7 +245,7 @@ def _deliver(text: str, tmux_session: str, buffer_name: str, delay: float) -> bo
     # Scale delay with text length so longer prompts get more processing time
     time.sleep(max(delay, len(text) * 0.001))
     entered = subprocess.run(
-        ["tmux", "send-keys", "-t", pane, "Enter"],
+        ["tmux", "send-keys", "-t", pane, "-H", "0d"],   # raw CR: agy ignores tmux's named Enter
         capture_output=True, timeout=TMUX_COMMAND_TIMEOUT,
     )
     if entered.returncode != 0:
