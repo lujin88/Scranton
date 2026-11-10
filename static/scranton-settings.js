@@ -351,7 +351,7 @@
                 <textarea data-set-text="role" rows="4" maxlength="300" placeholder="What this agent does, in one or two sentences.">${esc(p.role)}</textarea>
                 <small>Added to every task it gets. Its full rules are in the Role card tab.</small></label>
             <div class="sc-id-card">
-                <div class="sc-id-row"><span>Name</span><input type="text" class="sc-id-input" data-set-text="label" maxlength="40" value="${esc(p.label)}"></div>
+                <div class="sc-id-row"><span>Name</span><label class="sc-id-edit" title="Rename"><input type="text" class="sc-id-input" data-set-text="label" maxlength="40" value="${esc(p.label)}" aria-label="Name" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur()">${icon('pencil', 16)}</label></div>
                 <div class="sc-id-row top"><span>Channels</span><div class="sc-ch-picks">${chans.map((c) => `<label class="sc-ch-pick"><input type="checkbox" data-channel="${esc(c)}"${inCh.has(c) ? ' checked' : ''}><span>#${esc(c)}</span></label>`).join('')}</div></div>
                 <div class="sc-id-row"><span>Works in</span><code>${esc(p.folder)}</code></div>
                 <div class="sc-id-row"><span>@handle</span><code>@${esc(p.handle)}</code></div>
