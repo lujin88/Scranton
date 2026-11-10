@@ -159,9 +159,23 @@ def _answer_agy_trust(tmux_session: str) -> bool:
     return False
 
 
+_AGY_SURVEY = re.compile(r"Help us improve[\s\S]*\[0\] Skip")
+
+
+def _skip_agy_survey(tmux_session: str) -> None:
+    """Antigravity's "How's the CLI experience so far?" takes number keys, so a message typed into
+    it would be eaten. Skip it (0) before typing."""
+    if _AGY_SURVEY.search(_bottom(pane_text(tmux_session, 20), 8)):
+        subprocess.run(["tmux", "send-keys", "-t", _exact_pane(tmux_session), "-l", "0"],
+                       capture_output=True, timeout=TMUX_COMMAND_TIMEOUT)
+        print("  SURVEY: skipped Antigravity's feedback question", flush=True)
+        time.sleep(0.8)
+
+
 def inject(text: str, *, tmux_session: str, delay: float = 0.3):
     """Returns True when delivered, "question" when the agent's screen shows a
     question (nothing was typed), False when tmux failed."""
+    _skip_agy_survey(tmux_session)
     if waiting_on_question(tmux_session):
         _answer_agy_trust(tmux_session)
     if waiting_on_question(tmux_session):

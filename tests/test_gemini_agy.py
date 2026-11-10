@@ -74,5 +74,16 @@ class GeminiProvider(unittest.TestCase):
             self.assertEqual(bool(sent), expect, screen)
 
 
+    def test_agys_feedback_survey_is_skipped(self):
+        import wrapper_unix
+        screen = "done\n How's the CLI experience so far? Help us improve:\n [1] Good  [2] Fine  [3] Bad  [0] Skip\n"
+        sent = []
+        with mock.patch.object(wrapper_unix, "pane_text", return_value=screen), \
+             mock.patch.object(wrapper_unix.subprocess, "run", side_effect=lambda *a, **k: sent.append(a[0])), \
+             mock.patch.object(wrapper_unix.time, "sleep"):
+            wrapper_unix._skip_agy_survey("agentchattr-x")
+        self.assertEqual(sent[0][-2:], ["-l", "0"])
+
+
 if __name__ == "__main__":
     unittest.main()
