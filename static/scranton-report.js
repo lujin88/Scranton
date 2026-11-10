@@ -13,7 +13,7 @@
     // "Claude · Opus", "ChatGPT · default model", "Cursor · Grok 4.6": which app and model a teammate runs on
     const runsOn = (h) => {
         const a = (window.scGetTeam ? window.scGetTeam() : {})[h] || {};
-        const app = { claude: 'Claude', codex: 'ChatGPT', agent: 'Cursor', 'cursor-agent': 'Cursor', grok: 'Grok' }[String(a.provider || a.command || '').toLowerCase()] || '';
+        const app = { claude: 'Claude', codex: 'ChatGPT', agent: 'Cursor', 'cursor-agent': 'Cursor', agy: 'Gemini', gemini: 'Gemini', grok: 'Grok' }[String(a.provider || a.command || '').toLowerCase()] || '';
         const m = String(a.model_name || '');
         return [app, m && m !== app ? m : (app ? 'default model' : '')].filter(Boolean).join(' · ');
     };

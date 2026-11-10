@@ -145,6 +145,7 @@ start_agent() {
         full:claude)              pflags="--permission-mode bypassPermissions" ;;
         full:codex)               pflags="--dangerously-bypass-approvals-and-sandbox" ;;
         full:agent|full:cursor-agent) pflags="--force" ;;
+        full:agy)                 pflags="--dangerously-skip-permissions" ;;
         *)                        pflags="" ;;
     esac
     # Claude Code can block reading outside the working folder (blockReadsOutsideWorkingDirectories),
@@ -161,6 +162,7 @@ start_agent() {
     case "$cmd:$effort" in
         codex:low|codex:medium|codex:high|codex:xhigh) pflags="$pflags -c model_reasoning_effort=$effort" ;;
         claude:low|claude:medium|claude:high|claude:xhigh|claude:max) pflags="$pflags --effort $effort" ;;
+        agy:low|agy:medium|agy:high) pflags="$pflags --effort $effort" ;;
     esac
     # No wrapper is running for this teammate (checked above), so any terminal it left
     # behind (agentchattr-<name> or <name>-2 after a crash/sleep) has nobody reading it:

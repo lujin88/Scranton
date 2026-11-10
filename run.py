@@ -14,6 +14,12 @@ from pathlib import Path
 ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT))
 
+# Antigravity CLI (agy) installs into ~/.local/bin, which the PATH saved when the Mac app
+# was installed may not have (Lu, 11-10). Teammates started from here inherit this.
+_local_bin = str(Path.home() / ".local" / "bin")
+if Path(_local_bin).is_dir() and _local_bin not in os.environ.get("PATH", "").split(os.pathsep):
+    os.environ["PATH"] = os.environ.get("PATH", "") + os.pathsep + _local_bin
+
 
 def _parse_args():
     parser = argparse.ArgumentParser(

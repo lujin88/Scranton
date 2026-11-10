@@ -127,7 +127,7 @@
         try { const r = await fetch('/api/scranton/connections', { headers: H() }); if (r.ok) conns = await r.json(); } catch (_) { /* keep the old list */ }
         return conns || [];
     }
-    const SHORT = { claude: 'Claude', codex: 'ChatGPT', cursor: 'Cursor' };
+    const SHORT = { claude: 'Claude', codex: 'ChatGPT', cursor: 'Cursor', gemini: 'Gemini' };
     const EFF = { '': 'Auto', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Max' };
     const EFF_TIP = { '': "The app's own default", low: 'Fastest, fewest tokens', medium: 'Balanced', high: 'Thinks longer',
         xhigh: 'Extra high: thinks much longer', max: 'Most thinking, slowest' };

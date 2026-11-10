@@ -271,7 +271,7 @@
                 <div class="sc-tbl-h"><span>Agent</span><span>Runs on</span><span>Status</span><span></span></div>
                 ${names.map((h) => `<div class="sc-tbl-r" data-agent="${esc(h)}" role="button" tabindex="0">
                     <span class="sc-ag"><span class="sc-ag-av">${avatar(h)}</span><span class="sc-ag-txt"><b>${esc(label(h))}</b><small>${esc((t[h].role || '').split(':')[0])}</small></span></span>
-                    <span class="sc-tbl-dim">${esc({ claude: 'Claude', codex: 'ChatGPT', cursor: 'Cursor' }[t[h].provider] || t[h].provider || '')}</span>
+                    <span class="sc-tbl-dim">${esc({ claude: 'Claude', codex: 'ChatGPT', cursor: 'Cursor', gemini: 'Gemini' }[t[h].provider] || t[h].provider || '')}</span>
                     <span><span class="sc-pill ${esc(state(h))}">${stText(h)}</span></span>
                     <span class="sc-tbl-go">${state(h) === 'offline' ? `<button type="button" class="sc-btn sm" data-start="${esc(h)}">Start</button>` : ''}${icon('right', 18)}</span>
                 </div>`).join('')}
@@ -292,7 +292,7 @@
     }
 
     function addView(o) {
-        const provs = [['claude', 'Claude'], ['codex', 'ChatGPT'], ['cursor', 'Cursor']];
+        const provs = [['claude', 'Claude'], ['codex', 'ChatGPT'], ['cursor', 'Cursor'], ['gemini', 'Gemini']];
         return `<button type="button" class="sc-back" data-a="back">${icon('back', 18)}<span>All agents</span></button>
             <header class="sc-st-head"><h2>Add agent</h2><p>It starts right away and joins the channels you pick.</p></header>
             <div class="sc-form wide">
@@ -328,7 +328,7 @@
                     <button type="button" class="sc-btn" data-a="edit-cancel">Cancel</button><button type="button" class="sc-btn primary" data-a="edit-save">Save</button></div>
             </div>`;
         } else if (agentTab === 'overview') {
-            const provs = [['claude', 'Claude', 'claude'], ['codex', 'ChatGPT', 'openai'], ['cursor', 'Cursor', 'cursor-ai']];
+            const provs = [['claude', 'Claude', 'claude'], ['codex', 'ChatGPT', 'openai'], ['cursor', 'Cursor', 'cursor-ai'], ['gemini', 'Gemini', 'gemini']];
             const cur = provs.find((x) => x[0] === p.provider) || provs[0];
             const known = p.models.map(([v]) => v);
             const modelLabel = (p.models.find(([v]) => v === p.model) || [p.model, p.model || 'Default'])[1];

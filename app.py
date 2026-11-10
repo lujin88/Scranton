@@ -2708,6 +2708,8 @@ def _scranton_team() -> dict:
         provider = Path(command).name if command else ""
         if provider in ("agent", "cursor-agent"):
             provider = "cursor"
+        elif provider == "agy":
+            provider = "gemini"
         avatar = str(cfg.get("avatar", "") or "").strip()
         url = ""
         if avatar and "/" not in avatar and "\\" not in avatar and Path(avatar).suffix.lower() in _AVATAR_EXTS:

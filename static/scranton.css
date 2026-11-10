@@ -1377,6 +1377,7 @@ body.sc-in-dm #mention-toggles-row > #sc-attach-btn { display: grid !important; 
 .sc-pick-logo { display: grid; place-items: center; width: 20px; height: 20px; }
 .sc-pick-logo.claude { color: #d97757; }
 .sc-pick-logo.codex, .sc-pick-logo.cursor { color: #fff; }
+.sc-pick-logo.gemini { color: #4c8df6; }   /* Gemini blue */
 .sc-id-input { width: min(320px, 100%); height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--tone-3a); background: var(--tone-22); color: var(--text); font: inherit; font-size: 14px; outline: none; text-align: right; }
 .sc-id-input:focus { border-color: var(--tone-5a); text-align: left; }
 .sc-id-instr textarea { min-height: 96px; border-radius: 14px; }

@@ -149,6 +149,14 @@ _BUILTIN_DEFAULTS: dict[str, dict] = {
         # mcp_merge_project disabled — Codex reads .mcp.json natively,
         # and duplicate detection is name-based only (e.g. unityMCP vs unity-mcp)
     },
+    # Antigravity CLI (agy): MCP servers live in ~/.gemini/config/mcp_config.json (merged:
+    # Lu's own servers stay), remote ones under "serverUrl".
+    "agy": {
+        "mcp_inject": "settings_file",
+        "mcp_settings_path": "~/.gemini/config/mcp_config.json",
+        "mcp_http_key": "serverUrl",
+        "mcp_transport": "http",
+    },
     "kimi": {
         "mcp_inject": "flag",
         "mcp_flag": "--mcp-config-file",
@@ -1255,7 +1263,7 @@ def main():
         _activity_checker = checker
 
     _describe = [None]       # set below on macOS/Linux: reads the agent's screen
-    _app_name = {"claude": "Claude", "codex": "ChatGPT", "cursor": "Cursor"}.get(_provider_from_command(command), "the app")
+    _app_name = {"claude": "Claude", "codex": "ChatGPT", "cursor": "Cursor", "agy": "Antigravity"}.get(_provider_from_command(command), "the app")
     _reported = _PROBLEM_POSTED
     _seen = [None, 0.0]      # problem key on screen now, since when
     _idle_since = [None]     # went from working to idle at

@@ -23,7 +23,8 @@ OVERRIDES = ROOT / "data" / "teammates.json"
 EDITABLE = ("model", "permissions", "autostart", "label", "role", "avatar", "provider", "effort")
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
 # What each app's CLI accepts: `claude --effort` and Codex's model_reasoning_effort.
-EFFORTS_BY = {"claude": ("low", "medium", "high", "xhigh", "max"), "codex": ("low", "medium", "high", "xhigh")}
+EFFORTS_BY = {"claude": ("low", "medium", "high", "xhigh", "max"), "codex": ("low", "medium", "high", "xhigh"),
+              "gemini": ("low", "medium", "high")}   # agy --effort
 MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:\-]{0,63}$")
 
 # Each provider: CLI names, how to sign in, where its login lives, model hints.
@@ -59,6 +60,13 @@ PROVIDERS = {
         "login": "agent login", "login_hint": "Sign in to Cursor in the browser.",
         "models": [["", "Default", ""]],   # filled from `agent models` on this Mac (see cursor_models)
     },
+    # Google's Antigravity CLI (agy), which replaced Gemini CLI. Gemini 4 Argon needs a paid
+    # Google AI plan; agy falls back to its own default for a model your plan doesn't have.
+    "gemini": {
+        "name": "Gemini (Antigravity)", "plan": "Google AI Pro / Ultra", "commands": ["agy"],
+        "login": "agy", "login_hint": "In the window that opens, sign in with Google in the browser.",
+        "models": [["", "Default", "Antigravity picks"], ["gemini-4-argon", "Gemini 4 Argon", ""]],
+    },
 }
 
 _lock = threading.Lock()
@@ -93,7 +101,7 @@ def set_override(name: str, key: str, value, config: dict) -> dict:
         value = " ".join(str(value or "").split())[:300]
     if key == "provider":
         if value not in COMMANDS:
-            raise ValueError("pick Claude, ChatGPT or Cursor")
+            raise ValueError("pick Claude, ChatGPT, Cursor or Gemini")
         key, value = "command", COMMANDS[value]
     if key == "effort":
         value = str(value or "")
@@ -136,7 +144,7 @@ def set_override(name: str, key: str, value, config: dict) -> dict:
 # ---------------------------------------------------------------- add / delete agents
 
 HANDLE_RE = re.compile(r"^[a-z][a-z0-9-]{1,16}$")   # "dm-" + handle must fit a 20-char channel name
-COMMANDS = {"claude": "claude", "codex": "codex", "cursor": "agent"}
+COMMANDS = {"claude": "claude", "codex": "codex", "cursor": "agent", "gemini": "agy"}
 
 
 def _write(data: dict) -> None:
@@ -245,6 +253,8 @@ def provider_of(command: str) -> str:
     c = Path(str(command or "")).name
     if c in ("agent", "cursor-agent"):
         return "cursor"
+    if c == "agy":
+        return "gemini"
     return c if c in PROVIDERS else ""
 
 
@@ -272,6 +282,10 @@ def _logged_in(pid: str, home: Path) -> tuple[bool | None, str]:
                     if info:
                         return True, str(info.get("email") or "")
             return None, ""
+        if pid == "gemini":
+            # agy keeps its Google sign-in encrypted here (or in the keychain): presence is all we can see
+            d = home / ".gemini" / "antigravity-cli"
+            return (True, "Google sign-in") if (d / "credentials.enc").exists() else (None, "")
     except FileNotFoundError:
         return False, ""
     except (OSError, ValueError):
