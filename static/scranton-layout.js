@@ -100,6 +100,7 @@
     async function render() {
         // Don't rebuild under someone typing (status changes re-render the panel every few seconds).
         if (document.getElementById('sc-ch-edit')) return;
+        if (document.activeElement && document.activeElement.closest && document.activeElement.closest('#sc-info select')) return;
         const p = panel();
         const on = isOpen() && !document.body.classList.contains('sc-inbox-open');
         document.body.classList.toggle('sc-info-open', on);
@@ -120,6 +121,7 @@
                     <p class="sc-info-st ${esc(st)}"><span></span>${STATE[st] || st}</p>
                     ${st === 'offline' ? `<div class="sc-info-actions"><button type="button" class="sc-btn primary" data-i="start">Start</button></div>` : ''}
                 </div>
+                <div class="sc-info-tabs" role="tablist">${INFO_TABS.map(([k, n]) => `<button type="button" role="tab" data-itab="${k}" aria-selected="${k === agTab}">${n}</button>`).join('')}</div>
                 <div class="sc-info-body" id="sc-info-body"><p class="sc-info-empty">Loading…</p></div>`;
             fill(h);
         } else {
@@ -189,10 +191,56 @@
         if (e.key === 'Enter' && (ed.tagName === 'INPUT' || e.metaKey || e.ctrlKey)) { e.preventDefault(); document.querySelector('#sc-info [data-i="edit-save"]')?.click(); }
     }, true);
 
+    // The same three things as the agent's Settings page (Lu, 11-10: switch the model right here)
+    const INFO_TABS = [['identity', 'Identity'], ['terminal', 'Terminal'], ['activity', 'Activity']];
+    let agTab = 'identity';
+    let termTimer = null;
+    const opts = (list, cur) => {
+        const groups = [];
+        for (const [v, l, g] of list || []) {
+            let grp = groups.find((x) => x.name === (g || ''));
+            if (!grp) groups.push(grp = { name: g || '', items: [] });
+            grp.items.push(`<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(l)}</option>`);
+        }
+        return groups.map((g) => (g.name ? `<optgroup label="${esc(g.name)}">${g.items.join('')}</optgroup>` : g.items.join(''))).join('');
+    };
+    const PROVS = [['claude', 'Claude'], ['codex', 'ChatGPT'], ['cursor', 'Cursor'], ['gemini', 'Gemini']];
+    const EFFS = { '': 'Automatic', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Max' };
+    async function pollTerm(h) {
+        clearTimeout(termTimer);
+        const pre = document.getElementById('sc-info-term');
+        if (!pre || agTab !== 'terminal') return;
+        const r = await api(`/api/scranton/teammate/${encodeURIComponent(h)}/screen`);
+        const now = document.getElementById('sc-info-term');
+        if (!now) return;
+        now.textContent = r.running ? (r.text || '(empty)') : 'Not running.';
+        termTimer = setTimeout(() => pollTerm(h), 2000);
+    }
     async function fill(h) {
         const body = document.getElementById('sc-info-body');
         if (!body) return;
+        document.querySelectorAll('#sc-info [data-itab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.itab === agTab)));
         const r = await api(`/api/scranton/teammate/${encodeURIComponent(h)}`);
+        if (!document.getElementById('sc-info-body')) return;
+        if (agTab === 'identity') {
+            const efforts = r.efforts || [];
+            body.innerHTML = `<div class="sc-info-card" data-h="${esc(h)}">
+                <label class="sc-info-row"><span>Runs on</span><span class="sc-info-sel"><select data-qset="provider">${PROVS.map(([v, l]) => `<option value="${v}"${v === r.provider ? ' selected' : ''}>${l}</option>`).join('')}</select>${ic('chevron-down', 16)}</span></label>
+                <label class="sc-info-row"><span>Model</span><span class="sc-info-sel"><select data-qset="model">${opts(r.models, r.model || '')}</select>${ic('chevron-down', 16)}</span></label>
+                ${efforts.length ? `<label class="sc-info-row"><span>Thinking</span><span class="sc-info-sel"><select data-qset="effort">${['', ...efforts].map((e) => `<option value="${e}"${e === (r.effort || '') ? ' selected' : ''}>${EFFS[e] || e}</option>`).join('')}</select>${ic('chevron-down', 16)}</span></label>` : ''}
+            </div>
+            <p class="sc-info-note" id="sc-info-saved" role="status">Takes effect when it restarts.</p>
+            <button type="button" class="sc-btn sm sc-info-all" data-i="settings">All settings</button>`;
+            return;
+        }
+        if (agTab === 'terminal') {
+            body.innerHTML = `<pre class="sc-term sc-info-term" id="sc-info-term">Loading…</pre>
+                <div class="sc-term-keys">${['Enter', 'Escape', 'Up', 'Down', '1', '2', 'y', 'n'].map((k) => `<button type="button" class="sc-btn sm" data-ikey="${k}">${{ Escape: 'Esc', Up: '↑', Down: '↓' }[k] || k}</button>`).join('')}</div>
+                <button type="button" class="sc-btn sm sc-info-all" data-iopen="1">Open in Terminal</button>
+                <p class="sc-info-note" id="sc-info-saved" role="status"></p>`;
+            pollTerm(h);
+            return;
+        }
         // Only what they said: no join/leave lines, times as HH:MM
         const recent = (r.recent || []).filter((m) => m.type !== 'system' && !/^\S+ (?:disconnected|connected|joined|left)\b/i.test(String(m.text || '')));
         body.innerHTML = recent.length ? `<div class="sc-info-feed">${recent.map((m) => `
@@ -201,6 +249,20 @@
                 <span class="sc-info-text">${esc(String(m.text || '').slice(0, 220).replace(/@([a-z0-9_-]+)/gi, (all, h) => (team()[h] ? '@' + label(h) : all)))}</span>
             </button>`).join('')}</div>` : '<p class="sc-info-empty">No messages yet.</p>';
     }
+
+    document.addEventListener('change', async (e) => {
+        const sel = e.target.closest && e.target.closest('#sc-info select[data-qset]');
+        if (!sel) return;
+        const h = sel.closest('[data-h]').dataset.h;
+        const r = await fetch(`/api/scranton/teammate/${encodeURIComponent(h)}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-Token': window.SESSION_TOKEN },
+            body: JSON.stringify({ action: 'set', key: sel.dataset.qset, value: sel.value }),
+        }).then((x) => x.json()).catch(() => ({ error: "Couldn't save" }));
+        const n = document.getElementById('sc-info-saved');
+        if (n) n.textContent = r.error ? r.error : (state(h) === 'offline' ? 'Saved.' : 'Saved. Restart it (⋯ → Restart) to use this now.');
+        window.scReloadTeam && window.scReloadTeam();
+        if (!r.error && sel.dataset.qset === 'provider') { sel.blur(); fill(h); }
+    });
 
     const p_menu = () => document.querySelector('#sc-info .sc-info-menu');
     async function onPanelClick(e) {
@@ -254,6 +316,21 @@
             return;
         }
         if (i === 'settings') return window.scOpenAgent && window.scOpenAgent(ch.slice(3));
+        const tab = t.closest('[data-itab]');
+        if (tab) { agTab = tab.dataset.itab; return fill(ch.slice(3)); }
+        const key = t.closest('[data-ikey]');
+        const post = (path, body) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-Token': window.SESSION_TOKEN }, body: JSON.stringify(body) }).then((r) => r.json()).catch(() => ({ error: 'Scranton isn\'t answering' }));
+        if (key) {
+            const r = await post(`/api/scranton/teammate/${encodeURIComponent(ch.slice(3))}/keys`, { key: key.dataset.ikey });
+            const n = document.getElementById('sc-info-saved'); if (n) n.textContent = r.error ? `Didn't reach the terminal: ${r.error}` : '';
+            setTimeout(() => pollTerm(ch.slice(3)), 400);
+            return;
+        }
+        if (t.closest('[data-iopen]')) {
+            const r = await post(`/api/scranton/teammate/${encodeURIComponent(ch.slice(3))}/open-terminal`, {});
+            const n = document.getElementById('sc-info-saved'); if (n) n.textContent = r.error || 'Opened in Terminal. Close that window when you\'re done; it keeps running.';
+            return;
+        }
         if (i === 'add') return document.getElementById('sc-members-btn')?.click();
         if (i === 'start' || i === 'restart') {
             const b = t.closest('[data-i]');

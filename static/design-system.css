@@ -1576,3 +1576,18 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-id-edit .sc-id-input { background: transparent !important; border: 0 !important; width: auto; min-width: 0; flex: 1; padding: 0 4px; height: 34px;
     text-align: right !important; color: var(--ds-text); font-size: inherit; }
 .sc-id-edit .sc-id-input:focus { text-align: left !important; outline: none; }
+
+/* Teammate panel (DM ⓘ): Identity | Terminal | Activity, same controls as their Settings page (Lu, 11-10) */
+.sc-info-tabs { display: flex; gap: 4px; padding: 0 16px; margin: 4px 0 12px; }
+.sc-info-tabs button { border: 0; background: none; height: 34px; padding: 0 12px; border-radius: 999px; color: var(--ds-text-2); font: inherit; font-size: 14px; cursor: pointer; }
+.sc-info-tabs button:hover { color: var(--ds-text); }
+.sc-info-tabs button[aria-selected="true"] { background: var(--ds-raised); color: var(--ds-text); font-weight: 600; }
+.sc-info-card { background: var(--ds-raised); border-radius: var(--ds-r-card); padding: 4px 0; }
+.sc-info-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 0 16px; font-size: 14px; color: var(--ds-text); }
+.sc-info-sel { position: relative; display: inline-flex; align-items: center; gap: 4px; color: var(--ds-text); min-width: 0; }
+.sc-info-sel select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; color: inherit; font: inherit; font-size: 14px; text-align: right; padding: 6px 2px; cursor: pointer; max-width: 190px; }
+.sc-info-sel .ri { color: var(--ds-text-2); pointer-events: none; }
+.sc-info-note { font-size: 12px; color: var(--ds-text-2); margin: 8px 4px; min-height: 16px; text-align: left; }
+.sc-info-all { margin-top: 4px; }
+.sc-info-term { max-height: 46vh; overflow: auto; font-size: 11px; line-height: 1.45; white-space: pre-wrap; }
+@media (pointer: coarse) { .sc-info-sel select { font-size: 16px; } }
