@@ -3462,7 +3462,36 @@ async def scranton_teammate_keys(name: str, request: Request):
     if key not in allowed:
         return JSONResponse({"error": "not allowed"}, status_code=400)
     import subprocess as _sp
-    await asyncio.to_thread(_sp.run, ["tmux", "send-keys", "-t", f"={_sc_tmux_session(name)}:", allowed[key]], capture_output=True, timeout=5)
+    target = f"={_sc_tmux_session(name)}:"
+    # Raw bytes, not tmux key names: an app that turned on extended keys (Antigravity's agy) gets
+    # tmux's "Enter" as an escape sequence and ignores it (Lu, 11-10: Enter did nothing).
+    raw = {"Enter": "0d", "Escape": "1b", "Tab": "09", "Up": "1b 5b 41", "Down": "1b 5b 42",
+           "Right": "1b 5b 43", "Left": "1b 5b 44"}
+    cmd = ["tmux", "send-keys", "-t", target] + (["-H", *raw[key].split()] if key in raw else ["-l", allowed[key]])
+    r = await asyncio.to_thread(_sp.run, cmd, capture_output=True, text=True, timeout=5)
+    if r.returncode != 0:
+        return JSONResponse({"error": (r.stderr or "couldn't reach the terminal").strip()[:200]}, status_code=502)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/scranton/teammate/{name}/open-terminal")
+async def scranton_teammate_open_terminal(name: str):
+    """Open the agent's real terminal in macOS Terminal (Lu, 11-10: "做成真的可以用的"). Only on the Mac
+    Scranton runs on; the command is fixed (tmux attach to that agent), nothing from the request is run."""
+    if name not in (config or {}).get("agents", {}):
+        return JSONResponse({"error": "not found"}, status_code=404)
+    import shutil as _sh
+    import subprocess as _sp
+    if sys.platform != "darwin" or not _sh.which("osascript"):
+        return JSONResponse({"error": "Opening a terminal works on the Mac Scranton runs on."}, status_code=400)
+    session = _sc_tmux_session(name)
+    if not _re.fullmatch(r"[A-Za-z0-9_.-]+", session):
+        return JSONResponse({"error": "unexpected terminal name"}, status_code=400)
+    tmux = _sh.which("tmux") or "tmux"
+    script = f'tell application "Terminal" to do script "{tmux} attach -t ={session}"\ntell application "Terminal" to activate'
+    r = await asyncio.to_thread(_sp.run, ["osascript", "-e", script], capture_output=True, text=True, timeout=10)
+    if r.returncode != 0:
+        return JSONResponse({"error": (r.stderr or "Terminal didn't open").strip()[:200]}, status_code=500)
     return JSONResponse({"ok": True})
 
 

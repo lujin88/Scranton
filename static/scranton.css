@@ -1391,6 +1391,7 @@ body.sc-in-dm #mention-toggles-row > #sc-attach-btn { display: grid !important; 
 .sc-term { height: 340px; overflow: auto; margin: 0; padding: 12px 14px; background: var(--tone-0e); border: 1px solid var(--tone-2a); border-radius: 12px;
     font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--tone-c7); white-space: pre-wrap; word-break: break-word; }
 .sc-term-keys { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.sc-term-keys .sc-term-open { margin-left: auto; }
 .sc-term-note { margin: 0 0 10px; }
 /* hover toolbar sits next to your own bubble, not at the far left */
 .message.self .sc-tools { left: auto !important; right: 72px !important; }

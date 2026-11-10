@@ -359,7 +359,9 @@
         } else if (agentTab === 'terminal') {
             content = `<p class="sc-st-note sc-term-note">What ${esc(p.label)}'s terminal shows right now. If it's waiting on a question, answer with the keys below.</p>
                 <pre class="sc-term" id="sc-term">Loading…</pre>
-                <div class="sc-term-keys">${['Enter', 'Escape', 'Up', 'Down', '1', '2', '3', 'y', 'n'].map((k) => `<button type="button" class="sc-btn sm" data-key="${k}">${{ Escape: 'Esc', Up: '↑', Down: '↓' }[k] || k}</button>`).join('')}</div>`;
+                <div class="sc-term-keys">${['Enter', 'Escape', 'Up', 'Down', '1', '2', '3', 'y', 'n'].map((k) => `<button type="button" class="sc-btn sm" data-key="${k}">${{ Escape: 'Esc', Up: '↑', Down: '↓' }[k] || k}</button>`).join('')}
+                    <button type="button" class="sc-btn sm sc-term-open" data-open-term="1" title="Type into it yourself. Close the window when done; ${esc(p.label)} keeps running.">Open in Terminal</button></div>
+                <p class="sc-st-note" id="sc-term-msg" role="status"></p>`;
             setTimeout(() => pollScreen(p.handle), 0);
         } else if (agentTab === 'card') {
             const md = p.role_card_text || '';
@@ -528,7 +530,17 @@
         if (a === 'message') { const h = agentOpen; close(); window.scOpenDm && window.scOpenDm(h); return; }
         if (a === 'check-update') { window.scCheckUpdate && window.scCheckUpdate(); return; }
         const key = t.closest('[data-key]');
-        if (key) { await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}/keys`, { key: key.dataset.key }); setTimeout(() => pollScreen(agentOpen), 300); return; }
+        if (key) {
+            const r = await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}/keys`, { key: key.dataset.key });
+            const m = root.querySelector('#sc-term-msg'); if (m) m.textContent = r && r.error ? `Didn't reach the terminal: ${r.error}` : '';
+            setTimeout(() => pollScreen(agentOpen), 300); setTimeout(() => pollScreen(agentOpen), 1200); return;
+        }
+        if (t.closest('[data-open-term]')) {
+            const r = await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}/open-terminal`, {});
+            const m = root.querySelector('#sc-term-msg');
+            if (m) m.textContent = r && r.error ? r.error : 'Opened in Terminal. Close that window when you\'re done; the agent keeps running.';
+            return;
+        }
         const tab = t.closest('[data-tab]');
         if (tab) { agentTab = tab.dataset.tab; editing = false; render(); return; }
         const rest = t.closest('[data-restore]');
