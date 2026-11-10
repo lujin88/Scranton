@@ -435,22 +435,30 @@
     function startEdit(id) {
         const m = byId.get(id);
         if (!isMine(m)) return;
-        document.querySelectorAll(`.message[data-id="${id}"] .msg-text`).forEach((box) => {
+        // Edit where you clicked: a reply in the open thread lives in the right panel (.sc-tmsg),
+        // not in the channel (Lu, 11-10: Edit did nothing in the thread on the right).
+        const inThread = document.querySelector(`#sc-thread .sc-tmsg[data-mid="${id}"] .sc-tmsg-text`);
+        const boxes = inThread ? [inThread] : [...document.querySelectorAll(`.message[data-id="${id}"] .msg-text`)];
+        // a "> who: text" first line is the quote shown above the message: edit only your words
+        const q = /^> ([^\n]{1,200})\n/.exec(String(m.text || ''));
+        const prefix = q ? q[0] : '', own = String(m.text || '').slice(prefix.length);
+        boxes.forEach((box) => {
             if (box.querySelector('.sc-edit')) return;
             const was = box.innerHTML;
             box.innerHTML = `<div class="sc-edit"><textarea class="sc-edit-input" rows="1" aria-label="Edit message"></textarea>
                 <div class="sc-edit-bar"><span>Enter to save · Esc to cancel</span>
                 <button type="button" class="sc-btn sm" data-ed="cancel">Cancel</button><button type="button" class="sc-btn sm primary" data-ed="save">Save</button></div></div>`;
             const ta = box.querySelector('textarea');
-            ta.value = String(m.text || '');
+            ta.value = own;
             const fit = () => { ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, 320)}px`; };
             fit(); ta.addEventListener('input', fit);
             ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
             const done = () => { box.innerHTML = was; };
             const save = () => {
-                const t = ta.value.trim();
-                if (!t) { toast("A message can't be empty. Delete it instead."); return; }
-                if (t === String(m.text || '').trim()) { done(); return; }
+                const mine = ta.value.trim();
+                if (!mine) { toast("A message can't be empty. Delete it instead."); return; }
+                const t = prefix + mine;
+                if (t.trim() === String(m.text || '').trim()) { done(); return; }
                 if (!(window.ws && window.ws.readyState === WebSocket.OPEN)) { toast("Couldn't save: not connected"); return; }
                 window.ws.send(JSON.stringify({ type: 'edit_text', id, text: t }));
                 myEdits.add(id);
@@ -487,6 +495,17 @@
         const m = ev && ev.message;
         if (!m || m.id == null) return;
         const id = Number(m.id);
+        // The thread on the right draws from its own copy of the replies: update it and redraw,
+        // or an edited reply keeps showing the old text there.
+        const old = byId.get(id);
+        if (old && old !== m) Object.assign(old, m);
+        const root = m.reply_to != null ? rootOf(m) : null;
+        if (root != null) {
+            const list = replies.get(root) || [];
+            const i = list.findIndex((r) => Number(r.id) === id);
+            if (i >= 0) list[i] = m;
+        }
+        if (activeThread != null && (activeThread === id || activeThread === root)) { try { renderThread(); } catch (_) { /* never break */ } }
         if (!myEdits.has(id)) return;   // another window's edit asks there
         myEdits.delete(id);
         const added = Array.isArray(ev.added_mentions) ? ev.added_mentions : [];
