@@ -474,24 +474,29 @@
             <p class="sc-st-note" id="sc-conn-note">Default model is for agents that don't pick their own. It applies the next time they start.</p>`;
     }
 
-    // Backup API keys (Lu, 11-10): only used while a teammate's plan is out.
+    // Backup API keys (Lu, 11-10): only used while a teammate's plan is out. Same grid, logos and
+    // button column as the app rows above, so the buttons line up (Lu, 11-10 23:54).
     function backupKeysView(r) {
         const k = (r && r.keys) || {};
+        const logo = { claude: ['claude', '#d97757', '#fff', 26], codex: ['openai', '#ffffff', '#000', 26] };
         const row = (id, name, ph) => {
             const s = k[id] || {};
-            return `<div class="sc-key-r">
-                <span class="sc-key-name">${name}</span>
-                ${s.set ? `<span class="sc-key-set">Saved · ends in ${esc(s.last4)}</span>
-                    <button type="button" class="sc-btn sm" data-key-del="${id}">Remove</button>`
-                    : `<input type="password" class="sc-key-in" data-key-in="${id}" placeholder="${ph}" autocomplete="off" spellcheck="false" aria-label="${name} API key">
-                    <button type="button" class="sc-btn sm primary" data-key-save="${id}">Save</button>`}
-                ${s.limits_url ? `<a class="sc-key-lim" href="${esc(s.limits_url)}" target="_blank" rel="noopener">Set a spending limit</a>` : ''}
+            const [b, col, fg, sz] = logo[id];
+            return `<div class="sc-conn-r sc-key-row">
+                <span class="sc-conn-logo" style="background:${col};color:${fg}">${icon(b, sz)}</span>
+                <span class="sc-conn-txt"><b>${name}</b><small>${s.set ? `Saved · ends in ${esc(s.last4)}` : 'No key'}</small></span>
+                ${s.set ? '<span class="sc-key-gap"></span>'
+                    : `<input type="password" class="sc-key-in" data-key-in="${id}" placeholder="${ph}" autocomplete="off" spellcheck="false" aria-label="${name} API key">`}
+                ${s.set ? `<button type="button" class="sc-btn" data-key-del="${id}">Remove</button>`
+                    : `<button type="button" class="sc-btn primary" data-key-save="${id}">Save</button>`}
             </div>`;
         };
+        const lim = (id, name) => (k[id] && k[id].limits_url) ? `<a href="${esc(k[id].limits_url)}" target="_blank" rel="noopener">${name}</a>` : name;
         const on = Object.entries((r && r.on_api) || {});
         return `<h3 class="sc-st-h3">Backup API keys</h3>
-            <p class="sc-st-note">When a teammate's Claude or ChatGPT plan runs out, it carries on with this key (pay per use) and goes back to the plan after about 5 hours. Nobody uses a key otherwise. Set a spending limit with the provider: Scranton can't cap what the API charges.</p>
-            <div class="sc-bkeys">${row('claude', 'Claude (Anthropic)', 'sk-ant-…')}${row('codex', 'ChatGPT (OpenAI)', 'sk-…')}</div>
+            <p class="sc-st-note">Only used when a teammate's Claude or ChatGPT plan runs out: it carries on with the key (pay per use) and goes back to the plan after about 5 hours.
+            Scranton can't cap what the API charges, so set a monthly limit at ${lim('claude', 'Anthropic')} and ${lim('codex', 'OpenAI')}: then a teammate stuck in a loop at night can't run up a big bill.</p>
+            <div class="sc-conn sc-bkeys">${row('claude', 'Claude (Anthropic)', 'sk-ant-…')}${row('codex', 'ChatGPT (OpenAI)', 'sk-…')}</div>
             <p class="sc-st-note" id="sc-key-note" role="status">${on.length ? `On the API now: ${on.map(([n]) => esc(label(n))).join(', ')}` : ''}</p>`;
     }
 
