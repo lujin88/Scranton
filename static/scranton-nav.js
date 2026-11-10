@@ -639,6 +639,7 @@
             if (changed && window.scClearQuote) window.scClearQuote();   // a quote belongs to its conversation
             if (changed && window.scDraft) window.scDraft.save(window.activeChannel);
             const r = origSwitch.apply(this, arguments);
+            if (changed && window.scThreadsFollow) window.scThreadsFollow(name);
             if (changed && window.scDraft) window.scDraft.load(name);
             if (typeof renderChannelSidebar === 'function') renderChannelSidebar();
             updateTitle();

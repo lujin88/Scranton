@@ -1348,6 +1348,17 @@
         document.body.classList.remove('sc-thread-open'); renderThread();
     };
 
+    // Switching channel: threads from the old channel close, so the right side never shows a
+    // thread that isn't in the conversation you're looking at (Lu, 11-10). Channel details stay.
+    window.scThreadsFollow = (ch) => {
+        const keep = openThreads.filter((r) => ((byId.get(Number(r)) || {}).channel || 'general') === ch);
+        if (keep.length === openThreads.length) return;
+        openThreads.splice(0, openThreads.length, ...keep);
+        if (activeThread != null && !keep.includes(activeThread)) activeThread = keep.length ? keep[keep.length - 1] : null;
+        if (activeThread == null && infoTab == null) document.body.classList.remove('sc-thread-open');
+        renderThread();
+    };
+
     function closeThread(rootId) {
         const i = openThreads.indexOf(rootId);
         if (i >= 0) openThreads.splice(i, 1);
