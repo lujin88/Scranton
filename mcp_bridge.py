@@ -195,6 +195,26 @@ def _resolve_tool_identity(
     return "", f"Error: authenticated agent session required for '{provided}'."
 
 
+def _owner_name() -> str:
+    try:
+        import app
+        return str(app.room_settings.get("username") or "Lu")
+    except Exception:
+        return "Lu"
+
+
+def _address_owner(text: str) -> str:
+    """A message that opens by speaking to Lu ("Lu，是我排慢了…", "Lu: 3 件事") is talking to her,
+    so it gets the @ that puts it in her Activity (Lu, 11-10: they wrote "Lu" and she never saw it).
+    "Lu 选了 A" (about her, no comma) stays plain. Who may @ her is still decided by
+    [team] mentions_from: anyone else's @Lu goes to the project manager, as before."""
+    t = str(text or "")
+    names = {_owner_name(), "Lu"}
+    alt = "|".join(_re_mod.escape(n) for n in sorted(names, key=len, reverse=True) if n)
+    m = _re_mod.match(r"^(\s*)(" + alt + r")(?=\s*[，,:：、!！])", t)
+    return f"{m.group(1)}@{t[len(m.group(1)):]}" if m else t
+
+
 def chat_send(
     sender: str,
     message: str,
@@ -261,6 +281,7 @@ def chat_send(
         return f"Error: sender '{sender}' is not registered. Call chat_claim(sender=your_base_name) to get your identity."
     if not message.strip() and not image_path:
         return "Empty message, not sent."
+    message = _address_owner(message)
 
     # Job-scoped send: post into a job conversation instead of main timeline
     if job_id and jobs:
