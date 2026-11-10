@@ -5,6 +5,7 @@ Serves two transports for compatibility:
   - SSE on port 8201 (Gemini)
 """
 
+import re as _re_mod
 import json
 import os
 import time
@@ -167,6 +168,17 @@ def _resolve_tool_identity(
     inst = _authenticated_instance(ctx)
     if inst:
         resolved = inst["name"]
+        # Scranton: a teammate that can see another teammate's connection (two Gemini teammates
+        # share one MCP settings file) must not act through it under its own name.
+        base = lambda n: _re_mod.sub(r"-\d+$", "", str(n or "").strip().lower())
+        if provided and resolved and base(provided) != base(resolved):
+            try:
+                others = {base(n) for n in registry.get_all_names()}
+            except Exception:
+                others = set()
+            if base(provided) in others:
+                return "", (f"Error: this connection belongs to {resolved}, not {provided}. "
+                            f"Use your own Scranton connection (scranton-{base(provided)}).")
         if resolved:
             _touch_presence(resolved)
         return resolved, None

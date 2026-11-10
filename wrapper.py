@@ -54,7 +54,7 @@ def _drop_our_server(config_file: Path) -> None:
 
 
 def _write_json_mcp_settings(config_file: Path, url: str, transport: str = "http",
-                              *, token: str = "", http_key: str = "httpUrl") -> Path:
+                              *, token: str = "", http_key: str = "httpUrl", server_name: str = "") -> Path:
     """Write/merge a settings-style JSON file with nested mcpServers config.
 
     Preserves existing servers in the file — only updates the agentchattr entry.
@@ -86,7 +86,7 @@ def _write_json_mcp_settings(config_file: Path, url: str, transport: str = "http
         entry = {"type": transport, "url": url, "trust": True}
     if token:
         entry["headers"] = {"Authorization": f"Bearer {token}"}
-    servers[SERVER_NAME] = entry
+    servers[server_name or SERVER_NAME] = entry
     existing["mcpServers"] = servers
 
     # Enable folder trust so ~/.gemini/trustedFolders.json is respected
@@ -165,15 +165,16 @@ _BUILTIN_DEFAULTS: dict[str, dict] = {
         # mcp_merge_project disabled — Codex reads .mcp.json natively,
         # and duplicate detection is name-based only (e.g. unityMCP vs unity-mcp)
     },
-    # Antigravity CLI (agy): per-workspace MCP in .agents/mcp_config.json (remote servers under
-    # "serverUrl"). Per workspace, not the global ~/.gemini/config one: each teammate has its own
-    # worktree and its own token, so two Gemini teammates don't post as each other (Lu, 11-10).
+    # Antigravity CLI (agy) only reads ~/.gemini/config/mcp_config.json (a workspace .agents/ file
+    # is ignored: tested on Lu's Mac, 11-10). One shared file, so each teammate gets its own entry
+    # ("scranton-<name>", its own token); the server refuses a call made under another
+    # teammate's name, so two Gemini teammates can't post as each other.
     "agy": {
         "mcp_inject": "settings_file",
-        "mcp_settings_path": ".agents/mcp_config.json",
+        "mcp_settings_path": "~/.gemini/config/mcp_config.json",
         "mcp_http_key": "serverUrl",
         "mcp_transport": "http",
-        "mcp_scrub_global": "~/.gemini/config/mcp_config.json",
+        "mcp_server_per_instance": True,
     },
     "kimi": {
         "mcp_inject": "flag",
@@ -271,12 +272,12 @@ def _apply_mcp_inject(
         if not target.is_absolute():
             base = Path(project_dir) if project_dir else Path.cwd()
             target = base / target
-        scrub = inject_cfg.get("mcp_scrub_global")
-        if scrub:
-            _drop_our_server(Path(scrub).expanduser())
+        per_instance = bool(inject_cfg.get("mcp_server_per_instance"))
+        if per_instance:
+            _drop_our_server(target)   # the old shared "agentchattr" entry (one teammate's token)
         settings_path = _write_json_mcp_settings(target, server_url,
                                                   transport=transport, token=token,
-                                                  http_key=http_key)
+                                                  http_key=http_key, server_name=f"scranton-{instance_name}" if per_instance else "")
         # Optionally set an env var pointing to the settings file
         env_var = inject_cfg.get("mcp_env_var")
         if env_var:

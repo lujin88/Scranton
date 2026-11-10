@@ -83,6 +83,25 @@ def codex(folder: str, home: Path) -> list[str]:
     return ["codex: folder trusted"]
 
 
+def agy(folder: str, home: Path) -> list[str]:
+    """Antigravity asks "Do you trust the contents of this project?" once per folder and keeps the
+    answer in settings.json → trustedWorkspaces. Scranton made this folder (the teammate's own
+    worktree of Lu's project), so it's recorded as trusted up front (Lu, 11-10)."""
+    path = home / ".gemini" / "antigravity-cli" / "settings.json"
+    settings = _load_json(path) if path.exists() else {}
+    if settings is None:
+        return []
+    trusted = settings.get("trustedWorkspaces")
+    if not isinstance(trusted, list):
+        trusted = []
+    if folder in trusted:
+        return []
+    settings["trustedWorkspaces"] = trusted + [folder]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _atomic_write(path, json.dumps(settings, indent=2, ensure_ascii=False) + "\n")
+    return ["agy: folder trusted"]
+
+
 def main(argv: list[str]) -> int:
     if len(argv) != 4:
         print(__doc__)
@@ -94,6 +113,8 @@ def main(argv: list[str]) -> int:
             done = claude(folder, perm == "full", home)
         elif command == "codex":
             done = codex(folder, home)
+        elif command == "agy":
+            done = agy(folder, home)
         else:
             done = []  # Cursor: --force and --approve-mcps cover it
     except OSError as e:

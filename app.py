@@ -3488,7 +3488,8 @@ async def scranton_teammate_open_terminal(name: str):
     if not _re.fullmatch(r"[A-Za-z0-9_.-]+", session):
         return JSONResponse({"error": "unexpected terminal name"}, status_code=400)
     tmux = _sh.which("tmux") or "tmux"
-    script = f'tell application "Terminal" to do script "{tmux} attach -t ={session}"\ntell application "Terminal" to activate'
+    # quoted: zsh reads a bare "=name" as "the path of command name" (Lu, 11-10: "agentchattr-visintern not found")
+    script = f'tell application "Terminal" to do script "{tmux} attach -t \\"={session}\\""\ntell application "Terminal" to activate'
     r = await asyncio.to_thread(_sp.run, ["osascript", "-e", script], capture_output=True, text=True, timeout=10)
     if r.returncode != 0:
         return JSONResponse({"error": (r.stderr or "Terminal didn't open").strip()[:200]}, status_code=500)
