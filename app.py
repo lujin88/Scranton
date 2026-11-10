@@ -3020,7 +3020,7 @@ async def scranton_older(channel: str, before: int, limit: int = 100):
     return JSONResponse({"messages": older[-limit:], "more": len(older) > limit})
 
 
-HANDOVER_DEFAULTS = {"enabled": False, "hours": 4, "wakes": 40}
+HANDOVER_DEFAULTS = {"enabled": False, "hours": 4, "wakes": 40, "context_k": 100}   # context_k: start over past this many thousand tokens per call (Lu, 11-10; 100 is a starting point)
 
 
 def _handover_settings() -> dict:
@@ -3054,6 +3054,8 @@ async def scranton_handover_set(request: Request):
             cur["hours"] = max(1, min(int(body["hours"]), 48))
         if "wakes" in body:
             cur["wakes"] = max(10, min(int(body["wakes"]), 500))
+        if "context_k" in body:
+            cur["context_k"] = 0 if not body["context_k"] else max(30, min(int(body["context_k"]), 900))
     except (TypeError, ValueError):
         return JSONResponse({"error": "hours and wakes are numbers"}, status_code=400)
     room_settings["handover"] = cur

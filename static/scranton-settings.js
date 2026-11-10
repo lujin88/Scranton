@@ -203,8 +203,11 @@
                     <span>Start fresh after</span>
                     <input type="number" id="sc-ho-hours" min="1" max="48" value="${Number(h.hours)}" aria-label="Hours"> <span>hours</span>
                     <span>or</span>
-                    <input type="number" id="sc-ho-wakes" min="10" max="500" step="10" value="${Number(h.wakes)}" aria-label="Messages"> <span>messages, whichever comes first.</span>
+                    <input type="number" id="sc-ho-wakes" min="10" max="500" step="10" value="${Number(h.wakes)}" aria-label="Messages"> <span>messages,</span>
+                    <span>or once a reply re-reads more than</span>
+                    <input type="number" id="sc-ho-ctx" min="30" max="900" step="10" value="${Number(h.context_k || 0)}" aria-label="Thousand tokens"> <span>k tokens, whichever comes first.</span>
                 </div>
+                <p class="sc-tbl-dim">The size counts most: every reply re-sends the whole session. Read from Claude Code's and Codex's own logs; Cursor and Gemini only use hours and messages. 0 turns the size off.</p>
                 <p class="sc-tbl-dim">Never in the middle of a task: only when the next message arrives and the teammate isn't working. Your chat history stays as it is; only the agent's working memory starts over. Each handoff is in <code>data/handoffs/</code>.</p>
                 <span class="sc-st-saved" id="sc-ho-saved"></span>
             </div>`;
@@ -777,9 +780,9 @@
             return;
         }
         if (e.target.id && e.target.id.startsWith('sc-new-')) return;
-        if (e.target.id === 'sc-ho-on' || e.target.id === 'sc-ho-hours' || e.target.id === 'sc-ho-wakes') {
+        if (e.target.id === 'sc-ho-on' || e.target.id === 'sc-ho-hours' || e.target.id === 'sc-ho-wakes' || e.target.id === 'sc-ho-ctx') {
             const v = (id) => Number(root.querySelector('#' + id)?.value);
-            const h = await api('/api/scranton/handover', { enabled: root.querySelector('#sc-ho-on').checked, hours: v('sc-ho-hours'), wakes: v('sc-ho-wakes') });
+            const h = await api('/api/scranton/handover', { enabled: root.querySelector('#sc-ho-on').checked, hours: v('sc-ho-hours'), wakes: v('sc-ho-wakes'), context_k: v('sc-ho-ctx') });
             if (h.error) { flash('sc-ho-saved', h.error); return; }
             if (root && section === 'handover') root.querySelector('.sc-st-body').innerHTML = handoverView(h);
             flash('sc-ho-saved', 'Saved. Teammates pick it up within a minute.');

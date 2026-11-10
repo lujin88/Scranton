@@ -699,11 +699,26 @@ def _handover_settings(server_port: int, token: str) -> dict | None:
     return _HANDOVER["cache"]
 
 
-def _handover_due(settings: dict | None, started: float, wakes: int) -> bool:
+def _handover_due(settings: dict | None, started: float, wakes: int, context: int | None = None) -> bool:
     if not settings or not settings.get("enabled"):
         return False
+    # Context size (Lu, 11-10): every call re-sends the whole session, so a big one is what costs.
+    # Only for apps whose log we can read (Claude Code, Codex); None means unknown → hours/messages.
+    k = int(settings.get("context_k", 0) or 0)
+    if k and context and context >= k * 1000:
+        return True
     return (time.time() - started >= float(settings.get("hours", 4)) * 3600
             or wakes >= int(settings.get("wakes", 40)))
+
+
+def _session_context(started: float) -> int | None:
+    """Tokens the teammate's current session sends per call, from its CLI's own log."""
+    try:
+        import scranton_context
+        return scranton_context.current_context(_HANDOVER.get("command") or "", _HANDOVER.get("cwd") or "",
+                                                started - 120)
+    except Exception:
+        return None
 
 
 def _do_handover(inject_fn, agent_name: str, wait: float = 240.0) -> str | None:
@@ -757,6 +772,7 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
     trigger_count = 0
     session_started = time.time()   # Scranton: for the fresh-session handover
     wakes = 0
+    ctx_retry_at = 0.0
     while True:
         try:
             _, queue_file = get_identity_fn()
@@ -848,7 +864,8 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                     handoff_prefix = ""
                     _htok = get_token_fn() if get_token_fn else ""
                     hs = _handover_settings(server_port, _htok)
-                    if _handover_due(hs, session_started, wakes):
+                    ctx = _session_context(session_started) if (hs or {}).get("enabled") and time.time() >= ctx_retry_at else None
+                    if _handover_due(hs, session_started, wakes, ctx):
                         busy = _HANDOVER.get("busy")
                         if not (busy and busy()):
                             note = _do_handover(inject_fn, agent_name)
@@ -861,6 +878,7 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                                 # didn't work this time: try again after a while, not on every message
                                 wakes = max(0, int(hs.get("wakes", 40)) // 2)
                                 session_started = time.time() - float(hs.get("hours", 4)) * 1800
+                                ctx_retry_at = time.time() + 20 * 60   # a big context: don't retry on every message
 
                     # Use current identity (may have changed via rename)
                     current_name, _ = get_identity_fn()
@@ -1027,6 +1045,7 @@ def main():
     data_dir = ROOT / config.get("server", {}).get("data_dir", "./data")
     _HANDOVER["command"] = command
     _HANDOVER["handoff_dir"] = data_dir / "handoffs"
+    _HANDOVER["cwd"] = str((ROOT / cwd).expanduser().resolve()) if not str(cwd).startswith("~") else str(Path(cwd).expanduser().resolve())
     data_dir.mkdir(parents=True, exist_ok=True)
     server_port = config.get("server", {}).get("port", 8300)
     mcp_cfg = config.get("mcp", {})
