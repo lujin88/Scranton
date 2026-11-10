@@ -106,8 +106,9 @@
     const isUnread = (m) => {
         const k = keyOf(m);
         if (forceUnread.has(k)) return true;
-        if (readKeys.has(k) || answered(m) || prRepeat(m)) return false;
-        if (Date.now() / 1000 - tsOf(m) > STALE_S) return false;
+        if (readKeys.has(k)) return false;
+        if (Date.now() / 1000 - tsOf(m) > STALE_S) return false;   // cheap checks first: this runs for every Activity item on each repaint
+        if (answered(m) || prRepeat(m)) return false;
         // Only asks count (Lu, 11-09: "我只需要关注我的 event", 52 when 2 really needed her):
         // a question for you, or a PR for you to merge. Everything else is just listed;
         // unread messages are already counted on their channel in the sidebar.
@@ -245,6 +246,11 @@
     function scheduleRender() {
         if (renderPending) return;
         renderPending = true;
+        // While the opening history is still being drawn, count once every 400 ms, not every frame.
+        if (typeof historyLoading !== 'undefined' && historyLoading) {
+            setTimeout(() => { renderPending = false; scheduleRender(); }, 400);
+            return;
+        }
         const run = () => { renderPending = false; renderInboxBadge(); if (inboxOpen()) renderInbox(); };
         // A hidden page (the Mac app's window in the back, a background tab) gets no animation frames,
         // so the count, and the Dock badge read from it, would stay stale until you looked.

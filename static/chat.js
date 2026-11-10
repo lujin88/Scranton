@@ -508,22 +508,46 @@ function scheduleHistoryRender() {
     }
 }
 
+// Opening Scranton renders the open channel first, then the others, in slices of ~12 ms so a
+// tap is never stuck behind a long render (Lu, 11-10: "点下去没反应" on the Mac app and phone).
+// Within each channel the order stays as sent; the DOM order across channels doesn't matter
+// (only one channel is shown, and date dividers are kept per channel).
+let historyShownActive = false;
+function _nextHistoryMsg() {
+    const ch = window.activeChannel || activeChannel;
+    const i = pendingHistory.findIndex((m) => (m.channel || 'general') === ch);
+    if (i >= 0) return pendingHistory.splice(i, 1)[0];
+    return pendingHistory.shift();
+}
+function _activeHistoryLeft() {
+    const ch = window.activeChannel || activeChannel;
+    return pendingHistory.some((m) => (m.channel || 'general') === ch);
+}
 function renderHistoryBatch() {
     historyScheduled = false;
     const fragment = document.createDocumentFragment();
-    for (const msg of pendingHistory.splice(0, 100)) {
-        appendMessage(msg, { history: true, container: fragment });
+    const start = performance.now();
+    let n = 0;
+    while (pendingHistory.length && (n < 10 || performance.now() - start < 12)) {
+        appendMessage(_nextHistoryMsg(), { history: true, container: fragment });
+        n++;
     }
     const breadcrumbs = [...fragment.querySelectorAll('.job-breadcrumb')];
     const container = document.getElementById('messages');
     container.appendChild(fragment);
     for (const el of breadcrumbs) window._collapseJobBreadcrumbs?.(container, el);
+    // The open channel is in: show it at the bottom now, don't wait for the hidden channels.
+    if (!historyShownActive && historyReceived && pendingHistory.length && !_activeHistoryLeft() && autoScroll) {
+        historyShownActive = true;
+        scrollToBottom(true);
+    }
     // Scroll once when history is in, not after every batch: each scroll made the browser lay out
     // the whole growing page again (Lu, 11-10: ~5 s to open on a phone).
     if (pendingHistory.length) {
         scheduleHistoryRender();
     } else if (historyReceived) {
         historyLoading = false;
+        historyShownActive = false;
         soundEnabled = true;
         setHistoryIndicator(false);
         const events = pendingLiveEvents;
