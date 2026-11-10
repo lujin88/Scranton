@@ -171,6 +171,19 @@ start_agent() {
         tmux kill-session -t "=$s" 2>/dev/null || true
     done
     case "$cmd" in
+        agy)
+            # Gemini (agy) reads its Scranton connection (with a local token) from .agents/ in its
+            # own worktree. Keep that file out of git so it can't be committed by accident.
+            if [ -d "$dir/.git" ]; then
+                ex="$dir/.git/info/exclude"; mkdir -p "$dir/.git/info"; touch "$ex"
+                grep -qxF ".agents/mcp_config.json" "$ex" || echo ".agents/mcp_config.json" >> "$ex"
+            fi
+            if [ -n "$pflags" ]; then
+                # shellcheck disable=SC2086
+                "$PY" tools/spawn.py "$RUN_DIR/$name.pid" "$LOG_DIR/$name.log" -- "$PY" -u wrapper.py "$name" -- $pflags >/dev/null
+            else
+                "$PY" tools/spawn.py "$RUN_DIR/$name.pid" "$LOG_DIR/$name.log" -- "$PY" -u wrapper.py "$name" >/dev/null
+            fi ;;
         agent|cursor-agent)
             # Cursor reads its MCP settings (with a local token) from the project.
             # Keep that file out of git so it can't be committed by accident.

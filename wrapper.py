@@ -37,6 +37,22 @@ SERVER_NAME = "agentchattr"
 # Per-instance provider config
 # ---------------------------------------------------------------------------
 
+def _drop_our_server(config_file: Path) -> None:
+    """Remove Scranton's entry from a shared MCP config (an older version wrote it there with one
+    teammate's token); everything else in the file stays as it is."""
+    try:
+        data = json.loads(config_file.read_text("utf-8"))
+    except (OSError, ValueError):
+        return
+    servers = data.get("mcpServers") if isinstance(data, dict) else None
+    if isinstance(servers, dict) and SERVER_NAME in servers:
+        servers.pop(SERVER_NAME)
+        try:
+            config_file.write_text(json.dumps(data, indent=2) + "\n", "utf-8")
+        except OSError:
+            pass
+
+
 def _write_json_mcp_settings(config_file: Path, url: str, transport: str = "http",
                               *, token: str = "", http_key: str = "httpUrl") -> Path:
     """Write/merge a settings-style JSON file with nested mcpServers config.
@@ -149,13 +165,15 @@ _BUILTIN_DEFAULTS: dict[str, dict] = {
         # mcp_merge_project disabled — Codex reads .mcp.json natively,
         # and duplicate detection is name-based only (e.g. unityMCP vs unity-mcp)
     },
-    # Antigravity CLI (agy): MCP servers live in ~/.gemini/config/mcp_config.json (merged:
-    # Lu's own servers stay), remote ones under "serverUrl".
+    # Antigravity CLI (agy): per-workspace MCP in .agents/mcp_config.json (remote servers under
+    # "serverUrl"). Per workspace, not the global ~/.gemini/config one: each teammate has its own
+    # worktree and its own token, so two Gemini teammates don't post as each other (Lu, 11-10).
     "agy": {
         "mcp_inject": "settings_file",
-        "mcp_settings_path": "~/.gemini/config/mcp_config.json",
+        "mcp_settings_path": ".agents/mcp_config.json",
         "mcp_http_key": "serverUrl",
         "mcp_transport": "http",
+        "mcp_scrub_global": "~/.gemini/config/mcp_config.json",
     },
     "kimi": {
         "mcp_inject": "flag",
@@ -253,6 +271,9 @@ def _apply_mcp_inject(
         if not target.is_absolute():
             base = Path(project_dir) if project_dir else Path.cwd()
             target = base / target
+        scrub = inject_cfg.get("mcp_scrub_global")
+        if scrub:
+            _drop_our_server(Path(scrub).expanduser())
         settings_path = _write_json_mcp_settings(target, server_url,
                                                   transport=transport, token=token,
                                                   http_key=http_key)
