@@ -380,7 +380,7 @@ main#timeline { padding: 12px 0 8px; }
 /* Your messages: right-aligned bubbles (as in Buzz) */
 .message.self { flex-direction: row-reverse; }
 .message.self .chat-bubble {
-    background: var(--accent-soft); border-radius: 22px;
+    background: var(--sc-self-bg); border-radius: 22px;
     padding: 10px 16px; max-width: min(640px, 78%); margin-left: auto;
 }
 .message.self .bubble-header { justify-content: flex-end; }
@@ -458,7 +458,7 @@ body.sc-thread-open #sc-thread { display: flex; }
 .sc-tmsg-av img { width: 100%; height: 100%; object-fit: cover; }
 .sc-tmsg-av svg { width: 14px; height: 14px; }
 .sc-tmsg-body { min-width: 0; max-width: 100%; }
-.sc-tmsg.self .sc-tmsg-body { background: var(--accent-soft); border-radius: 14px; border-top-right-radius: 5px; padding: 6px 12px; max-width: 85%; }
+.sc-tmsg.self .sc-tmsg-body { background: var(--sc-self-bg); border-radius: 14px; border-top-right-radius: 5px; padding: 6px 12px; max-width: 85%; }
 .sc-tmsg-head { display: flex; gap: 8px; align-items: baseline; font-size: 12.5px; color: var(--text-dim); margin-bottom: 2px; }
 .sc-tmsg-head b { color: var(--text); font-size: 13.5px; }
 .sc-tmsg.self .sc-tmsg-head b { display: none; }

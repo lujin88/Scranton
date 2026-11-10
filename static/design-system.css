@@ -83,7 +83,8 @@
     --ds-accent: #4c8df6;
     --ds-accent-hover: #6aa1f8;
     --ds-on-accent: #ffffff;
-    --ds-accent-soft: var(--tone-3c);   /* your bubble: lightest grey, as in Grok Bot */
+    --ds-self-bg: var(--tone-3c);       /* your bubble: lightest grey, as in Grok Bot */
+    --ds-accent-soft: rgba(76, 141, 246, 0.16);  /* on-state tint: your reactions, unread rows, focus rings */
     --ds-accent-chip: var(--tone-4a);   /* @chips inside your bubble */
 
     /* ---- Status ---- */
@@ -126,7 +127,7 @@
     --accent-soft: var(--ds-accent-soft);
     --accent-hover: var(--ds-accent-chip);
     --sc-sidebar: var(--ds-canvas);
-    --sc-self-bg: var(--ds-accent-soft);
+    --sc-self-bg: var(--ds-self-bg);
 }
 
 /* ================================================================ surfaces */
@@ -152,7 +153,7 @@ body.sc-info-open #sc-info { border-left: 1px solid var(--ds-line); }
 
 /* ================================================================ bubbles */
 .message:not(.self) .msg-text { background: var(--ds-bubble) !important; border: 0 !important; border-radius: var(--ds-r-bubble) !important; border-top-left-radius: 6px !important; }
-.message.self .msg-text, .message.self .chat-bubble { background: var(--ds-accent-soft) !important; border: 0 !important; color: var(--ds-text) !important; }
+.message.self .msg-text, .message.self .chat-bubble { background: var(--ds-self-bg) !important; border: 0 !important; color: var(--ds-text) !important; }
 .message.self .msg-text .mention { background: var(--ds-accent-chip) !important; color: var(--ds-text) !important; }
 .msg-time, .msg-num { color: var(--ds-text-3) !important; }
 .date-divider > span { background: transparent !important; color: var(--ds-text-3); font-size: var(--ds-fs-xs); }
@@ -478,7 +479,7 @@ body.sc-report-open #sc-empty-room { display: none; }
 .sc-thread-body a, .sc-tmsg-text a { color: var(--ds-accent); text-decoration: none; }
 .sc-thread-body a:hover, .sc-tmsg-text a:hover { text-decoration: underline; }
 .sc-tmsg:not(.self) .sc-tmsg-body { background: var(--ds-bubble); border-radius: 14px; border-top-left-radius: 5px; padding: 6px 12px; max-width: 85%; }
-.sc-tmsg.self .sc-tmsg-body { background: var(--ds-accent-soft) !important; }
+.sc-tmsg.self .sc-tmsg-body { background: var(--ds-self-bg) !important; }
 
 /* Agent page in Settings: pill tabs, filled groups, no outlines */
 .sc-tabs { border-bottom: 0 !important; gap: 4px; }
@@ -936,7 +937,8 @@ textarea.sc-mention-hl-input { position: relative; z-index: 1; background: trans
 
 /* ================================================================ light mode, Grok Bot details */
 :root[data-theme="light"] {
-    --ds-accent-soft: #232323;          /* your bubble: near-black with white text, as in Grok Bot */
+    --ds-self-bg: #232323;              /* your bubble: near-black with white text, as in Grok Bot */
+    --ds-accent-soft: rgba(76, 141, 246, 0.12);  /* reactions etc. stay a light blue tint, never the black bubble (Lu, 11-10) */
     --ds-accent-chip: rgba(255, 255, 255, 0.16);
 }
 :root[data-theme="light"] .message.self .msg-text, :root[data-theme="light"] .sc-tmsg.self .sc-tmsg-body { color: #fff !important; }
