@@ -350,6 +350,7 @@
         document.body.classList.remove('sc-report-open');
     }
     window.scOpenReport = open;
+    window.scCloseReport = close;
 
     async function onClick(e) {
         if (e.target.closest('#sc-rp-prs-more')) {

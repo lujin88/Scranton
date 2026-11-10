@@ -450,6 +450,14 @@
         renderInbox();
         closeDrawer();
     };
+    // Clicking a channel or a person in the sidebar means "take me there": Activity and Report
+    // close even when it's the channel you were already in (Lu, 11-10: had to close them by hand).
+    document.addEventListener('click', (e) => {
+        const row = e.target.closest('#channel-sidebar-list .channel-sidebar-row, #sc-dm-list .sc-side-row, #channel-tabs .channel-tab');
+        if (!row || e.target.closest('.channel-sidebar-row-actions, .channel-tab-actions, .sc-side-x, input')) return;   // rename, delete and the like stay put
+        if (document.body.classList.contains('sc-inbox-open')) window.scCloseInbox();
+        if (document.body.classList.contains('sc-report-open') && window.scCloseReport) window.scCloseReport();
+    }, true);
     window.scCloseInbox = function () {
         document.getElementById('sc-inbox')?.classList.add('hidden');
         document.body.classList.remove('sc-inbox-open');
