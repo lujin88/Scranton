@@ -24,6 +24,7 @@ from summaries import SummaryStore
 from jobs import JobStore
 from schedules import ScheduleStore, parse_schedule_spec
 import scranton_quota as _sc_quota
+import scranton_apikeys as _sc_keys
 from router import Router
 from agents import AgentTrigger
 from registry import RuntimeRegistry
@@ -441,7 +442,7 @@ def _install_security_middleware(token: str, cfg: dict):
             # Allow registered agents to authenticate via Bearer token
             # for /api/messages and /api/send (no browser session needed).
             auth_header = request.headers.get("authorization", "")
-            agent_ok = (path in ("/api/messages", "/api/send") or path.startswith("/api/rules/")
+            agent_ok = (path in ("/api/messages", "/api/send", "/api/scranton/api-fallback") or path.startswith("/api/rules/")
                         or (path == "/api/scranton/handover" and request.method == "GET"))   # wrappers read when to hand over
             if auth_header.lower().startswith("bearer ") and agent_ok:
                 bearer = auth_header[7:].strip()
@@ -3495,6 +3496,8 @@ async def scranton_teammate(name: str):
     if not p:
         return JSONResponse({"error": "not found"}, status_code=404)
     p["running"] = agents.is_available(name)
+    p["on_api"] = _sc_keys.on_api(name)
+    p["has_backup_key"] = bool(_sc_keys.get_key(_sc_keys.provider_of_command(((config or {}).get("agents", {}).get(name) or {}).get("command", ""))))
     return JSONResponse(p)
 
 
@@ -3600,6 +3603,9 @@ async def scranton_teammate_update(name: str, request: Request):
             entry = _sc_team.set_override(name, str(body.get("key", "")), body.get("value"), config)
             await broadcast_team_changed()
             return JSONResponse({"ok": True, "saved": entry, "restart_needed": agents.is_available(name)})
+        if action == "plan":   # back to its plan from the backup API key
+            _sc_keys.end_api(name)
+            action = "restart"
         if action in ("stop", "restart"):
             await asyncio.to_thread(_sc_team.stop, name, config, _scranton_ops.RUN_DIR)
             # Free the name now, so the restarted agent comes back as itself (not "pm-2").
@@ -4468,3 +4474,71 @@ async def scranton_term_ws(websocket: WebSocket, name: str):
         except Exception:
             proc.kill()
         os.close(master)
+
+
+
+# ---------------------------------------------------------------- backup API keys (Lu, 11-10)
+@app.get("/api/scranton/api-keys")
+async def scranton_api_keys_get():
+    return JSONResponse({"keys": _sc_keys.summary(), "on_api": _sc_keys.all_on_api()})
+
+
+@app.post("/api/scranton/api-keys")
+async def scranton_api_keys_set(request: Request):
+    body = await request.json()
+    err = _sc_keys.set_key(str(body.get("provider", "")), str(body.get("key", "")))
+    if err:
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
+    return JSONResponse({"ok": True, "keys": _sc_keys.summary()})
+
+
+async def _sc_restart_quiet(name: str) -> None:
+    await asyncio.to_thread(_sc_team.stop, name, config, _scranton_ops.RUN_DIR)
+    _scranton_ops._starting.pop(name, None)
+    import mcp_bridge
+    for inst in [n for n, i in list(registry._instances.items()) if n == name or i.base == name]:
+        if registry.deregister(inst):
+            mcp_bridge.purge_identity(inst)
+            registry.clean_renames_for(inst)
+    await asyncio.to_thread(_scranton_ops.ensure_running, [name], config)
+
+
+@app.post("/api/scranton/api-fallback")
+async def scranton_api_fallback(request: Request):
+    """A teammate's wrapper says its plan is out. With a backup key for that app it restarts on
+    the key and says so; otherwise the wrapper reports the limit as before."""
+    auth = request.headers.get("authorization", "")
+    inst = registry.resolve_token(auth[7:].strip()) if auth.lower().startswith("bearer ") else None
+    if not inst:
+        return JSONResponse({"switching": False}, status_code=403)
+    base = inst.get("base") or inst["name"]
+    cfg = (config or {}).get("agents", {}).get(base, {})
+    provider = _sc_keys.provider_of_command(cfg.get("command", ""))
+    if not provider or _sc_keys.on_api(base) or not _sc_keys.start_api(base, provider):
+        return JSONResponse({"switching": False})
+    body = await request.json()
+    app_name = {"claude": "Claude", "codex": "ChatGPT"}[provider]
+    store.add(inst["name"], f"My {app_name} plan has hit its limit, so I'm carrying on with the backup API key "
+                            f"(pay per use) and will go back to the plan in about 5 hours.",
+              channel=str(body.get("channel") or "general"),
+              reply_to=body.get("thread") if isinstance(body.get("thread"), int) else None)
+    asyncio.create_task(_sc_restart_quiet(base))
+    return JSONResponse({"switching": True})
+
+
+async def _sc_api_back_loop():
+    """Every 10 minutes: teammates that have been on the API for 5 hours go back to their plan.
+    If the plan is still out, they hit the limit again and come straight back to the key."""
+    while True:
+        await asyncio.sleep(600)
+        try:
+            for name in _sc_keys.due_back():
+                _sc_keys.end_api(name)
+                await _sc_restart_quiet(name)
+        except Exception:
+            _log_rate_limited("api fallback check failed")
+
+
+@app.on_event("startup")
+async def _sc_api_back_start():
+    asyncio.create_task(_sc_api_back_loop())

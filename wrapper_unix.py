@@ -450,6 +450,19 @@ def run_agent(
         [shlex.quote(command)] + [shlex.quote(a) for a in extra_args]
     )
 
+    # Scranton: on the backup API key while its plan is out (scranton_apikeys). The key is read
+    # from its file inside the session, never put on the command line.
+    try:
+        import scranton_apikeys as _keys
+        _name = session_name.removeprefix("agentchattr-")
+        if _keys.on_api(_name) or _keys.on_api(agent):
+            if _keys.provider_of_command(command) == "claude":
+                _keys.approve_for_claude()
+            agent_cmd = _keys.wrap_command(_name, agent, agent_cmd)
+            print("  On the backup API key (pay per use) until the plan resets", flush=True)
+    except Exception as exc:
+        print(f"  backup API key not used: {exc}", flush=True)
+
     # Build env(1) prefix for the command INSIDE the tmux session.
     # subprocess.run(env=...) only affects the tmux client binary — the
     # session shell inherits from the tmux server instead.  Use env(1)

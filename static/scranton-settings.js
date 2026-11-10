@@ -103,7 +103,11 @@
             const slot = root && root.querySelector('#sc-lib');
             if (slot && Array.isArray(lib) && lib.length) slot.innerHTML = libraryView(lib);
         }
-        if (section === 'connections') { body.innerHTML = '<div class="sc-st-loading">Checking sign-ins…</div>'; body.innerHTML = connectionsView(await api('/api/scranton/connections')); }
+        if (section === 'connections') {
+            body.innerHTML = '<div class="sc-st-loading">Checking sign-ins…</div>';
+            const [list, keys] = await Promise.all([api('/api/scranton/connections'), api('/api/scranton/api-keys')]);
+            body.innerHTML = connectionsView(list) + backupKeysView(keys);
+        }
         if (section === 'updates') body.innerHTML = updatesView();
         if (section === 'appearance') body.innerHTML = appearanceView();
         if (section === 'shortcuts') { body.innerHTML = shortcutsView(null); scItems = await api('/api/scranton/shortcuts'); if (root && section === 'shortcuts') body.innerHTML = shortcutsView(scItems); }
@@ -337,7 +341,8 @@
             const modelLabel = (p.models.find(([v]) => v === p.model) || [p.model, p.model || 'Default'])[1];
             const inCh = new Set(p.channels);
             const chans = (window.channelList || []).filter((c) => !String(c).startsWith('dm-'));
-            content = `
+            const onApi = p.on_api ? `<div class="sc-api-on" role="status">${icon('bank-card', 16)}<span>On the backup API key since ${new Date(p.on_api.since * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (pay per use). Goes back to the plan by itself after about 5 hours.</span><button type="button" class="sc-btn sm" data-a="back-to-plan">Back to plan now</button></div>` : '';
+            content = `${onApi}
             <div class="sc-id-card">
                 <div class="sc-id-row"><span>Runs on</span>
                     <span class="sc-pick"><span class="sc-pick-logo ${cur[0]}">${icon(cur[2], 16)}</span><span>${esc(cur[1])}</span>${icon('chevron-down', 16)}
@@ -450,7 +455,7 @@
         // [icon, tile, mark, size]: each mark's own padding differs, so sizes are set by eye to look equal (Lu, 11-10)
         const badge = { claude: ['claude', '#d97757', '#fff', 26], codex: ['openai', '#ffffff', '#000', 26],
             cursor: ['cursor-ai', '#000000', '#fff', 25], gemini: ['gemini', '#ffffff', '#4c8df6', 26] };
-        return `<header class="sc-st-head"><h2>Connections</h2><p>Agents run on the apps you already pay for. Sign in once per app. No API keys.</p></header>
+        return `<header class="sc-st-head"><h2>Connections</h2><p>Agents run on the apps you already pay for. Sign in once per app.</p></header>
             <div class="sc-conn-hd"><span>Default model</span></div>
             <div class="sc-conn">${list.map((c) => {
                 const [b, col, fg, sz] = badge[c.id] || ['robot', '#444', '#fff', 22];
@@ -467,6 +472,27 @@
                 </div>`;
             }).join('')}</div>
             <p class="sc-st-note" id="sc-conn-note">Default model is for agents that don't pick their own. It applies the next time they start.</p>`;
+    }
+
+    // Backup API keys (Lu, 11-10): only used while a teammate's plan is out.
+    function backupKeysView(r) {
+        const k = (r && r.keys) || {};
+        const row = (id, name, ph) => {
+            const s = k[id] || {};
+            return `<div class="sc-key-r">
+                <span class="sc-key-name">${name}</span>
+                ${s.set ? `<span class="sc-key-set">Saved · ends in ${esc(s.last4)}</span>
+                    <button type="button" class="sc-btn sm" data-key-del="${id}">Remove</button>`
+                    : `<input type="password" class="sc-key-in" data-key-in="${id}" placeholder="${ph}" autocomplete="off" spellcheck="false" aria-label="${name} API key">
+                    <button type="button" class="sc-btn sm primary" data-key-save="${id}">Save</button>`}
+                ${s.limits_url ? `<a class="sc-key-lim" href="${esc(s.limits_url)}" target="_blank" rel="noopener">Set a spending limit</a>` : ''}
+            </div>`;
+        };
+        const on = Object.entries((r && r.on_api) || {});
+        return `<h3 class="sc-st-h3">Backup API keys</h3>
+            <p class="sc-st-note">When a teammate's Claude or ChatGPT plan runs out, it carries on with this key (pay per use) and goes back to the plan after about 5 hours. Nobody uses a key otherwise. Set a spending limit with the provider: Scranton can't cap what the API charges.</p>
+            <div class="sc-bkeys">${row('claude', 'Claude (Anthropic)', 'sk-ant-…')}${row('codex', 'ChatGPT (OpenAI)', 'sk-…')}</div>
+            <p class="sc-st-note" id="sc-key-note" role="status">${on.length ? `On the API now: ${on.map(([n]) => esc(label(n))).join(', ')}` : ''}</p>`;
     }
 
     // ---------------------------------------------------------------- Updates
@@ -498,6 +524,16 @@
         }
         if (a === 'sc-del') { t.closest('.sc-sc-item')?.remove(); saveShortcuts(true); return; }
         if (a === 'import') { importHistory(); return; }
+        if (a === 'back-to-plan' && agentOpen) { await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}`, { action: 'plan' }); render(); return; }
+        const ks = t.closest('[data-key-save]'), kd = t.closest('[data-key-del]');
+        if (ks || kd) {
+            const id = (ks || kd).dataset.keySave || (ks || kd).dataset.keyDel;
+            const input = root.querySelector(`[data-key-in="${id}"]`);
+            const r = await api('/api/scranton/api-keys', { provider: id, key: ks ? (input ? input.value : '') : '' });
+            if (r && r.error) { const n = root.querySelector('#sc-key-note'); if (n) n.textContent = r.error; return; }
+            render();
+            return;
+        }
         if (a === 'backup-now') {
             flash('sc-bk-saved', 'Backing up…');
             const b = await api('/api/scranton/backup/now', {});

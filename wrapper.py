@@ -653,6 +653,20 @@ def _post(server_port: int, sender: str, token: str, channel: str, reply_to, tex
         print(f"  couldn't post to chat: {exc}", flush=True)
 
 
+def _ask_api_fallback(server_port: int, token: str, place: dict) -> bool:
+    """True when Scranton is moving this teammate onto its backup API key."""
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{server_port}/api/scranton/api-fallback", method="POST",
+            data=json.dumps({"channel": place.get("channel") or "general", "thread": place.get("thread")}).encode(),
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return bool(json.loads(r.read() or b"{}").get("switching"))
+    except Exception:
+        return False
+
+
 def _take_queue(queue_file: Path, taking: Path, keep: int | None = None) -> int:
     """Move what's in the queue into .taking (after anything left there by a stop mid-delivery).
     With keep, only the newest `keep` items stay. Returns how many were dropped."""
@@ -1373,6 +1387,10 @@ def main():
                     _reported[problem] = now
                     from wrapper_unix import problem_text
                     cur, _ = get_identity()
+                    # Out of plan: with a backup API key, Scranton restarts it on the key instead
+                    # of stopping (it says so itself in the chat).
+                    if problem == "limit" and _ask_api_fallback(server_port, get_token(), _LAST_PLACE):
+                        continue
                     _post(server_port, cur, get_token(), _LAST_PLACE["channel"], _LAST_PLACE["thread"],
                           problem_text(problem, _app_name))
                 # Worked on a request, went quiet for 90 s, never answered: say so once.
