@@ -597,7 +597,7 @@ def _insight(heavy, all_tokens, team):
 
 
 _ACTION_ADVICE = {
-    "Chat it read": "Read only what's new since last time, not the whole channel or thread.",
+    "Chat it read": "Each read only brings what's new, but it stays in a long session and is re-sent with every reply after it. What helps: fewer wake-ups (@ only whoever must act now) and shorter sessions (Fresh sessions by size).",
     "Files it opened": "Opened again and again: put the part it needs into its role card, or read just that part.",
     "Command output": "Same command many times: keep the output short (| tail, --quiet), and don't re-run to check what didn't change.",
 }

@@ -267,6 +267,9 @@
         const seen = new Set();
         for (const a of (t.top_actions || [])) {
             if (/\(other\)$/.test(a.what)) continue;   // nothing specific to ask for
+            // chat_read already returns only what's new (11-10): its cost is long sessions and too
+            // many wake-ups, which "@ only who acts" and Fresh sessions by size already address.
+            if (/^chat_read/.test(a.what)) continue;
             const r = ACT_RULES.find(([re]) => re.test(a.what));
             if (!r || seen.has(r[1])) continue;
             seen.add(r[1]);
