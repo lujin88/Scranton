@@ -357,12 +357,11 @@
                 <div class="sc-id-row"><span>@handle</span><code>@${esc(p.handle)}</code></div>
             </div>`;
         } else if (agentTab === 'terminal') {
-            content = `<p class="sc-st-note sc-term-note">What ${esc(p.label)}'s terminal shows right now. If it's waiting on a question, answer with the keys below.</p>
-                <pre class="sc-term" id="sc-term">Loading…</pre>
-                <div class="sc-term-keys">${['Enter', 'Escape', 'Up', 'Down', '1', '2', '3', 'y', 'n'].map((k) => `<button type="button" class="sc-btn sm" data-key="${k}">${{ Escape: 'Esc', Up: '↑', Down: '↓' }[k] || k}</button>`).join('')}
-                    <button type="button" class="sc-btn sm sc-term-open" data-open-term="1" title="Type into it yourself. Close the window when done; ${esc(p.label)} keeps running.">Open in Terminal</button></div>
+            content = `<p class="sc-st-note sc-term-note">${esc(p.label)}'s own terminal, live. Click inside to type: Enter, arrows and letters go straight to it.</p>
+                <div class="sc-term-live" id="sc-term-live"></div>
+                <div class="sc-term-keys sc-term-touch">${['Enter', 'Escape', 'Up', 'Down'].map((k) => `<button type="button" class="sc-btn sm" data-key="${k}">${{ Escape: 'Esc', Up: '↑', Down: '↓' }[k] || k}</button>`).join('')}</div>
                 <p class="sc-st-note" id="sc-term-msg" role="status"></p>`;
-            setTimeout(() => pollScreen(p.handle), 0);
+            setTimeout(() => { const el = root && root.querySelector('#sc-term-live'); if (el && window.scTerm) window.scTerm(el, p.handle); }, 0);
         } else if (agentTab === 'card') {
             const md = p.role_card_text || '';
             content = md ? `<div class="sc-card-md">${window.marked ? sanitize(window.marked.parse(md)) : `<pre>${esc(md)}</pre>`}</div><p class="sc-st-note">From <code>${esc(p.role_card)}</code></p>`

@@ -4283,3 +4283,94 @@ async def serve_upload(filename: str, w: int | None = None):
                             filename=filepath.name,
                             headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"})
     return JSONResponse({"error": "not found"}, status_code=404)
+
+
+# ---------------------------------------------------------------- live terminal (Lu, 11-10: "embed 进去，像 Cursor")
+@app.websocket("/ws/term/{name}")
+async def scranton_term_ws(websocket: WebSocket, name: str):
+    """A real, typeable view of a teammate's terminal: `tmux attach` to its session in a pty,
+    bytes both ways. Same token and origin check as /ws. Closing the view detaches only;
+    the teammate keeps running."""
+    token = websocket.query_params.get("token", "")
+    ws_origin = getattr(websocket, "headers", {}).get("origin")
+    if ws_origin and ws_origin.rstrip("/") not in getattr(sys.modules[__name__], "allowed_ws_origins", set()):
+        token = ""
+    await websocket.accept()
+    if token != session_token or name not in (config or {}).get("agents", {}):
+        await websocket.close(code=4003, reason="forbidden")
+        return
+    import fcntl, pty, shutil as _sh, signal, struct, subprocess as _sp, termios
+    session = _sc_tmux_session(name)
+    tmux = _sh.which("tmux") or "tmux"
+    if _sp.run([tmux, "has-session", "-t", f"={session}"], capture_output=True).returncode != 0:
+        await websocket.send_bytes(f"\r\n  {name} isn't running. Start it, then open this again.\r\n".encode())
+        await websocket.close()
+        return
+    master, slave = pty.openpty()
+
+    def size(cols: int, rows: int):
+        try:
+            fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack("HHHH", max(10, min(rows, 200)), max(20, min(cols, 400)), 0, 0))
+        except OSError:
+            pass
+    size(100, 30)
+    env = {**os.environ, "TERM": "xterm-256color"}
+    env.pop("TMUX", None)
+    proc = _sp.Popen([tmux, "attach", "-t", f"={session}"], stdin=slave, stdout=slave, stderr=slave,
+                     env=env, start_new_session=True, close_fds=True)
+    os.close(slave)
+    os.set_blocking(master, False)
+    loop = asyncio.get_running_loop()
+    out: asyncio.Queue = asyncio.Queue()
+
+    def readable():
+        try:
+            data = os.read(master, 65536)
+        except BlockingIOError:
+            return
+        except OSError:
+            data = b""
+        out.put_nowait(data)
+    loop.add_reader(master, readable)
+
+    async def pump_out():
+        while True:
+            data = await out.get()
+            if not data:
+                break
+            await websocket.send_bytes(data)
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+    sender = asyncio.create_task(pump_out())
+    try:
+        while True:
+            msg = await websocket.receive()
+            if msg.get("type") == "websocket.disconnect":
+                break
+            text = msg.get("text")
+            if text is None:
+                continue
+            try:
+                ev = json.loads(text)
+            except ValueError:
+                continue
+            if ev.get("t") == "in" and isinstance(ev.get("d"), str):
+                os.write(master, ev["d"].encode("utf-8", "replace"))
+            elif ev.get("t") == "size":
+                size(int(ev.get("c") or 100), int(ev.get("r") or 30))
+    except (WebSocketDisconnect, RuntimeError, OSError):
+        pass
+    finally:
+        loop.remove_reader(master)
+        sender.cancel()
+        try:
+            os.killpg(proc.pid, signal.SIGHUP)   # detach this view only; the tmux session stays
+        except OSError:
+            pass
+        try:
+            proc.wait(timeout=3)
+        except Exception:
+            proc.kill()
+        os.close(master)

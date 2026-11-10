@@ -234,11 +234,11 @@
             return;
         }
         if (agTab === 'terminal') {
-            body.innerHTML = `<pre class="sc-term sc-info-term" id="sc-info-term">Loading…</pre>
-                <div class="sc-term-keys">${['Enter', 'Escape', 'Up', 'Down', '1', '2', 'y', 'n'].map((k) => `<button type="button" class="sc-btn sm" data-ikey="${k}">${{ Escape: 'Esc', Up: '↑', Down: '↓' }[k] || k}</button>`).join('')}</div>
-                <button type="button" class="sc-btn sm sc-info-all" data-iopen="1">Open in Terminal</button>
+            body.innerHTML = `<div class="sc-term-live sc-info-termlive" id="sc-info-termlive"></div>
+                <div class="sc-term-keys sc-term-touch">${['Enter', 'Escape', 'Up', 'Down'].map((k) => `<button type="button" class="sc-btn sm" data-ikey="${k}">${{ Escape: 'Esc', Up: '↑', Down: '↓' }[k] || k}</button>`).join('')}</div>
                 <p class="sc-info-note" id="sc-info-saved" role="status"></p>`;
-            pollTerm(h);
+            const el = document.getElementById('sc-info-termlive');
+            if (el && window.scTerm) window.scTerm(el, h);
             return;
         }
         // Only what they said: no join/leave lines, times as HH:MM
