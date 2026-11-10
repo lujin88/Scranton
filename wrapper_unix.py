@@ -81,16 +81,18 @@ def _drop_buffer(name: str) -> None:
 _QUESTION_RE = re.compile(
     r"Do you trust|trust the files|Yes, I trust|Yes, I accept|No, exit|Enter to confirm"
     r"|Press Enter to continue|Select login method|Sign in with ChatGPT|Log in with|Choose the text style"
-    r"|Allow this|Do you want to proceed|Approve\?|\(y/n\)|\[Y/n\]"
-    r"|Approaching rate limits|Keep current model",
+    r"|Allow this|Do you want to proceed|Approve\?|\(y/n\)|\[Y/n\]",
     re.I,
 )
 
 # Codex's "Approaching rate limits · switch to a cheaper model?" is a choice, not a limit: the plan
 # still has room. It mentions "rate limit", so the limit check used to post "I stopped: … usage limit"
 # every 30 min while it sat waiting (visualqa, 11-10 16:43–18:13, with 7% of the week left).
-# wrapper.py turns it off at launch; if it shows anyway it counts as a question.
-_CODEX_NUDGE = re.compile(r"Approaching rate limits|Keep current model", re.I)
+# wrapper.py turns it off at launch; if it shows anyway it counts as a question. Only the box itself
+# (its title and its "Press enter to confirm" line together): a teammate writing about it is not the box.
+_CODEX_NUDGE = re.compile(r"Approaching rate limits", re.I)
+_CODEX_NUDGE_CONFIRM = re.compile(r"to confirm", re.I)
+_CODEX_NUDGE_LINE = re.compile(r"Approaching rate limits|rate limit reminders", re.I)
 
 
 def pane_text(tmux_session: str, lines: int = 40) -> str:
@@ -354,10 +356,12 @@ def describe_screen(tmux_session: str) -> tuple[str, str | None]:
     lines = [l for l in text.splitlines() if l.strip()]
     injected = _LAST_INJECTED.get(tmux_session, "")
     bottom = "\n".join(l for l in lines[-10:] if not _echoes_prompt(l, injected))
-    if _CODEX_NUDGE.search(bottom):
+    nudge = bool(_CODEX_NUDGE.search(bottom) and _CODEX_NUDGE_CONFIRM.search(bottom))
+    if nudge:   # the box's own lines say "rate limit"; a real limit elsewhere on screen still counts
+        bottom = "\n".join(l for l in bottom.splitlines() if not _CODEX_NUDGE_LINE.search(l))
+    problem = next((key for key, rx, _ in _PROBLEMS if rx.search(bottom)), None)
+    if nudge and not problem:
         problem = "question"   # Codex asking whether to switch models: not a usage limit
-    else:
-        problem = next((key for key, rx, _ in _PROBLEMS if rx.search(bottom)), None)
     if problem and any(_SPINNER.match(l) for l in lines[-8:]):
         problem = None   # still working: whatever it printed isn't where it stopped
     if not problem and waiting_on_question(tmux_session):

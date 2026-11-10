@@ -32,6 +32,13 @@ class ProblemDetectionTest(unittest.TestCase):
                  "  Press enter to confirm or esc to go back\n")
         self.assertEqual(self.screen(nudge), "question")
         self.assertTrue(wu._QUESTION_RE.search(nudge))   # so nothing is typed into it
+        self.assertEqual(self.screen(nudge + "■ You've hit your usage limit. Try again at 8:32 AM.\n"), "limit")
+
+    def test_writing_about_the_nudge_is_not_the_nudge(self):
+        talk = ("• Codex showed Approaching rate limits; Scranton should pick Keep current model.\n"
+                "› \n")
+        self.assertNotEqual(self.screen(talk), "question")
+        self.assertFalse(wu._QUESTION_RE.search(talk))   # a teammate's own words never block typing
 
     def test_codex_real_usage_limit_still_counts(self):
         self.assertEqual(self.screen("■ You've hit your usage limit. Try again at 8:32 AM.\n"), "limit")
