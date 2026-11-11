@@ -317,7 +317,7 @@ footer {
 .team-state { font-size: 11.5px; }
 #sc-center > footer { padding: 8px 16px 0; }
 #sc-center > footer #input-row { margin-left: 0; margin-right: 0; }
-body.sc-in-dm #mention-toggles-row > :not(#clear-chat-btn) { display: none; }
+/* DMs keep the same tools and quick @ as channels and threads (Lu, 11-11: "两边要保持一致"). */
 
 /* Activity (Buzz-style) */
 .sc-inbox-head { align-items: center; }
