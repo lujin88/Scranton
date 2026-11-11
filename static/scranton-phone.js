@@ -1,5 +1,5 @@
 // Scranton on a phone (Lu, 11-10, "like Grok, three screens left to right"):
-//   Home (avatar | search | + on top, then channels and people) → Conversation (‹ back, name, members) → Details (‹ back).
+//   Home (search on top, channels and people, you at the bottom as on the desktop) → Conversation (‹ back, name, members) → Details (‹ back).
 // Only below 760 px; the desktop layout is unchanged.
 (function () {
     'use strict';
@@ -48,7 +48,7 @@
         bar.className = 'sc-glass';
         bar.innerHTML = `${ic('search', 20)}<span>Search</span>`;
         bar.addEventListener('click', (e) => { e.stopPropagation(); document.getElementById('sc-search-btn')?.click(); });
-        head.insertBefore(bar, head.querySelector('.sc-home-new'));   // avatar | search | +
+        head.insertBefore(bar, head.querySelector('.sc-home-new'));   // search | +
     }
 
     // ‹ back instead of ×: thread and details go back to the conversation, Activity and Report to Home.
