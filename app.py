@@ -4781,14 +4781,22 @@ async def _sc_qa_move_if_planned(base: str, provider: str, channel: str, after_a
     to = plan.get("then")
     if not to or time.time() >= float(plan.get("until") or 0) or base in st.moved:
         return False
-    if base not in (config or {}).get("agents", {}):
+    why = "备用 API key 用不了" if after_api else f"{_sc_qask.APP_NAMES.get(provider, provider)} 额度用完了"
+    return await _sc_qa_move(base, to, float(plan["until"]), channel, why + "，按 Lu 的选择")
+
+
+async def _sc_qa_move(base: str, to: str, until: float, channel: str, why: str) -> bool:
+    """Run a teammate on another app until `until`, then _sc_qa_tick puts it back as it was."""
+    st = _sc_qa()
+    if base in st.moved or base not in (config or {}).get("agents", {}):
         return False
+    provider = _current_model(base)[0]
     ov = (_sc_team.load_overrides().get(base) or {})
     cfg = (config or {}).get("agents", {}).get(base, {})
     st.moved[base] = {"provider": _sc_team.provider_of(cfg.get("command", "")) or provider,
                       "model": ov.get("model") or cfg.get("model") or "",
                       "effort": ov.get("effort") or cfg.get("effort") or "",
-                      "until": float(plan["until"])}
+                      "until": float(until)}
     st.save()
     try:
         _sc_team.set_override(base, "provider", to, config)
@@ -4797,9 +4805,8 @@ async def _sc_qa_move_if_planned(base: str, provider: str, channel: str, after_a
     except ValueError:
         st.moved.pop(base, None); st.save()
         return False
-    when = time.strftime("%m-%d %H:%M", time.localtime(float(plan["until"])))
-    why = "备用 API key 用不了" if after_api else f"{_sc_qask.APP_NAMES.get(provider, provider)} 额度用完了"
-    store.add(base, f"{why}，按 Lu 的选择换到 {_sc_qask.APP_NAMES.get(to, to)} 接着干，{when} 重置后换回来。", channel=channel)
+    when = time.strftime("%m-%d %H:%M", time.localtime(float(until)))
+    store.add(base, f"{why}，换到 {_sc_qask.APP_NAMES.get(to, to)} 接着干，{when} 换回来。", channel=channel)
     await broadcast_team_changed()
     asyncio.create_task(_sc_restart_quiet(base))
     return True
@@ -4860,6 +4867,24 @@ async def _sc_qa_tick(now: float | None = None) -> None:
         st.save()
 
 
+@app.post("/api/scranton/quota/move")
+async def scranton_quota_move(request: Request):
+    """Lu, 11-11 (A): move teammates off a plan that's running low until that plan resets.
+    {"names": [...], "to": "codex", "from": "claude"}. They come back on their own at the reset."""
+    body = await request.json()
+    to, frm = str(body.get("to") or ""), str(body.get("from") or "claude")
+    u = _sc_quota.provider_usage(frm, "")
+    until = float((u or {}).get("resets") or 0)
+    if to not in _sc_qask.APP_NAMES or not until:
+        return JSONResponse({"ok": False, "error": "need a known app and a reset time for the plan"}, status_code=400)
+    done = []
+    for n in body.get("names") or []:
+        if _current_model(str(n))[0] == frm and await _sc_qa_move(str(n), to, until, _pm_channel(),
+                                                                  f"为了把 {_sc_qask.APP_NAMES.get(frm, frm)} 额度留给项目经理和 QA（Lu 定）"):
+            done.append(n)
+    return JSONResponse({"ok": True, "moved": done, "until": until})
+
+
 def _sc_qa_apply(meta: dict, chosen: str) -> None:
     """Lu answered the 98% question: remember it for when the plan really runs out."""
     qa = (meta or {}).get("quota_ask") or {}
@@ -4911,6 +4936,16 @@ async def _sc_due_loop():
         except Exception:
             _log_rate_limited("due check failed")
         await asyncio.sleep(60)
+
+
+@app.get("/api/scranton/board")
+async def scranton_board_get(channel: str = "general"):
+    import mcp_bridge, scranton_board
+    if mcp_bridge.BOARD is None:
+        return JSONResponse({"rows": [], "summary": ""})
+    rows = mcp_bridge.BOARD.rows(channel)
+    return JSONResponse({"rows": rows, "summary": scranton_board.summary(rows) if rows else "",
+                         "states": scranton_board.STATE_ZH})
 
 
 @app.get("/api/scranton/due")

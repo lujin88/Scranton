@@ -1661,3 +1661,37 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 #channel-sidebar-list .channel-inline-create .confirm-btn,
 #channel-sidebar-list .channel-inline-create .cancel-btn { width: 28px; height: 28px; border-radius: 8px; background: transparent; }
 #channel-sidebar-list .channel-inline-create .cancel-btn:hover { background: var(--ds-hover); }
+
+/* Your asks (scranton-board.js): a pill in the channel head, same float style as the members pill;
+   the list opens like the members panel. Status chips: neutral, except "等你" (accent) and "卡住" (danger). */
+#sc-pane-head #sc-board-btn {
+    pointer-events: auto; margin-left: auto; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px;
+    border: 0; border-radius: 999px; background: rgba(var(--float), 0.86) !important; backdrop-filter: blur(12px);
+    box-shadow: var(--ds-float-edge); color: var(--ds-text-2); font: inherit; font-size: 14px; cursor: pointer; white-space: nowrap;
+}
+:root[data-theme="light"] #sc-pane-head #sc-board-btn { background: #fff !important; }
+#sc-pane-head #sc-board-btn:hover { color: var(--ds-text); }
+#sc-pane-head #sc-board-btn + #sc-members-btn { margin-left: 0; }
+#sc-board-btn .sc-board-k { color: var(--ds-text); font-weight: 600; }
+#sc-board-btn.sc-board-you .sc-board-s { color: var(--ds-link-text); }
+#sc-board-panel {
+    position: fixed; z-index: 90; width: 420px; max-height: min(560px, 75vh); overflow-y: auto; padding: 0;
+    background: var(--ds-overlay); border-radius: var(--ds-r-card); box-shadow: var(--ds-shadow);
+}
+.sc-board-head { display: flex; align-items: baseline; gap: 12px; padding: 16px 16px 8px; }
+.sc-board-head h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--ds-text); flex: 1; }
+.sc-board-head span { font-size: 12px; color: var(--ds-text-3); }
+.sc-board-list { list-style: none; margin: 0; padding: 0 8px 8px; }
+.sc-board-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 8px; border-radius: 10px; }
+.sc-board-row + .sc-board-row { border-top: 1px solid var(--ds-hairline, rgba(127,127,127,.15)); }
+.sc-board-chip { flex-shrink: 0; min-width: 52px; text-align: center; padding: 2px 8px; border-radius: 999px; font-size: 12px; line-height: 20px;
+    background: var(--ds-hover); color: var(--ds-text-2); }
+.sc-board-row[data-state="waiting_lu"] .sc-board-chip { background: var(--ds-mention-bg); color: var(--ds-link-text); }
+.sc-board-row[data-state="blocked"] .sc-board-chip { background: rgba(209, 36, 47, .12); color: var(--ds-danger, #d1242f); }
+.sc-board-row[data-state="live"] { opacity: .65; }
+.sc-board-main { flex: 1; min-width: 0; }
+.sc-board-ask { font-size: 14px; color: var(--ds-text); line-height: 20px; }
+.sc-board-meta { font-size: 12px; color: var(--ds-text-3); line-height: 18px; margin-top: 2px; }
+.sc-board-link { flex-shrink: 0; font-size: 13px; color: var(--ds-link-text); text-decoration: none; padding: 2px 6px; border-radius: 6px; }
+.sc-board-link:hover { background: var(--ds-hover); }
+@media (max-width: 700px) { #sc-board-panel { left: 8px !important; right: 8px; width: auto; } #sc-board-btn .sc-board-s { display: none; } }

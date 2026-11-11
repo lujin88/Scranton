@@ -87,6 +87,8 @@ def main():
     mcp_bridge._load_cursors()
     mcp_bridge._ROLES_FILE = data_dir / "roles.json"
     mcp_bridge._HANDOFF_DIR = data_dir / "handoffs"
+    import scranton_board
+    mcp_bridge.BOARD = scranton_board.Board(data_dir / "board.json")
     mcp_bridge._load_roles()
 
     # Start MCP servers in background threads

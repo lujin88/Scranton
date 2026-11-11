@@ -998,9 +998,49 @@ def chat_handoff(sender: str, note: str, ctx: Context | None = None) -> str:
     return f"Handoff saved ({min(len(text), HANDOFF_MAX)} chars). Scranton will start your fresh session with it."
 
 
+BOARD = None   # set by run.py: scranton_board.Board(<data>/board.json)
+
+
+def chat_board(sender: str, action: str = "read", channel: str = "", id: int = 0, ask: str = "",
+               state: str = "", who: str = "", due: str = "", link: str = "", note: str = "",
+               ctx: Context | None = None) -> str:
+    """The pinned list of what the owner asked for in a channel, one row each, kept up to date by
+    the project manager instead of status messages.
+
+    action: read | set | remove.
+      set without id adds a row (ask = what was asked, a few words). set with id changes that row:
+      state (todo, doing, in_pr, waiting_qa, waiting_lu, live, blocked), who (teammate handle),
+      due ("10:30"), link (PR or page URL), note (one short line: what it's waiting on).
+    When something moves (PR opened, QA passed, merged, live), change the row; don't post a message
+    saying so unless someone has to act."""
+    sender, err = _resolve_tool_identity(sender, ctx, field_name="sender", required=False)
+    if err:
+        return err
+    if BOARD is None:
+        return "Error: the board isn't available."
+    channel = (channel or _last_channel_of(sender) or "general").strip()
+    action = (action or "read").strip().lower()
+    try:
+        if action == "read":
+            return json.dumps({"channel": channel, "rows": BOARD.rows(channel)}, ensure_ascii=False)
+        if action == "set":
+            row = BOARD.upsert(channel, sender, id=id, ask=ask, state=state, who=who, due=due, link=link, note=note)
+            return json.dumps({"ok": True, "row": row}, ensure_ascii=False)
+        if action == "remove":
+            return json.dumps({"ok": BOARD.remove(channel, id)})
+    except ValueError as e:
+        return f"Error: {e}"
+    return "Error: action must be read, set or remove."
+
+
+def _last_channel_of(sender: str) -> str:
+    with _last_read_lock:
+        return str(_last_read_channel.get(sender) or "")
+
+
 _ALL_TOOLS = [
     chat_send, chat_read, chat_resync, chat_join, chat_who, chat_rules, chat_decision,
-    chat_channels, chat_set_hat, chat_claim, chat_summary, chat_propose_job, chat_handoff,
+    chat_channels, chat_set_hat, chat_claim, chat_summary, chat_propose_job, chat_handoff, chat_board,
 ]
 
 
