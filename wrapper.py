@@ -653,6 +653,7 @@ def _post(server_port: int, sender: str, token: str, channel: str, reply_to, tex
         print(f"  couldn't post to chat: {exc}", flush=True)
 
 
+_LIMIT_DETAIL = [""]    # model, quota, % used and reset time for the stop message
 _LIMIT_API_OK = [False]   # the last limit check said the plan is really out (numbers, not screen text)
 
 
@@ -661,6 +662,7 @@ def _ask_limit_check(server_port: int, token: str, place: dict, problem: str) ->
     model) or 'report'. Never 'report' on a failed check (11-11 09:07–09:12: pm and qa posted
     "I stopped" at 79% of the week while still working)."""
     _LIMIT_API_OK[0] = False
+    _LIMIT_DETAIL[0] = ""
     try:
         import urllib.request
         from wrapper_unix import pane_text
@@ -673,6 +675,7 @@ def _ask_limit_check(server_port: int, token: str, place: dict, problem: str) ->
         with urllib.request.urlopen(req, timeout=20) as r:
             got = json.loads(r.read() or b"{}")
             _LIMIT_API_OK[0] = bool(got.get("api_ok"))
+            _LIMIT_DETAIL[0] = str(got.get("detail") or "")
             return str(got.get("action") or "ignore")
     except Exception:
         return "ignore"
@@ -1429,7 +1432,7 @@ def main():
                     if problem == "limit" and _LIMIT_API_OK[0] and _ask_api_fallback(server_port, get_token(), _LAST_PLACE):
                         continue
                     _post(server_port, cur, get_token(), _LAST_PLACE["channel"], _LAST_PLACE["thread"],
-                          problem_text(problem, _app_name))
+                          problem_text(problem, _app_name, _LIMIT_DETAIL[0]))
                 # Worked on a request, went quiet for 90 s, never answered: say so once.
                 if active:
                     _idle_since[0] = None
