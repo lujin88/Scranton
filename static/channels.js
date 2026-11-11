@@ -193,7 +193,15 @@ function renderChannelSidebar() {
         list.appendChild(row);
     }
 
-    if (existingCreate) { list.appendChild(existingCreate); keepFocus(); }
+    if (existingCreate) {
+        // A rename stays where its channel is, with the channel hidden behind it (Lu, 11-11: a
+        // re-render while renaming moved the box to the bottom and showed the channel again).
+        const was = existingCreate.dataset.rename;
+        const row = was && list.querySelector(`.channel-sidebar-row[data-channel="${CSS.escape(was)}"]`);
+        if (row) { row.style.setProperty('display', 'none', 'important'); row.insertAdjacentElement('afterend', existingCreate); }
+        else list.appendChild(existingCreate);
+        keepFocus();
+    }
 
 }
 
@@ -206,6 +214,7 @@ function _showSidebarRenameDialog(oldName) {
 
     const wrapper = document.createElement('div');
     wrapper.className = 'channel-inline-create';
+    wrapper.dataset.rename = oldName;
 
     const prefix = document.createElement('span');
     prefix.className = 'channel-input-prefix';
@@ -216,9 +225,14 @@ function _showSidebarRenameDialog(oldName) {
     input.type = 'text';
     input.maxLength = 20;
     input.value = oldName;
+    input.setAttribute('aria-label', `Rename #${oldName}`);
     wrapper.appendChild(input);
 
-    const cleanup = () => { wrapper.remove(); if (targetRow) targetRow.style.display = ''; };
+    const cleanup = () => {
+        wrapper.remove();
+        const r = list.querySelector(`.channel-sidebar-row[data-channel="${CSS.escape(oldName)}"]`);
+        if (r) r.style.removeProperty('display');
+    };
 
     const confirm = document.createElement('button');
     confirm.className = 'confirm-btn';
@@ -258,7 +272,7 @@ function _showSidebarRenameDialog(oldName) {
     _wireChannelNameInput(input);
 
     if (targetRow) {
-        targetRow.style.display = 'none';
+        targetRow.style.setProperty('display', 'none', 'important');   // rows are display:flex !important
         targetRow.insertAdjacentElement('afterend', wrapper);
     } else {
         list.appendChild(wrapper);

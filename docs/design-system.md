@@ -61,3 +61,8 @@ Accent: `#4c8df6` (hover `#6aa1f8`) for links, icons and on-states. Filled butto
 - A plain left drag always selects text, even when the agent or tmux has turned on mouse reporting. The wheel still scrolls the agent. ⌘C copies.
 - No tmux status bar in Scranton (the tab already says who it is); the green bar was tmux's default, not ours.
 - The note above the terminal says what you can do in one line: "Live. Click inside to type. Drag to select, ⌘C to copy."
+
+## Inline create / rename in the sidebar (11-11)
+
+- The row turns into the field in place: same 32 px height, padding and `#` as a channel row, `--ds-field` fill with a 1 px accent ring, check and × as 28 px plain icon buttons.
+- The channel being renamed is hidden behind it and stays hidden through re-renders (rows are `display:flex !important`, so hide with `setProperty('display','none','important')`).
