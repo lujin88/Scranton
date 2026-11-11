@@ -51,3 +51,19 @@ def test_quoted_limit_and_api_credit():
     assert not wu._QUOTED.search("Error: You've hit your usage limit")
     rx = dict((k, r) for k, r, _ in wu._PROBLEMS)["api_credit"]
     assert rx.search("⎿  Credit balance too low · Add funds:")
+
+
+def test_chat_text_and_own_stop_messages_are_not_the_app():
+    for line in ('pm has hit its usage limit right now',
+                 'I stopped: my Claude plan has hit its usage limit. @ me again after it resets',
+                 '"text": "I stopped: my Claude plan has hit its usage limit.", "sender": "pm"',
+                 '@pm usage limit again, please look'):
+        assert wu._NOT_THE_APP.search(line), line
+    for line in ("You've hit your limit · resets 3pm", "Claude usage limit reached. Your limit will reset at 3pm",
+                 "Error: rate limit exceeded"):
+        assert not wu._NOT_THE_APP.search(line), line
+
+
+def test_problem_text_detail():
+    assert wu.problem_text("limit", "Claude", "Opus 5.5, 7d 99% used").endswith("(Opus 5.5, 7d 99% used)")
+    assert not wu.problem_text("limit", "Claude").endswith(")")

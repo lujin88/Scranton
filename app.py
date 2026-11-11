@@ -4626,7 +4626,14 @@ async def scranton_limit_check(request: Request):
         return JSONResponse({"action": "switched", "model": fb})
     # The backup key (money) only when the numbers say the plan is really out. A screen saying
     # "limit" without numbers behind it has been wrong too often (11-10, 11-11) to spend money on.
-    return JSONResponse({"action": "report", "pct": (usage or {}).get("pct"),
+    parts = [_model_label(model)] if model else []
+    if usage:
+        parts.append(f"{usage['label'] or 'quota'} {usage['pct']:.0f}% used")
+        if usage.get("resets"):
+            parts.append("resets " + time.strftime("%m-%d %H:%M", time.localtime(float(usage["resets"]))))
+    else:
+        parts.append("no usage numbers, going by the screen")
+    return JSONResponse({"action": "report", "pct": (usage or {}).get("pct"), "detail": ", ".join(parts),
                          "api_ok": bool(_api_backup_on() and usage and usage["pct"] >= 99)})
 
 

@@ -96,6 +96,12 @@ _CODEX_NUDGE_LINE = re.compile(r"Approaching rate limits|rate limit reminders", 
 
 
 _QUOTED = re.compile(r"[「『“][^」』”]{0,80}(?:limit|quota|额度)[^」』”]{0,80}[」』”]", re.I)
+# Chat text and our own stop messages that ended up on a teammate's screen (chat_read output, or the
+# teammate typing "pm has hit its usage limit"). The app says "You've hit your limit" (second person),
+# never "has hit its" or "I stopped:", and never prints chat JSON (pm/qa, 11-11 09:07-09:12: one false
+# stop spread teammate to teammate at 79% of the week).
+_NOT_THE_APP = re.compile(r"I stopped:|\b(?:has|have) (?:hit|reached) (?:its|their|his|her)\b|"
+                          r"\"(?:text|sender|channel|reply_to)\"\s*:|@\w+.{0,200}(?:usage limit|hit its)", re.I)
 _WARNING = re.compile(r"approaching|heads.?up|\b\d{1,2}(?:\.\d+)?\s*%|% (?:used|left)|\b(?:left|remaining)\b|reminder|you(?:'ve| have) used", re.I)
 
 
@@ -374,7 +380,8 @@ def describe_screen(tmux_session: str) -> tuple[str, str | None]:
     # A warning ("approaching", "90% used", "10% left") is not the end of the plan (Lu, 11-11:
     # ~50 "I stopped: usage limit" came at 90–93% of the week). Those lines don't count.
     # A teammate quoting it ("「hit its usage limit」") isn't the app saying it (pm, 11-11 06:43).
-    bottom = "\n".join(l for l in bottom.splitlines() if not _WARNING.search(l) and not _QUOTED.search(l))
+    bottom = "\n".join(l for l in bottom.splitlines() if not _WARNING.search(l) and not _QUOTED.search(l)
+                       and not _NOT_THE_APP.search(l))
     problem = next((key for key, rx, _ in _PROBLEMS if rx.search(bottom)), None)
     if nudge and not problem:
         problem = "question"   # Codex asking whether to switch models: not a usage limit
@@ -409,10 +416,11 @@ def describe_screen(tmux_session: str) -> tuple[str, str | None]:
     return doing[:80], problem
 
 
-def problem_text(key: str, app: str) -> str:
+def problem_text(key: str, app: str, detail: str = "") -> str:
+    """The stop message. `detail` (model, which quota, % used, reset time) is added when Scranton knows it."""
     for k, _, msg in _PROBLEMS:
         if k == key:
-            return msg.format(app=app or "the app")
+            return msg.format(app=app or "the app") + (f" ({detail})" if detail else "")
     return ""
 
 
