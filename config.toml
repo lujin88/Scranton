@@ -122,6 +122,7 @@ color = "#8aadf4"
 role = "Developer: writes code and tests, one branch and one PR per task"
 avatar = "03-developer-raccoon.jpg"
 role_card = "roles/developer.md"
+subagents = "roles/subagents/dev.json"   # test-runner (Haiku): build/test logs stay out of dev's session (Lu, 11-11)
 
 [agents.qa]
 label = "代码审查与 QA"
