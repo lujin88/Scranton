@@ -46,7 +46,7 @@
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'sc-mk-open';
-        b.innerHTML = `${icon('pencil', 16)}<span>Mark up</span>`;
+        b.innerHTML = `${icon('brush', 16)}<span>Edit</span>`;
         b.addEventListener('click', (e) => {
             e.stopPropagation();
             const src = modal.querySelector('img') && modal.querySelector('img').src;
@@ -60,10 +60,33 @@
     }
 
     // ---- the editor
+    // Who edits pictures: whoever made it if they make pictures, else the visual intern, else
+    // the visual designer (Lu, 11-11: "image edit like 豆包 / GPT").
+    const IMAGE_MAKERS = ['visintern', 'visual', 'motion', 'motionintern'];
+    function editors(sender) {
+        const team = (window.scGetTeam && window.scGetTeam()) || {};
+        const have = (n) => Object.prototype.hasOwnProperty.call(team, n);
+        const list = IMAGE_MAKERS.filter(have);
+        const s = String(sender || '').replace(/-\d+$/, '');
+        if (s && have(s) && !list.includes(s)) list.unshift(s);
+        const first = list.includes(s) ? s : (list[0] || '');
+        return { list, first };
+    }
+    // Quick asks, as in 豆包: they fill in the sentence; "area" ones want a painted area.
+    const ASKS = [
+        { k: 'change', icon: 'brush', label: 'Change this', zh: '把涂的地方改成：', area: true },
+        { k: 'remove', icon: 'eraser', label: 'Remove', zh: '去掉涂的地方的东西，背景补得自然，其他不变', area: true },
+        { k: 'expand', icon: 'expand-diagonal', label: 'Expand', zh: '向四周扩展画面，风格和光线一致，原来的部分不变' },
+        { k: 'cutout', icon: 'scissors', label: 'Cut out', zh: '去掉背景，主体保留，导出透明 PNG' },
+        { k: 'sharpen', icon: 'sparkling', label: 'Sharpen', zh: '放大到 2 倍并变清晰，不改内容' },
+    ];
+
     function openEditor(src) {
         const msg = sourceOf(src);
-        const to = msg && isTeammate(msg.sender) ? String(msg.sender) : '';
-        const label = to && window.scLabelOf ? window.scLabelOf(to) : to;
+        const ed = editors(msg && msg.sender);
+        let to = ed.first || (msg && isTeammate(msg.sender) ? String(msg.sender) : '');
+        const labelOf = (n) => (n && window.scLabelOf ? window.scLabelOf(n) : n);
+        const label = labelOf(to);
         const viewer = document.getElementById('image-modal');
         if (viewer) viewer.classList.add('hidden');
 
@@ -75,7 +98,8 @@
             <div class="sc-mk-top">
                 <button type="button" class="sc-mk-x" aria-label="Cancel">${icon('close', 20)}</button>
                 <div class="sc-mk-tools" role="toolbar" aria-label="Tools">
-                    <button type="button" data-tool="pen" aria-pressed="true" title="Circle (draw)">${icon('pencil', 18)}<span>Circle</span></button>
+                    <button type="button" data-tool="area" aria-pressed="true" title="Paint the area to change">${icon('brush', 18)}<span>Area</span></button>
+                    <button type="button" data-tool="pen" aria-pressed="false" title="Circle (draw)">${icon('pencil', 18)}<span>Circle</span></button>
                     <button type="button" data-tool="box" aria-pressed="false" title="Box">${icon('square', 18)}<span>Box</span></button>
                     <button type="button" data-tool="text" aria-pressed="false" title="Note">${icon('text', 18)}<span>Note</span></button>
                     <span class="sc-mk-sep"></span>
@@ -86,8 +110,10 @@
                 <span class="sc-mk-spacer"></span>
             </div>
             <div class="sc-mk-stage"><canvas></canvas></div>
+            <div class="sc-mk-asks" role="group" aria-label="Quick edits">${ASKS.map((a) => `<button type="button" class="sc-mk-ask" data-ask="${a.k}">${icon(a.icon, 16)}<span>${a.label}</span></button>`).join('')}</div>
             <form class="sc-mk-send">
-                <input type="text" enterkeyhint="send" placeholder="${to ? `Tell ${esc(label)} what to change…` : 'What should change?'}" aria-label="What to change">
+                ${ed.list.length > 1 ? `<select class="sc-mk-to" aria-label="Who edits it">${ed.list.map((n) => `<option value="${esc(n)}"${n === to ? ' selected' : ''}>${esc(labelOf(n))}</option>`).join('')}</select>` : ''}
+                <input type="text" enterkeyhint="send" placeholder="${to ? `Paint an area, then tell ${esc(label)} what to change…` : 'What should change?'}" aria-label="What to change">
                 <button type="submit" class="sc-mk-go" aria-label="Send">${icon('send', 18)}</button>
             </form>
             <div class="sc-mk-note" role="status"></div>`;
@@ -97,7 +123,8 @@
         const ctx = canvas.getContext('2d');
         const status = root.querySelector('.sc-mk-note');
         const input = root.querySelector('.sc-mk-send input');
-        let tool = 'pen', color = COLORS[0];
+        let tool = 'area', color = COLORS[0];
+        const AREA = 'rgba(76, 141, 246, 0.45)';
         const shapes = [];
         let cur = null, img = null, scale = 1;
 
@@ -121,7 +148,13 @@
         function paint(s) {
             ctx.strokeStyle = s.color; ctx.fillStyle = s.color;
             ctx.lineWidth = s.w; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-            if (s.kind === 'pen') {
+            if (s.kind === 'area') {
+                ctx.strokeStyle = AREA;
+                ctx.beginPath();
+                s.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+                if (s.pts.length === 1) ctx.lineTo(s.pts[0][0] + 0.1, s.pts[0][1]);
+                ctx.stroke();
+            } else if (s.kind === 'pen') {
                 ctx.beginPath();
                 s.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
                 ctx.stroke();
@@ -157,17 +190,18 @@
             const [x, y] = at(e);
             if (tool === 'text') { placeNote(e, x, y); return; }
             canvas.setPointerCapture(e.pointerId);
-            cur = tool === 'pen' ? { kind: 'pen', color, w: lw(), pts: [[x, y]] } : { kind: 'box', color, w: lw(), x, y, x2: x, y2: y };
+            cur = tool === 'area' ? { kind: 'area', color: AREA, w: lw() * 8, pts: [[x, y]] }
+                : tool === 'pen' ? { kind: 'pen', color, w: lw(), pts: [[x, y]] } : { kind: 'box', color, w: lw(), x, y, x2: x, y2: y };
         });
         canvas.addEventListener('pointermove', (e) => {
             if (!cur) return;
             const [x, y] = at(e);
-            if (cur.kind === 'pen') cur.pts.push([x, y]); else { cur.x2 = x; cur.y2 = y; }
+            if (cur.kind === 'pen' || cur.kind === 'area') cur.pts.push([x, y]); else { cur.x2 = x; cur.y2 = y; }
             draw();
         });
         const end = () => {
             if (!cur) return;
-            const tiny = cur.kind === 'pen' ? cur.pts.length < 2 : Math.abs(cur.x2 - cur.x) < 4 && Math.abs(cur.y2 - cur.y) < 4;
+            const tiny = cur.kind === 'area' ? false : cur.kind === 'pen' ? cur.pts.length < 2 : Math.abs(cur.x2 - cur.x) < 4 && Math.abs(cur.y2 - cur.y) < 4;
             if (!tiny) shapes.push(cur);
             cur = null; draw();
         };
@@ -203,6 +237,36 @@
             root.querySelectorAll('.sc-mk-color').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
         }));
         root.querySelector('.sc-mk-undo').addEventListener('click', () => { shapes.pop(); draw(); });
+        root.querySelectorAll('.sc-mk-ask').forEach((b) => b.addEventListener('click', () => {
+            const a = ASKS.find((x) => x.k === b.dataset.ask);
+            input.value = a.zh;
+            input.focus();
+            input.setSelectionRange(input.value.length, input.value.length);
+            if (a.area && !shapes.some((x) => x.kind === 'area')) status.textContent = 'Paint the area first (Area tool).';
+            else status.textContent = '';
+        }));
+        const pick = root.querySelector('.sc-mk-to');
+        if (pick) pick.addEventListener('change', () => { to = pick.value; });
+
+        // The area painted, as a black-and-white mask the size of the picture (white = change this).
+        async function maskFile() {
+            const areas = shapes.filter((x) => x.kind === 'area');
+            if (!areas.length) return null;
+            const c = document.createElement('canvas');
+            c.width = canvas.width; c.height = canvas.height;
+            const m = c.getContext('2d');
+            m.fillStyle = '#000'; m.fillRect(0, 0, c.width, c.height);
+            m.strokeStyle = '#fff'; m.lineCap = 'round'; m.lineJoin = 'round';
+            for (const a of areas) {
+                m.lineWidth = a.w;
+                m.beginPath();
+                a.pts.forEach(([x, y], i) => (i ? m.lineTo(x, y) : m.moveTo(x, y)));
+                if (a.pts.length === 1) m.lineTo(a.pts[0][0] + 0.1, a.pts[0][1]);
+                m.stroke();
+            }
+            const blob = await new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('empty'))), 'image/png'));
+            return new File([blob], `edit-mask-${Date.now()}.png`, { type: 'image/png' });
+        }
 
         function close() {
             window.removeEventListener('resize', onResize);
@@ -223,7 +287,7 @@
             e.preventDefault();
             const note = input.value.trim();
             if (!img) return;
-            if (!shapes.length && !note) { status.textContent = 'Circle something or type what to change first.'; return; }
+            if (!shapes.length && !note) { status.textContent = 'Paint an area or type what to change first.'; return; }
             if (!window.ws || window.ws.readyState !== WebSocket.OPEN) { status.textContent = 'Not connected. Try again in a moment.'; return; }
             const go = root.querySelector('.sc-mk-go');
             go.disabled = true; status.textContent = 'Sending…';
@@ -233,8 +297,19 @@
                 });
                 const file = new File([blob], `marked-up-${Date.now()}.png`, { type: 'image/png' });
                 const att = await window.uploadAttachment(file);
-                const text = `${to ? `@${to} ` : ''}${note || 'See the marked-up picture.'}`;
-                const payload = { type: 'message', text, sender: me(), attachments: [att],
+                const mf = await maskFile();
+                const atts = [att];
+                let text;
+                if (mf) {
+                    atts.push(await window.uploadAttachment(mf));
+                    const name = decodeURIComponent(String(src).split('?')[0].split('/').pop() || '');
+                    text = `${to ? `@${to} ` : ''}修图：${note || '按涂的地方改'}\n`
+                        + `原图：${name}（这条 thread 里的那张）。第 1 张是我涂过的预览，第 2 张是遮罩：白色是要改的地方，黑色的地方保持原样、一个像素都不要动。`
+                        + `用你的出图/改图工具做，结果发在这个 thread 里。`;
+                } else {
+                    text = `${to ? `@${to} ` : ''}${note || 'See the marked-up picture.'}`;
+                }
+                const payload = { type: 'message', text, sender: me(), attachments: atts,
                     channel: (msg && msg.channel) || window.activeChannel || 'general' };
                 if (msg) payload.reply_to = rootOf(msg);
                 window.ws.send(JSON.stringify(payload));
