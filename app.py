@@ -4582,6 +4582,40 @@ def _model_label(m: str) -> str:
     return (m or "the default model").replace("-", " ").title().replace("Gpt", "GPT")
 
 
+_LIMIT_UNKNOWN: dict[str, float] = {}   # base -> when a limit was first seen with no numbers to check
+
+
+def _limit_verdict(base: str, problem: str, usage: dict | None, now: float | None = None) -> str:
+    """'ignore' or 'go on' (to model fallback / report). Lu, 11-11: "reach limit 不是不能走，要用到
+    100% 才可以" — words on a screen are not a stop. With numbers: under 99% is room, keep working.
+    Without numbers: not on the first sighting; only if it's still there on the check 10+ minutes later."""
+    now = time.time() if now is None else now
+    if problem != "limit":
+        return "go on"
+    if usage:
+        _LIMIT_UNKNOWN.pop(base, None)
+        return "ignore" if usage["pct"] < 99 else "go on"
+    first = _LIMIT_UNKNOWN.get(base)
+    if not first or now - first > 3600:
+        _LIMIT_UNKNOWN[base] = now
+        return "ignore"
+    return "go on" if now - first >= 480 else "ignore"
+
+
+def _limit_log(base: str, problem: str, usage: dict | None, verdict: str, screen: str) -> None:
+    """One line per check, with the screen lines that set it off, so a wrong stop can be traced."""
+    try:
+        tail = [l.strip() for l in screen.splitlines() if l.strip()][-8:]
+        line = json.dumps({"at": time.strftime("%m-%d %H:%M:%S"), "who": base, "problem": problem,
+                           "pct": (usage or {}).get("pct"), "verdict": verdict, "screen": tail}, ensure_ascii=False)
+        log = Path((config or {}).get("server", {}).get("data_dir", "./data")) / "logs" / "limit-check.log"
+        log.parent.mkdir(parents=True, exist_ok=True)
+        with open(log, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+
+
 @app.post("/api/scranton/limit-check")
 async def scranton_limit_check(request: Request):
     auth = request.headers.get("authorization", "")
@@ -4606,11 +4640,14 @@ async def scranton_limit_check(request: Request):
             return JSONResponse({"action": "switched"})
         return JSONResponse({"action": "report"})
     usage = _sc_quota.provider_usage(provider, model)
-    # 1. A warning: the numbers say there's room. Keep working, say nothing.
-    if problem == "limit" and usage and usage["pct"] < 99:
-        return JSONResponse({"action": "ignore", "pct": usage["pct"]})
-    # 2. Only this model is out: same plan, another model.
     fb = _sc_quota.model_fallback(provider, model)
+    if problem == "model_limit" and not (fb and fb != model):
+        problem = "limit"   # no other model to move to (Claude): same rule as the plan
+    verdict = _limit_verdict(base, problem, usage)
+    _limit_log(base, problem, usage, verdict, screen)
+    if verdict == "ignore":
+        return JSONResponse({"action": "ignore", "pct": (usage or {}).get("pct")})
+    # 2. Only this model is out: same plan, another model.
     if fb and fb != model and base in (config or {}).get("agents", {}):
         until = _sc_quota.reset_from_text(screen) or (usage or {}).get("resets") or (time.time() + 5 * 3600)
         d = _model_fb_load()
