@@ -657,7 +657,9 @@ _LIMIT_API_OK = [False]   # the last limit check said the plan is really out (nu
 
 
 def _ask_limit_check(server_port: int, token: str, place: dict, problem: str) -> str:
-    """'ignore' (the plan has room), 'switched' (another model) or 'report'."""
+    """'ignore' (the plan has room, or we couldn't ask: look again later), 'switched' (another
+    model) or 'report'. Never 'report' on a failed check (11-11 09:07–09:12: pm and qa posted
+    "I stopped" at 79% of the week while still working)."""
     _LIMIT_API_OK[0] = False
     try:
         import urllib.request
@@ -668,12 +670,12 @@ def _ask_limit_check(server_port: int, token: str, place: dict, problem: str) ->
             data=json.dumps({"problem": problem, "text": screen[-3000:], "channel": place.get("channel"),
                              "thread": place.get("thread")}).encode(),
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"})
-        with urllib.request.urlopen(req, timeout=10) as r:
+        with urllib.request.urlopen(req, timeout=20) as r:
             got = json.loads(r.read() or b"{}")
             _LIMIT_API_OK[0] = bool(got.get("api_ok"))
-            return str(got.get("action") or "report")
+            return str(got.get("action") or "ignore")
     except Exception:
-        return "report"
+        return "ignore"
 
 
 def _ask_api_fallback(server_port: int, token: str, place: dict) -> bool:

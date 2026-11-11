@@ -51,3 +51,27 @@ def test_quoted_limit_and_api_credit():
     assert not wu._QUOTED.search("Error: You've hit your usage limit")
     rx = dict((k, r) for k, r, _ in wu._PROBLEMS)["api_credit"]
     assert rx.search("⎿  Credit balance too low · Add funds:")
+
+
+def test_limit_verdict_needs_numbers_or_time():
+    import app
+    app._LIMIT_UNKNOWN.clear()
+    # numbers: under 99% is room, at 99% go on
+    assert app._limit_verdict("pm", "limit", {"pct": 79.0}) == "ignore"
+    assert app._limit_verdict("pm", "limit", {"pct": 99.0}) == "go on"
+    # no numbers: first sighting is never a stop, the check 10 min later is
+    assert app._limit_verdict("qa", "limit", None, now=1000) == "ignore"
+    assert app._limit_verdict("qa", "limit", None, now=1100) == "ignore"
+    assert app._limit_verdict("qa", "limit", None, now=1700) == "go on"
+    # numbers again clear the memory
+    assert app._limit_verdict("qa", "limit", {"pct": 50}, now=1800) == "ignore"
+    assert app._limit_verdict("qa", "limit", None, now=1900) == "ignore"
+    assert app._limit_verdict("pm", "api_credit", None) == "go on"
+
+
+def test_failed_check_is_not_a_stop(monkeypatch):
+    import wrapper
+    def boom(*a, **k):
+        raise OSError("server busy")
+    monkeypatch.setattr("urllib.request.urlopen", boom)
+    assert wrapper._ask_limit_check(1, "t", {"channel": "x", "thread": None}, "limit") == "ignore"
