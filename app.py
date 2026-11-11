@@ -25,6 +25,7 @@ from jobs import JobStore
 from schedules import ScheduleStore, parse_schedule_spec
 import scranton_quota as _sc_quota
 import scranton_due as _sc_due_mod
+import scranton_quota_ask as _sc_qask
 import scranton_apikeys as _sc_keys
 from router import Router
 from agents import AgentTrigger
@@ -2442,6 +2443,10 @@ async def resolve_decision(msg_id: int, request: Request):
     _letter = chr(65 + (len(_opts) if other or chosen not in _opts else _opts.index(chosen)))
     reply_text = f"@{sender} {_letter}：{chosen}" if sender else chosen
     try:
+        _sc_qa_apply((msg or {}).get("metadata") or {}, chosen)
+    except Exception:
+        _log_rate_limited("quota ask apply failed")
+    try:
         store.add(username, reply_text, reply_to=msg_id, channel=channel)
     except Exception:
         import traceback; traceback.print_exc()
@@ -4494,6 +4499,11 @@ def _api_backup_on() -> bool:
     return bool(room_settings.get("api_backup_enabled", False))
 
 
+def _api_allowed(provider: str) -> bool:
+    """The switch, or Lu picked "API first" for this plan when it reached 98% (until it resets)."""
+    return _api_backup_on() or _sc_qa().api_ok(provider)
+
+
 @app.get("/api/scranton/api-keys")
 async def scranton_api_keys_get():
     return JSONResponse({"keys": _sc_keys.summary(), "on_api": _sc_keys.all_on_api(), "enabled": _api_backup_on()})
@@ -4538,13 +4548,17 @@ async def scranton_api_fallback(request: Request):
     provider = _sc_keys.provider_of_command(cfg.get("command", ""))
     # Only when the real numbers say the plan is out (11-11: pm was moved to a key with no money
     # because it had quoted "hit its usage limit" in a reply, with 77% of the week used).
-    if not _api_backup_on():
+    if not _api_allowed(provider or ""):
         return JSONResponse({"switching": False, "off": True})
     usage = _sc_quota.provider_usage(provider or "", _current_model(base)[1])
     if not usage or usage["pct"] < 99:
         return JSONResponse({"switching": False, "pct": (usage or {}).get("pct")})
-    if not provider or _sc_keys.on_api(base) or not _sc_keys.start_api(base, provider):
+    if not provider or _sc_keys.on_api(base):
         return JSONResponse({"switching": False})
+    if not _sc_keys.start_api(base, provider):
+        # No key: Lu's "then another app" still applies.
+        moved = await _sc_qa_move_if_planned(base, provider, str((await request.json()).get("channel") or "general"))
+        return JSONResponse({"switching": moved})
     body = await request.json()
     app_name = {"claude": "Claude", "codex": "ChatGPT"}[provider]
     store.add(inst["name"], f"My {app_name} plan has hit its limit, so I'm carrying on with the backup API key "
@@ -4639,6 +4653,10 @@ async def scranton_limit_check(request: Request):
     provider, model = _current_model(base)
     # The backup key has no money: go back to the plan (it has room, or we'd not be here twice).
     if problem == "api_credit":
+        if _sc_keys.on_api(base) and await _sc_qa_move_if_planned(base, _sc_keys.on_api(base).get("provider") or provider,
+                                                                  place["channel"], after_api=True):
+            _sc_keys.end_api(base)
+            return JSONResponse({"action": "switched"})
         if _sc_keys.on_api(base):
             _sc_keys.end_api(base)
             store.add(inst["name"], "The backup API key has no credit left, so I'm going back to the plan. "
@@ -4655,6 +4673,11 @@ async def scranton_limit_check(request: Request):
     _limit_log(base, problem, usage, verdict, screen)
     if verdict == "ignore":
         return JSONResponse({"action": "ignore", "pct": (usage or {}).get("pct")})
+    # 1b. Lu picked "move to another app" at 98%: do it now that it's really out.
+    if problem == "limit" and usage and usage["pct"] >= 99 and \
+            (_sc_qa().approved.get(provider) or {}).get("mode") == "move":
+        if await _sc_qa_move_if_planned(base, provider, place["channel"]):
+            return JSONResponse({"action": "switched"})
     # 2. Only this model is out: same plan, another model.
     if fb and fb != model and base in (config or {}).get("agents", {}):
         until = _sc_quota.reset_from_text(screen) or (usage or {}).get("resets") or (time.time() + 5 * 3600)
@@ -4679,7 +4702,7 @@ async def scranton_limit_check(request: Request):
     else:
         parts.append("no usage numbers, going by the screen")
     return JSONResponse({"action": "report", "pct": (usage or {}).get("pct"), "detail": ", ".join(parts),
-                         "api_ok": bool(_api_backup_on() and usage and usage["pct"] >= 99)})
+                         "api_ok": bool(_api_allowed(provider) and usage and usage["pct"] >= 99)})
 
 
 async def _sc_model_back_once(now: float | None = None) -> list[str]:
@@ -4706,7 +4729,7 @@ async def _sc_api_heal() -> list[str]:
     for name, rec in list(_sc_keys.all_on_api().items()):
         provider = (rec or {}).get("provider") or ""
         usage = _sc_quota.provider_usage(provider, _current_model(name)[1])
-        if not _api_backup_on() or (usage and usage["pct"] < 99):
+        if not _api_allowed(provider) or (usage and usage["pct"] < 99):
             _sc_keys.end_api(name)
             back.append(name)
     for name in back:
@@ -4730,6 +4753,7 @@ async def _sc_api_back_loop():
                 _sc_keys.end_api(name)
                 await _sc_restart_quiet(name)
             await _sc_model_back_once()
+            await _sc_qa_tick()
         except Exception:
             _log_rate_limited("api fallback check failed")
 
@@ -4738,6 +4762,117 @@ async def _sc_api_back_loop():
 async def _sc_api_back_start():
     asyncio.create_task(_sc_api_back_loop())
     asyncio.create_task(_sc_due_loop())
+
+
+_SC_QA: list = []
+
+
+def _sc_qa():
+    if not _SC_QA:
+        data_dir = Path((config or {}).get("server", {}).get("data_dir", "./data"))
+        _SC_QA.append(_sc_qask.State(data_dir / "quota_ask.json"))
+    return _SC_QA[0]
+
+
+async def _sc_qa_move_if_planned(base: str, provider: str, channel: str, after_api: bool = False) -> bool:
+    """Lu's pick for this plan says: carry on on another app until the reset. True if moved."""
+    st = _sc_qa()
+    plan = st.approved.get(provider) or {}
+    to = plan.get("then")
+    if not to or time.time() >= float(plan.get("until") or 0) or base in st.moved:
+        return False
+    if base not in (config or {}).get("agents", {}):
+        return False
+    ov = (_sc_team.load_overrides().get(base) or {})
+    cfg = (config or {}).get("agents", {}).get(base, {})
+    st.moved[base] = {"provider": _sc_team.provider_of(cfg.get("command", "")) or provider,
+                      "model": ov.get("model") or cfg.get("model") or "",
+                      "effort": ov.get("effort") or cfg.get("effort") or "",
+                      "until": float(plan["until"])}
+    st.save()
+    try:
+        _sc_team.set_override(base, "provider", to, config)
+        if _sc_qask.STANDIN_MODEL.get(to):
+            _sc_team.set_override(base, "model", _sc_qask.STANDIN_MODEL[to], config)
+    except ValueError:
+        st.moved.pop(base, None); st.save()
+        return False
+    when = time.strftime("%m-%d %H:%M", time.localtime(float(plan["until"])))
+    why = "备用 API key 用不了" if after_api else f"{_sc_qask.APP_NAMES.get(provider, provider)} 额度用完了"
+    store.add(base, f"{why}，按 Lu 的选择换到 {_sc_qask.APP_NAMES.get(to, to)} 接着干，{when} 重置后换回来。", channel=channel)
+    await broadcast_team_changed()
+    asyncio.create_task(_sc_restart_quiet(base))
+    return True
+
+
+async def _sc_qa_tick(now: float | None = None) -> None:
+    """Every 5 min: ask Lu once per plan window at 98%; put moved teammates back after the reset."""
+    now = time.time() if now is None else now
+    st = _sc_qa()
+    changed = False
+    # put back
+    for base, rec in list(st.moved.items()):
+        if now < float(rec.get("until") or 0):
+            continue
+        st.moved.pop(base, None); changed = True
+        if base not in (config or {}).get("agents", {}):
+            continue
+        try:
+            _sc_team.set_override(base, "provider", rec.get("provider") or "claude", config)
+            if rec.get("model"):
+                _sc_team.set_override(base, "model", rec["model"], config)
+            if rec.get("effort"):
+                _sc_team.set_override(base, "effort", rec["effort"], config)
+        except ValueError:
+            pass
+        store.add(base, "额度重置了，换回原来的应用。", channel=_pm_channel())
+        await broadcast_team_changed()
+        asyncio.create_task(_sc_restart_quiet(base))
+    for p, a in list(st.approved.items()):
+        if now >= float(a.get("until") or 0):
+            st.approved.pop(p, None); changed = True
+    # ask
+    groups: dict[str, dict] = {}
+    for h, cfg in ((config or {}).get("agents", {}) or {}).items():
+        prov, model = _current_model(h)
+        u = _sc_quota.provider_usage(prov, model)
+        if not u:
+            continue
+        key = f"{prov}:{u['label']}"
+        g = groups.setdefault(key, {"provider": prov, "pct": u["pct"], "resets": u.get("resets"), "who": []})
+        g["who"].append(_label_of(h))
+    for key, g in groups.items():
+        if g["pct"] < _sc_qask.ASK_AT or str(st.asked.get(key)) == str(g["resets"]):
+            continue
+        other = _sc_qask.standin(g["provider"], _sc_quota.provider_usage)
+        has_key = bool(_sc_keys.get_key(g["provider"])) if g["provider"] in ("claude", "codex") else False
+        q = _sc_qask.question(g["provider"], g["pct"], g["resets"], g["who"], has_key, other,
+                              owner=str(room_settings.get("username") or "Lu"), now=now)
+        st.asked[key] = g["resets"]; changed = True
+        if not q:
+            continue
+        text, choices = q
+        store.add("Scranton", text, msg_type="decision", channel=_pm_channel(),
+                  metadata={"choices": choices, "resolved": False,
+                            "quota_ask": {"provider": g["provider"], "until": g["resets"] or (now + 5 * 3600),
+                                          "then": other[0] if other else None}})
+    if changed:
+        st.save()
+
+
+def _sc_qa_apply(meta: dict, chosen: str) -> None:
+    """Lu answered the 98% question: remember it for when the plan really runs out."""
+    qa = (meta or {}).get("quota_ask") or {}
+    p = qa.get("provider")
+    if not p:
+        return
+    mode = _sc_qask.classify(chosen)
+    st = _sc_qa()
+    if mode in ("api", "move"):
+        st.approved[p] = {"mode": mode, "until": float(qa.get("until") or 0), "then": qa.get("then")}
+    else:
+        st.approved.pop(p, None)
+    st.save()
 
 
 _SC_DUE: list = []
