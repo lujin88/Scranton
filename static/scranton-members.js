@@ -290,6 +290,20 @@
         return best;
     }
 
+    // "交 10:30" / "late 12 min" from the PM's assignment (scranton_due.py), so Lu needn't ask.
+    function dueText(h) {
+        const it = (window.scDue || {})[h];
+        if (!it || !it.due) return '';
+        const late = Math.floor((Date.now() / 1000 - it.due) / 60);
+        if (late > 0) return `late ${late < 60 ? late + ' min' : Math.floor(late / 60) + ' h'}`;
+        const d = new Date(it.due * 1000);
+        return `due ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+    window.scDueText = dueText;
+    fetch('/api/scranton/due', { headers: { 'X-Session-Token': window.SESSION_TOKEN } })
+        .then((r) => r.ok ? r.json() : {}).then((j) => { window.scDue = j || {}; renderWorking(); }).catch(() => {});
+    setInterval(() => { if (Object.keys(window.scDue || {}).length) renderWorking(); }, 60000);
+
     function renderWorking() {
         const ch = current();
         const list = document.getElementById('messages');
@@ -308,7 +322,8 @@
         }
         const line = (hs) => {
             const d = hs.length === 1 ? doingText(hs[0]) : '';
-            return `${hs.map((h) => label(h)).join('、')} ${hs.length > 1 ? 'are' : 'is'} working` + (d ? ` · ${d}` : '');
+            const due = hs.length === 1 ? dueText(hs[0]) : '';
+            return `${hs.map((h) => label(h)).join('、')} ${hs.length > 1 ? 'are' : 'is'} working` + (d ? ` · ${d}` : '') + (due ? ` · ${due}` : '');
         };
 
         // Under your message, on your side: "项目经理 is working · Reading page.tsx"

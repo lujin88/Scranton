@@ -24,6 +24,7 @@ from summaries import SummaryStore
 from jobs import JobStore
 from schedules import ScheduleStore, parse_schedule_spec
 import scranton_quota as _sc_quota
+import scranton_due as _sc_due_mod
 import scranton_apikeys as _sc_keys
 from router import Router
 from agents import AgentTrigger
@@ -977,6 +978,13 @@ async def _handle_new_message(msg: dict):
         # disconnect message follows them to the right channel.
         if sender and sender != "system":
             _agent_last_channel[sender] = channel
+        # Scranton: "交 HH:MM" in an assignment → shown next to "X is working", PM told when it passes.
+        try:
+            if _sc_due_book().note(msg, set((config or {}).get("agents", {}).keys()),
+                                   owner=str(room_settings.get("username") or "Lu")):
+                await _broadcast_json({"type": "scranton_due", "items": _sc_due_book().public()})
+        except Exception:
+            _log_rate_limited("due note failed")
     # Strip @mentions to find the slash command (e.g. "@claude @codex /hatmaking")
     stripped = _re.sub(r"@[\w-]+\s*", "", text).strip().lower()
     _broadcast_cmds = ("/hatmaking", "/artchallenge", "/roastreview", "/poetry")
@@ -4729,3 +4737,47 @@ async def _sc_api_back_loop():
 @app.on_event("startup")
 async def _sc_api_back_start():
     asyncio.create_task(_sc_api_back_loop())
+    asyncio.create_task(_sc_due_loop())
+
+
+_SC_DUE: list = []
+
+
+def _sc_due_book():
+    if not _SC_DUE:
+        data_dir = Path((config or {}).get("server", {}).get("data_dir", "./data"))
+        _SC_DUE.append(_sc_due_mod.DueBook(data_dir / "due.json"))
+    return _SC_DUE[0]
+
+
+def _sc_due_text(handle: str, it: dict) -> str:
+    when = time.strftime("%H:%M", time.localtime(float(it["due"])))
+    ref = f" (#{it['id']})" if it.get("id") else ""
+    return (f"@pm {_label_of(handle)} 的活{ref}说 {when} 交，现在过了还没交。"
+            f"看一下它卡在哪，重新定时间或者换人；不用告诉 Lu，除非要她定。")
+
+
+def _label_of(handle: str) -> str:
+    try:
+        return str(((config or {}).get("agents", {}).get(handle, {}) or {}).get("label") or handle)
+    except Exception:
+        return handle
+
+
+async def _sc_due_loop():
+    """Once a minute: anyone past their '交 HH:MM' with nothing delivered → tell the PM once."""
+    await asyncio.sleep(30)
+    while True:
+        try:
+            for h, it in _sc_due_book().overdue():
+                store.add("Scranton", _sc_due_text(h, it), channel=it.get("channel") or "general",
+                          reply_to=it.get("id") if isinstance(it.get("id"), int) else None)
+                await _broadcast_json({"type": "scranton_due", "items": _sc_due_book().public()})
+        except Exception:
+            _log_rate_limited("due check failed")
+        await asyncio.sleep(60)
+
+
+@app.get("/api/scranton/due")
+async def scranton_due_list():
+    return JSONResponse(_sc_due_book().public())
