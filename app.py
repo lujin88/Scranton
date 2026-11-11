@@ -444,7 +444,7 @@ def _install_security_middleware(token: str, cfg: dict):
             # Allow registered agents to authenticate via Bearer token
             # for /api/messages and /api/send (no browser session needed).
             auth_header = request.headers.get("authorization", "")
-            agent_ok = (path in ("/api/messages", "/api/send", "/api/scranton/api-fallback") or path.startswith("/api/rules/")
+            agent_ok = (path in AGENT_BEARER_PATHS or path.startswith("/api/rules/")
                         or (path == "/api/scranton/handover" and request.method == "GET"))   # wrappers read when to hand over
             if auth_header.lower().startswith("bearer ") and agent_ok:
                 bearer = auth_header[7:].strip()
@@ -468,6 +468,13 @@ def _install_security_middleware(token: str, cfg: dict):
             return await call_next(request)
 
     app.add_middleware(SecurityMiddleware)
+
+
+# Routes a wrapper may call with its agent token instead of the browser session token. Every
+# route a wrapper calls with "Authorization: Bearer" must be here (tests/test_agent_routes.py checks).
+# 11-11: limit-check was missing, so every check came back 403; the wrapper read that as "the plan
+# is used up" and posted "I stopped" at 79 % of the week.
+AGENT_BEARER_PATHS = ("/api/messages", "/api/send", "/api/scranton/api-fallback", "/api/scranton/limit-check")
 
 
 def configure(cfg: dict, session_token: str = ""):
@@ -4845,7 +4852,8 @@ async def _sc_qa_tick(now: float | None = None) -> None:
         u = _sc_quota.provider_usage(prov, model)
         if not u:
             continue
-        key = f"{prov}:{u['label']}"
+        # one question per plan window; without a reset time, one per day
+        key = f"{prov}:{u['label']}" + ("" if u.get("resets") else time.strftime(":%Y-%m-%d", time.localtime(now)))
         g = groups.setdefault(key, {"provider": prov, "pct": u["pct"], "resets": u.get("resets"), "who": []})
         g["who"].append(_label_of(h))
     for key, g in groups.items():

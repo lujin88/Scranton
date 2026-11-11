@@ -38,7 +38,7 @@
         const box = document.getElementById('sc-ch-board');
         if (!box) return;
         const c = ch();
-        if (isDm(c)) { box.innerHTML = ''; return; }
+        if (isDm(c)) { box.innerHTML = ''; box.dataset.html = ''; return; }
         const team = (window.scGetTeam && window.scGetTeam()) || {};
         const members = (((window.scChannelMembers && window.scChannelMembers()) || {})[c] || []).filter((h) => team[h]);
         const st = (h) => (window.scAgentState ? window.scAgentState(h) : 'offline');
@@ -72,7 +72,7 @@
         for (const r of open) counts[r.state] = (counts[r.state] || 0) + 1;
         const tiles = STATE_ORDER.filter((k) => k !== 'live' && (counts[k] || k === 'waiting_lu'))
             .map((k) => `<button type="button" class="sc-ov-tile${filter === k ? ' on' : ''}" data-state="${k}" aria-pressed="${filter === k}"><b>${counts[k] || 0}</b><span>${esc((data.states || {})[k] || k)}</span></button>`).join('');
-        box.innerHTML = `<div class="sc-board-head"><h3>Who's on what</h3><span>${open.length ? open.length + ' open' : 'Nothing open'}</span></div>
+        const html = `<div class="sc-board-head"><h3>Who's on what</h3><span>${open.length ? open.length + ' open' : 'Nothing open'}</span></div>
             ${open.length ? `<div class="sc-ch-card sc-ov">
                 <div class="sc-ov-tiles">${tiles}</div>
                 <div class="sc-ov-foot"><span>${busy.length} busy</span><span>${free.length} free${free.length ? ': ' + names(free) : ''}</span>${live.length ? `<span>${live.length} live today</span>` : ''}</div>
@@ -85,6 +85,8 @@
                 ${!filter && off.length ? `<div class="sc-who sc-who-line"><span class="sc-who-st">Not running</span>${names(off)}</div>` : ''}
                 ${!filter && live.length ? `<div class="sc-who sc-who-line"><span class="sc-who-st">Live today</span>${live.map((r) => esc(r.ask)).join('、')}</div>` : ''}
             </div>`;
+        // Only touch the DOM when something changed: the 5 s refresh must not drop keyboard focus.
+        if (box.dataset.html !== html) { box.dataset.html = html; box.innerHTML = html; }
     }
 
     // Click a row: open the message it's about (the question to Lu for 等你). Without one, the latest

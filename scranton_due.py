@@ -18,6 +18,7 @@ DUE_RE = re.compile(r"(?:交|due|deliver(?:y)?|ETA)\s*[:：]?\s*(?:by\s*)?([01]?
 DUE_BEFORE_RE = re.compile(r"([01]?\d|2[0-3])[:：]([0-5]\d)\s*(?:前|之前)\s*交")
 MENTION_RE = re.compile(r"@([A-Za-z0-9_-]+)")
 ACK_MAX = 40   # a reply this short is "收到", not a delivery
+ACK_RE = re.compile(r"^(@\S+\s*)*(收到|已读|好的|好|明白|ok\b|got it|on it|will do|接了|开始做|在做)", re.I)
 DELIVERED_RE = re.compile(r"已交|交了|交付|已完成|做完了|done|delivered|https?://|PR\s*#?\d", re.I)
 
 
@@ -63,7 +64,10 @@ class DueBook:
         # 1. a delivery clears that teammate's due in this channel
         it = self.items.get(base)
         if it and it.get("channel") == channel and now > float(it.get("at") or 0):
-            if len(text.strip()) > ACK_MAX or DELIVERED_RE.search(text) or msg.get("attachments"):
+            t = text.strip()
+            # Agents' "收到" can be long ("收到 #6892。以 v6 为底，v7 改回…"): an ack is never a delivery.
+            ack = bool(ACK_RE.match(t)) and not DELIVERED_RE.search(t)
+            if not ack and (len(t) > ACK_MAX or DELIVERED_RE.search(t) or msg.get("attachments")):
                 self.items.pop(base, None)
                 changed = True
         # 2. an assignment with a due time

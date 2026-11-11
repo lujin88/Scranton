@@ -41,3 +41,14 @@ def test_only_pm_or_owner_assigns_and_persists(tmp_path):
     assert b.public() == {}
     b.note({"sender": "Lu", "text": "@dev 交 11:00", "channel": "c", "timestamp": at(10, 0)}, AG, owner="Lu")
     assert "dev" in DueBook(tmp_path / "due.json").public()
+
+
+def test_long_ack_is_not_a_delivery(tmp_path):
+    b = DueBook(tmp_path / "due.json")
+    t0 = at(10, 0)
+    b.note({"sender": "pm", "text": "@visual v7 改色调，交 10:30", "channel": "c", "timestamp": t0}, AG)
+    b.note({"sender": "visual", "text": "@pm 收到 #6892。以 visual v6 为底，v7 改回 A 的米白墙、棕木地板、黄绿藤，并恢复浓密层叠藤幔；保持 4 窗。",
+            "channel": "c", "timestamp": t0 + 30}, AG)
+    assert "visual" in b.public()
+    b.note({"sender": "visual", "text": "@pm v7 已交，三张并排在附图。", "channel": "c", "timestamp": t0 + 900}, AG)
+    assert b.public() == {}
