@@ -44,9 +44,21 @@
             term = new window.Terminal({
                 fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace', fontSize: 12, lineHeight: 1.2,
                 cursorBlink: true, scrollback: 2000, allowProposedApi: false,
-                theme: dark ? { background: '#161616', foreground: '#e6e6e6', cursor: '#e6e6e6', selectionBackground: '#3a3a3a' }
-                    : { background: '#f5f5f5', foreground: '#1a1a1a', cursor: '#1a1a1a', selectionBackground: '#cfdcf5' },
+                macOptionClickForcesSelection: true,
+                // Selection = the accent at reading strength, kept when focus leaves (Lu, 11-11: "选的看不到").
+                theme: dark ? { background: '#161616', foreground: '#e6e6e6', cursor: '#e6e6e6',
+                        selectionBackground: 'rgba(76,141,246,.5)', selectionInactiveBackground: 'rgba(76,141,246,.35)' }
+                    : { background: '#f5f5f5', foreground: '#1a1a1a', cursor: '#1a1a1a',
+                        selectionBackground: 'rgba(47,111,222,.32)', selectionInactiveBackground: 'rgba(47,111,222,.22)' },
             });
+            // Claude Code and tmux turn on mouse reporting, so a drag went to them and nothing got
+            // selected. A plain left drag now always selects here (the wheel still scrolls them):
+            // on a Mac we press Option for you, which is xterm's "force selection" key.
+            if (/Mac|iPhone|iPad/.test(navigator.platform)) {
+                el.addEventListener('mousedown', (e) => {
+                    if (e.button === 0 && !e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey) Object.defineProperty(e, 'altKey', { get: () => true });
+                }, true);
+            }
             const fit = new window.FitAddon.FitAddon();
             term.loadAddon(fit);
             term.open(el);

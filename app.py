@@ -4406,6 +4406,9 @@ async def scranton_term_ws(websocket: WebSocket, name: str):
         await websocket.send_bytes(f"\r\n  {name} isn't running. Start it, then open this again.\r\n".encode())
         await websocket.close()
         return
+    # tmux's green status bar fights the design system and repeats what the tab already says
+    # (Lu, 11-11). Session option only: her own tmux sessions keep theirs.
+    _sp.run([tmux, "set-option", "-t", f"={session}", "status", "off"], capture_output=True)
     master, slave = pty.openpty()
 
     def size(cols: int, rows: int):

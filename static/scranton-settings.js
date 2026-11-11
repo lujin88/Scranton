@@ -365,7 +365,7 @@
                 <div class="sc-id-row"><span>@handle</span><code>@${esc(p.handle)}</code></div>
             </div>`;
         } else if (agentTab === 'terminal') {
-            content = `<p class="sc-st-note sc-term-note">Live. Click inside to type.</p>
+            content = `<p class="sc-st-note sc-term-note">Live. Click inside to type. Drag to select, ⌘C to copy.</p>
                 <div class="sc-term-live" id="sc-term-live"></div>
                 <div class="sc-term-keys sc-term-touch">${['Enter', 'Escape', 'Up', 'Down'].map((k) => `<button type="button" class="sc-btn sm" data-key="${k}">${{ Escape: 'Esc', Up: '↑', Down: '↓' }[k] || k}</button>`).join('')}</div>
                 <p class="sc-st-note" id="sc-term-msg" role="status"></p>`;

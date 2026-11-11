@@ -53,3 +53,11 @@ Accent: `#4c8df6` (hover `#6aa1f8`) for links, icons and on-states. Filled butto
 - Tabs are pills (`--ds-overlay` when selected), never underlines.
 - Neutral states (not signed in, not installed) are grey; red is only for real failures.
 - Search opens centred, without key hints.
+
+## Terminal (live xterm view, 11-11)
+
+- Background `#f5f5f5` light / `#161616` dark, radius `--ds-r-card`, 8 px inner padding on `.xterm`, never on the box (the fit addon would cut the last row).
+- Selection is the accent at reading strength: light `rgba(47,111,222,.32)`, dark `rgba(76,141,246,.5)`; it stays (a bit lighter) when focus leaves, so you can still see what you copied.
+- A plain left drag always selects text, even when the agent or tmux has turned on mouse reporting. The wheel still scrolls the agent. ⌘C copies.
+- No tmux status bar in Scranton (the tab already says who it is); the green bar was tmux's default, not ours.
+- The note above the terminal says what you can do in one line: "Live. Click inside to type. Drag to select, ⌘C to copy."
