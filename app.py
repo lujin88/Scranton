@@ -4478,14 +4478,25 @@ async def scranton_term_ws(websocket: WebSocket, name: str):
 
 
 # ---------------------------------------------------------------- backup API keys (Lu, 11-10)
+def _api_backup_on() -> bool:
+    """Lu's switch (11-11): keys stay saved, but nobody moves to one while it's off (the default)."""
+    return bool(room_settings.get("api_backup_enabled", False))
+
+
 @app.get("/api/scranton/api-keys")
 async def scranton_api_keys_get():
-    return JSONResponse({"keys": _sc_keys.summary(), "on_api": _sc_keys.all_on_api()})
+    return JSONResponse({"keys": _sc_keys.summary(), "on_api": _sc_keys.all_on_api(), "enabled": _api_backup_on()})
 
 
 @app.post("/api/scranton/api-keys")
 async def scranton_api_keys_set(request: Request):
     body = await request.json()
+    if "enabled" in body and "provider" not in body:
+        room_settings["api_backup_enabled"] = bool(body.get("enabled"))
+        _save_settings()
+        if not _api_backup_on():
+            await _sc_api_heal()
+        return JSONResponse({"ok": True, "enabled": _api_backup_on(), "keys": _sc_keys.summary(), "on_api": _sc_keys.all_on_api()})
     err = _sc_keys.set_key(str(body.get("provider", "")), str(body.get("key", "")))
     if err:
         return JSONResponse({"ok": False, "error": err}, status_code=400)
@@ -4516,6 +4527,8 @@ async def scranton_api_fallback(request: Request):
     provider = _sc_keys.provider_of_command(cfg.get("command", ""))
     # Only when the real numbers say the plan is out (11-11: pm was moved to a key with no money
     # because it had quoted "hit its usage limit" in a reply, with 77% of the week used).
+    if not _api_backup_on():
+        return JSONResponse({"switching": False, "off": True})
     usage = _sc_quota.provider_usage(provider or "", _current_model(base)[1])
     if not usage or usage["pct"] < 99:
         return JSONResponse({"switching": False, "pct": (usage or {}).get("pct")})
@@ -4611,7 +4624,7 @@ async def scranton_limit_check(request: Request):
     # The backup key (money) only when the numbers say the plan is really out. A screen saying
     # "limit" without numbers behind it has been wrong too often (11-10, 11-11) to spend money on.
     return JSONResponse({"action": "report", "pct": (usage or {}).get("pct"),
-                         "api_ok": bool(usage and usage["pct"] >= 99)})
+                         "api_ok": bool(_api_backup_on() and usage and usage["pct"] >= 99)})
 
 
 async def _sc_model_back_once(now: float | None = None) -> list[str]:
@@ -4631,12 +4644,33 @@ async def _sc_model_back_once(now: float | None = None) -> list[str]:
     return back
 
 
+async def _sc_api_heal() -> list[str]:
+    """Anyone on a backup key goes back to the plan when the switch is off or the plan has room
+    again (11-11: pm sat on a key with no money for 1.5 hours; nothing brought it back)."""
+    back = []
+    for name, rec in list(_sc_keys.all_on_api().items()):
+        provider = (rec or {}).get("provider") or ""
+        usage = _sc_quota.provider_usage(provider, _current_model(name)[1])
+        if not _api_backup_on() or (usage and usage["pct"] < 99):
+            _sc_keys.end_api(name)
+            back.append(name)
+    for name in back:
+        await _sc_restart_quiet(name)
+    return back
+
+
 async def _sc_api_back_loop():
     """Every 10 minutes: teammates that have been on the API for 5 hours go back to their plan.
     If the plan is still out, they hit the limit again and come straight back to the key."""
+    await asyncio.sleep(20)
+    try:
+        await _sc_api_heal()   # on start too: a teammate left on a key by an older version comes back
+    except Exception:
+        _log_rate_limited("api heal failed")
     while True:
-        await asyncio.sleep(600)
+        await asyncio.sleep(300)
         try:
+            await _sc_api_heal()
             for name in _sc_keys.due_back():
                 _sc_keys.end_api(name)
                 await _sc_restart_quiet(name)

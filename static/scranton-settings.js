@@ -493,8 +493,10 @@
         };
         const lim = (id, name) => (k[id] && k[id].limits_url) ? `<a href="${esc(k[id].limits_url)}" target="_blank" rel="noopener">${name}</a>` : name;
         const on = Object.entries((r && r.on_api) || {});
+        const on1 = !!(r && r.enabled);
         return `<h3 class="sc-st-h3">Backup API keys</h3>
-            <p class="sc-st-note">Only used when a teammate's Claude or ChatGPT plan runs out: it carries on with the key (pay per use) and goes back to the plan after about 5 hours.
+            <div class="sc-st-row"><label class="sc-switch-row"><input type="checkbox" id="sc-key-on"${on1 ? ' checked' : ''}><span class="sc-switch"></span><span>${on1 ? 'On: use a key when a plan runs out' : 'Off: keys are kept, nobody uses them'}</span></label></div>
+            <p class="sc-st-note">When it's on, a key is only used when a teammate's Claude or ChatGPT plan runs out: it carries on with the key (pay per use) and goes back to the plan after about 5 hours.
             Scranton can't cap what the API charges, so set a monthly limit at ${lim('claude', 'Anthropic')} and ${lim('codex', 'OpenAI')}: then a teammate stuck in a loop at night can't run up a big bill.</p>
             <div class="sc-conn sc-bkeys">${row('claude', 'Claude (Anthropic)', 'sk-ant-…')}${row('codex', 'ChatGPT (OpenAI)', 'sk-…')}</div>
             <p class="sc-st-note" id="sc-key-note" role="status">${on.length ? `On the API now: ${on.map(([n]) => esc(label(n))).join(', ')}` : ''}</p>`;
@@ -530,6 +532,11 @@
         if (a === 'sc-del') { t.closest('.sc-sc-item')?.remove(); saveShortcuts(true); return; }
         if (a === 'import') { importHistory(); return; }
         if (a === 'back-to-plan' && agentOpen) { await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}`, { action: 'plan' }); render(); return; }
+        if (t.id === 'sc-key-on') {
+            await api('/api/scranton/api-keys', { enabled: t.checked });
+            render();
+            return;
+        }
         const ks = t.closest('[data-key-save]'), kd = t.closest('[data-key-del]');
         if (ks || kd) {
             const id = (ks || kd).dataset.keySave || (ks || kd).dataset.keyDel;
