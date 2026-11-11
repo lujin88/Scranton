@@ -4526,6 +4526,93 @@ async def scranton_api_fallback(request: Request):
     return JSONResponse({"switching": True})
 
 
+# ---------------------------------------------------------------- is the plan really out? (Lu, 11-11)
+# The wrapper sees "limit" on a teammate's screen and asks here before stopping it. A warning is not
+# the end: the real numbers decide (Agent Monitor's usage.json). If only this model's quota is out
+# (Cursor's "Other models", Gemini Argon), it carries on with a model that still has room and goes
+# back when that quota resets. Only then the backup API key, and only then "I stopped".
+_MODEL_FB = Path(__file__).parent / "data" / "model_fallback.json"
+import time  # noqa: E402  (used by the limit check below)
+
+
+def _model_fb_load() -> dict:
+    try:
+        d = json.loads(_MODEL_FB.read_text("utf-8"))
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _model_fb_save(d: dict) -> None:
+    _MODEL_FB.parent.mkdir(parents=True, exist_ok=True)
+    _MODEL_FB.write_text(json.dumps(d, indent=1), "utf-8")
+
+
+def _current_model(base: str) -> tuple[str, str]:
+    cfg = (config or {}).get("agents", {}).get(base, {})
+    provider = _sc_team.provider_of(cfg.get("command", ""))
+    ov = _sc_team.load_overrides()
+    model = (ov.get(base, {}) or {}).get("model") or ((ov.get("_added", {}) or {}).get(base, {}) or {}).get("model") \
+        or cfg.get("model") or ((ov.get("_defaults") or {}).get(provider) or "")
+    return provider, str(model or "")
+
+
+def _model_label(m: str) -> str:
+    return (m or "the default model").replace("-", " ").title().replace("Gpt", "GPT")
+
+
+@app.post("/api/scranton/limit-check")
+async def scranton_limit_check(request: Request):
+    auth = request.headers.get("authorization", "")
+    inst = registry.resolve_token(auth[7:].strip()) if auth.lower().startswith("bearer ") else None
+    if not inst:
+        return JSONResponse({"action": "report"}, status_code=403)
+    base = inst.get("base") or inst["name"]
+    body = await request.json()
+    problem = str(body.get("problem") or "")
+    screen = str(body.get("text") or "")[-3000:]
+    place = {"channel": str(body.get("channel") or "general"),
+             "reply_to": body.get("thread") if isinstance(body.get("thread"), int) else None}
+    provider, model = _current_model(base)
+    usage = _sc_quota.provider_usage(provider, model)
+    # 1. A warning: the numbers say there's room. Keep working, say nothing.
+    if problem == "limit" and usage and usage["pct"] < 99:
+        return JSONResponse({"action": "ignore", "pct": usage["pct"]})
+    # 2. Only this model is out: same plan, another model.
+    fb = _sc_quota.model_fallback(provider, model)
+    if fb and fb != model and base in (config or {}).get("agents", {}):
+        until = _sc_quota.reset_from_text(screen) or (usage or {}).get("resets") or (time.time() + 5 * 3600)
+        d = _model_fb_load()
+        d[base] = {"from": model, "to": fb, "since": time.time(), "until": float(until)}
+        _model_fb_save(d)
+        _sc_team.set_override(base, "model", fb, config)
+        when = time.strftime("%m-%d %H:%M", time.localtime(float(until)))
+        store.add(inst["name"], f"{_model_label(model)} has used up its quota, but the plan still has room on other models: "
+                                f"I'm carrying on with {_model_label(fb)} and will switch back after it resets ({when}).",
+                  channel=place["channel"], reply_to=place["reply_to"])
+        await broadcast_team_changed()
+        asyncio.create_task(_sc_restart_quiet(base))
+        return JSONResponse({"action": "switched", "model": fb})
+    return JSONResponse({"action": "report", "pct": (usage or {}).get("pct")})
+
+
+async def _sc_model_back_once(now: float | None = None) -> list[str]:
+    """Teammates moved to another model go back once that quota has reset (unless Lu changed it since)."""
+    now = time.time() if now is None else now
+    d, back = _model_fb_load(), []
+    for name, r in list(d.items()):
+        if now < float(r.get("until") or 0):
+            continue
+        d.pop(name, None)
+        if name in (config or {}).get("agents", {}) and _current_model(name)[1] == r.get("to"):
+            _sc_team.set_override(name, "model", r.get("from") or "", config)
+            back.append(name)
+    _model_fb_save(d)
+    for name in back:
+        await _sc_restart_quiet(name)
+    return back
+
+
 async def _sc_api_back_loop():
     """Every 10 minutes: teammates that have been on the API for 5 hours go back to their plan.
     If the plan is still out, they hit the limit again and come straight back to the key."""
@@ -4535,6 +4622,7 @@ async def _sc_api_back_loop():
             for name in _sc_keys.due_back():
                 _sc_keys.end_api(name)
                 await _sc_restart_quiet(name)
+            await _sc_model_back_once()
         except Exception:
             _log_rate_limited("api fallback check failed")
 

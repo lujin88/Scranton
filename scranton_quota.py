@@ -124,3 +124,80 @@ def notice(cfg: dict | None, low: bool) -> str:
         return (f"@pm ChatGPT 额度已用 {where}：从现在起发给视觉/动效的活自动转给 Gemini 实习生"
                 f"（{pairs}，私信除外）。正在做的活请你看要不要转。降到 {s['back_below']:.0f}% 以下自动恢复。")
     return f"@pm ChatGPT 额度恢复（{where or '已重置'}）：视觉/动效的活回到 @visual、@motion。"
+
+
+# ---------------------------------------------------------------- is it really out? (Lu, 11-11)
+# A teammate's screen saying "limit" is not proof: 11-10 every one of ~50 "I stopped: usage limit"
+# from the ChatGPT teammates came at 90–93% of the week, and Cursor's "Other models" being full
+# stopped webdev while Cursor's own models had 25% left. So before a teammate is stopped, look at
+# the real numbers Agent Monitor keeps (~/agent-monitor/usage.json).
+CURSOR_OWN = ("auto", "composer", "cursor-")
+
+
+def is_cursor_own(model: str) -> bool:
+    return str(model or "").lower().startswith(CURSOR_OWN)
+
+
+def provider_usage(provider: str, model: str = "", usage_file: str = DEFAULTS["usage_file"],
+                   now: float | None = None) -> dict | None:
+    """{'pct': highest % used, 'label': window, 'resets': epoch|None} for the window this
+    teammate draws on, or None when there are no fresh numbers (then the screen text decides)."""
+    now = time.time() if now is None else now
+    key = {"cursor": "cursor", "codex": "codex", "claude": "claude"}.get(provider)
+    if not key:
+        return None
+    try:
+        entry = (json.loads(Path(usage_file).expanduser().read_text("utf-8")) or {}).get(key) or {}
+        updated = float(entry.get("updatedAt") or 0) / 1000.0
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
+    if not updated or now - updated > float(DEFAULTS["max_age_minutes"]) * 60:
+        return None
+    wins = []
+    for w in entry.get("windows") or []:
+        label = str(w.get("label") or "")
+        if key == "cursor":   # Cursor has two pools: its own models, and everyone else's
+            own = label.lower().startswith("cursor")
+            if own != is_cursor_own(model):
+                continue
+        try:
+            pct = float(w.get("usedPercent"))
+        except (TypeError, ValueError):
+            continue
+        resets = w.get("resetsAt")
+        if isinstance(resets, (int, float)) and 0 < resets <= now:
+            continue
+        wins.append({"pct": pct, "label": label, "resets": resets if isinstance(resets, (int, float)) else None})
+    return max(wins, key=lambda w: w["pct"]) if wins else None
+
+
+def model_fallback(provider: str, model: str, usage_file: str = DEFAULTS["usage_file"]) -> str | None:
+    """A model on the same plan that still has room, when only this model's quota is out."""
+    m = str(model or "").lower()
+    if provider == "cursor" and not is_cursor_own(m):
+        own = provider_usage("cursor", "composer-2.5", usage_file)
+        return "composer-2.5" if own is None or own["pct"] < 99 else None
+    if provider == "gemini" and m and "flash" not in m:
+        return "gemini-3.8-flash"   # Argon / Pro have their own quota; Flash is a separate pool
+    return None
+
+
+_RESETS_IN = re.compile(r"resets?\s+in\s+(?:(\d+)\s*d\s*)?(?:(\d+)\s*h\s*)?(?:(\d+)\s*m)?", re.I)
+_RESETS_ON = re.compile(r"(?:ends|resets?)\s+on\s+(\d{1,2})/(\d{1,2})/(\d{4})", re.I)
+
+
+def reset_from_text(text: str, now: float | None = None) -> float | None:
+    """'Resets in 155h21m9s' / 'cycle ends on 11/29/2026' → epoch seconds."""
+    now = time.time() if now is None else now
+    m = _RESETS_IN.search(text or "")
+    if m and any(m.groups()):
+        d, h, mi = (int(x or 0) for x in m.groups())
+        return now + d * 86400 + h * 3600 + mi * 60
+    m = _RESETS_ON.search(text or "")
+    if m:
+        mo, da, yr = (int(x) for x in m.groups())
+        try:
+            return time.mktime((yr, mo, da, 0, 0, 0, 0, 0, -1))
+        except (OverflowError, ValueError):
+            return None
+    return None

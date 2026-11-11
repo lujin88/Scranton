@@ -653,6 +653,23 @@ def _post(server_port: int, sender: str, token: str, channel: str, reply_to, tex
         print(f"  couldn't post to chat: {exc}", flush=True)
 
 
+def _ask_limit_check(server_port: int, token: str, place: dict, problem: str) -> str:
+    """'ignore' (the plan has room), 'switched' (another model) or 'report'."""
+    try:
+        import urllib.request
+        from wrapper_unix import pane_text
+        screen = pane_text(_HANDOVER.get("tmux") or "", 40) if _HANDOVER.get("tmux") else ""
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{server_port}/api/scranton/limit-check", method="POST",
+            data=json.dumps({"problem": problem, "text": screen[-3000:], "channel": place.get("channel"),
+                             "thread": place.get("thread")}).encode(),
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return str(json.loads(r.read() or b"{}").get("action") or "report")
+    except Exception:
+        return "report"
+
+
 def _ask_api_fallback(server_port: int, token: str, place: dict) -> bool:
     """True when Scranton is moving this teammate onto its backup API key."""
     try:
@@ -1341,7 +1358,9 @@ def main():
         _activity_checker = checker
 
     _describe = [None]       # set below on macOS/Linux: reads the agent's screen
-    _app_name = {"claude": "Claude", "codex": "ChatGPT", "cursor": "Cursor", "agy": "Antigravity"}.get(_provider_from_command(command), "the app")
+    _exe = Path(str(command or "")).name.lower()   # "agent" is Cursor, "agy" is Antigravity ("my the app plan", 11-11)
+    _app_name = {"claude": "Claude", "codex": "ChatGPT", "cursor": "Cursor", "agent": "Cursor", "cursor-agent": "Cursor",
+                 "agy": "Antigravity"}.get(_exe, "the app")
     _reported = _PROBLEM_POSTED
     _seen = [None, 0.0]      # problem key on screen now, since when
     _idle_since = [None]     # went from working to idle at
@@ -1382,13 +1401,23 @@ def main():
                 # screen has stopped changing: one passing line isn't a stop.
                 if problem != _seen[0]:
                     _seen[0], _seen[1] = problem, now
+                if not problem and _seen[1] and now - _seen[1] > 60:
+                    for k in ("limit", "model_limit"):
+                        _reported.pop(k, None)   # gone from the screen: next time is a new one
                 if problem and not active and now - _seen[1] >= 5 and now - _reported.get(problem, 0) > 1800:
-                    # say it once (per 30 min) where the agent was last asked
-                    _reported[problem] = now
+                    # say it once where the agent was last asked; a limit is said once until it clears
+                    _reported[problem] = now + (10 ** 9 if problem in ("limit", "model_limit") else 0)
                     from wrapper_unix import problem_text
                     cur, _ = get_identity()
-                    # Out of plan: with a backup API key, Scranton restarts it on the key instead
-                    # of stopping (it says so itself in the chat).
+                    if problem in ("limit", "model_limit"):
+                        # Ask Scranton first: a warning isn't the end (keep going), a model that's out
+                        # moves to one with room, then the backup API key; only then "I stopped".
+                        verdict = _ask_limit_check(server_port, get_token(), _LAST_PLACE, problem)
+                        if verdict == "ignore":
+                            _reported[problem] = now - 1200   # look again in 10 minutes
+                            continue
+                        if verdict == "switched":
+                            continue
                     if problem == "limit" and _ask_api_fallback(server_port, get_token(), _LAST_PLACE):
                         continue
                     _post(server_port, cur, get_token(), _LAST_PLACE["channel"], _LAST_PLACE["thread"],
@@ -1463,6 +1492,7 @@ def main():
         from wrapper_unix import get_activity_checker, run_agent
 
         unix_session_name = f"agentchattr-{assigned_name}"
+        _HANDOVER["tmux"] = unix_session_name
         from wrapper_unix import describe_screen, is_working
         _describe[0] = lambda: describe_screen(unix_session_name)
         _HANDOVER["busy"] = lambda: is_working(unix_session_name)
