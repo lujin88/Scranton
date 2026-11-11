@@ -66,3 +66,18 @@ Accent: `#4c8df6` (hover `#6aa1f8`) for links, icons and on-states. Filled butto
 
 - The row turns into the field in place: same 32 px height, padding and `#` as a channel row, `--ds-field` fill with a 1 px accent ring, check and × as 28 px plain icon buttons.
 - The channel being renamed is hidden behind it and stays hidden through re-renders (rows are `display:flex !important`, so hide with `setProperty('display','none','important')`).
+
+## Page head (component, 11-11)
+
+Full-page views (Activity, Report, and any new one) use `.sc-page-head`, never their own header:
+- 24 px icon box (`.sc-page-ic`, the same icon as the sidebar row), title `h1` at `--ds-fs-xl` / 28 px line / 600, actions (tabs) on the right, close `.sc-page-x` (36 px round icon button) last.
+- Same column as the conversation: `max-width: --ds-read-w`, `--ds-5` sides, 14 px top. Switching Activity ↔ Report must not move the title (checked: both at x 392 / y 18 at 1440 wide).
+- Period / filter switches are `.sc-tabs` + `.sc-tab`, the same component as Activity's tabs.
+- Use a `div`, not `header`: the legacy app styles header elements globally.
+
+Side panels (thread, channel overview): the title starts at the content edge (32 px in), same as the cards below.
+
+## Tokens only (11-11 sweep)
+
+In `design-system.css`, font sizes and radii use tokens: 12/13/14/15/20 px → `--ds-fs-xs/sm/md/lg/xl`; off-scale 10, 11 → xs, 12.5 → sm. Radii 7/8 → `--ds-r-control`, 10 → `--ds-r-row`, 14 → `--ds-r-card`, 999 → `--ds-r-pill`. Left as they are on purpose: 50% (circles), 16 px on phone selects (stops iOS zooming).
+Known debt: about 580 `!important` in design-system.css, from layering over the legacy styles; new rules should win by being in the right component, not by `!important`.

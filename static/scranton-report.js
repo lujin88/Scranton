@@ -69,10 +69,12 @@
         const maxH = Math.max(1, ...(r.work || []).map((x) => x.hours));
         const anyHours = (r.work || []).some((x) => x.hours > 0);   // all 0 h: empty bars are noise
         s.innerHTML = `<div class="sc-rp">
-            <header class="sc-rp-head">
+            <div class="sc-page-head sc-rp-head">
+                <span class="sc-page-ic" aria-hidden="true">${ic('chart', 20)}</span>
                 <h1>Report</h1>
-                <div class="sc-rp-range" role="tablist">${[[7, 'This week'], [30, '30 days']].map(([d, l]) => `<button type="button" role="tab" data-days="${d}" aria-selected="${days === d}">${l}</button>`).join('')}</div>
-            </header>
+                <div class="sc-tabs sc-rp-range" role="tablist" aria-label="Period">${[[7, 'This week'], [30, '30 days']].map(([d, l]) => `<button type="button" class="sc-tab${days === d ? ' active' : ''}" role="tab" data-days="${d}" aria-selected="${days === d}">${l}</button>`).join('')}</div>
+                <button type="button" class="sc-page-x sc-inbox-x" data-close-report aria-label="Close report">${ic('close', 20)}</button>
+            </div>
 
             <div class="sc-rp-stats">
                 <div><b>${c.merged ?? 0}</b><span>PRs merged</span></div>
@@ -353,6 +355,7 @@
     window.scCloseReport = close;
 
     async function onClick(e) {
+        if (e.target.closest('[data-close-report]')) { close(); return; }
         if (e.target.closest('#sc-rp-prs-more')) {
             // Lu, 11-09: five is enough at a glance; the rest one click away.
             document.querySelectorAll('#sc-rp-prs .sc-rp-more').forEach((a) => { a.hidden = false; });

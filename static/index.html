@@ -19,7 +19,7 @@
     <link rel="stylesheet" href="/static/sessions.css?v=223">
     <link rel="stylesheet" href="/static/jobs.css?v=225">
     <link rel="stylesheet" href="/static/scranton.css?v=51">
-    <link rel="stylesheet" href="/static/design-system.css?v=58">
+    <link rel="stylesheet" href="/static/design-system.css?v=61">
     <meta name="theme-color" content="#2d2238">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/static/manifest.json">
@@ -201,11 +201,10 @@
             <div id="sc-center">
             <div id="sc-pane-head"><span id="sc-pane-icon" class="sc-pane-icon"></span><h2 id="sc-pane-title">general</h2></div>
             <section id="sc-inbox" class="hidden" aria-label="Activity">
-                <div class="sc-inbox-head">
-                    <span class="ri-wrap" data-ri="bell" data-size="18"></span>
-                    <h2>Activity</h2>
-                    <span class="sc-inbox-spacer"></span>
-                    <button type="button" class="sc-inbox-btn sc-inbox-x" onclick="scCloseInbox()" aria-label="Close"><span class="ri-wrap" data-ri="close" data-size="18"></span></button>
+                <div class="sc-page-head sc-inbox-head">
+                    <span class="sc-page-ic" aria-hidden="true"><span class="ri-wrap" data-ri="bell" data-size="20"></span></span>
+                    <h1>Activity</h1>
+                    <button type="button" class="sc-page-x sc-inbox-x" onclick="scCloseInbox()" aria-label="Close activity"><span class="ri-wrap" data-ri="close" data-size="20"></span></button>
                 </div>
                 <div class="sc-inbox-filters">
                     <div class="sc-tabs" role="tablist">
@@ -459,7 +458,7 @@
     <script src="/static/scranton-board.js?v=6"></script>
     <script src="/static/scranton-settings.js?v=36"></script>
     <script src="/static/scranton-menu.js?v=914"></script>
-    <script src="/static/scranton-report.js?v=98"></script>
+    <script src="/static/scranton-report.js?v=100"></script>
     <script src="/static/scranton-welcome.js?v=94"></script>
     <script src="/static/scranton-layout.js?v=102"></script>
     <script src="/static/scranton-phone.js?v=4"></script>
