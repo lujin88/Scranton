@@ -1693,3 +1693,17 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 #sc-ch-board:empty { display: none; }
 /* The thread's "↓ new replies" button belongs to the thread; the overview sits on top of it (Lu, 11-11). */
 #sc-thread.sc-info-active .sc-tdown { display: none !important; }
+/* Overview on top of Who's on what: one tile per step, "等你" in accent, "卡住" in danger; then busy / free. */
+.sc-ov { padding: 12px; margin-bottom: 12px; }
+.sc-ov-tiles { display: flex; gap: 6px; }
+.sc-ov-tile { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--ds-hover); }
+.sc-ov-tile span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-ov-tile b { font-size: 20px; line-height: 24px; font-weight: 600; color: var(--ds-text); font-variant-numeric: tabular-nums; }
+.sc-ov-tile span { font-size: 12px; color: var(--ds-text-3); }
+.sc-ov-tile[data-state="waiting_lu"] { background: var(--ds-mention-bg); }
+.sc-ov-tile[data-state="waiting_lu"] b, .sc-ov-tile[data-state="waiting_lu"] span { color: var(--ds-link-text); }
+.sc-ov-tile[data-state="blocked"] { background: rgba(209, 36, 47, .1); }
+.sc-ov-tile[data-state="blocked"] b, .sc-ov-tile[data-state="blocked"] span { color: var(--ds-danger, #d1242f); }
+.sc-ov-foot { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 10px; font-size: 12px; color: var(--ds-text-3); }
+.sc-board-t { display: block; }
+.sc-board-note { display: block; font-size: 12px; color: var(--ds-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

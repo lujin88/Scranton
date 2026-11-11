@@ -55,7 +55,7 @@
         const off = people.filter((h) => !byWho[h] && st(h) !== 'working' && st(h) !== 'available');
         const askLi = (r) => `<li class="sc-board-row" data-state="${esc(r.state)}">
                 <span class="sc-board-chip">${esc((data.states || {})[r.state] || r.state)}</span>
-                <span class="sc-board-ask">${esc(r.ask)}${r.due ? `<small> · 交 ${esc(r.due)}</small>` : ''}${r.note ? `<small> · ${esc(r.note)}</small>` : ''}</span>
+                <span class="sc-board-ask"><span class="sc-board-t">${esc(r.ask)}${r.due ? `<small> · 交 ${esc(r.due)}</small>` : ''}</span>${r.note ? `<small class="sc-board-note" title="${esc(r.note)}">${esc(r.note)}</small>` : ''}</span>
                 ${r.link && /^https?:\/\//.test(r.link) ? `<a class="sc-board-link" href="${esc(r.link)}" target="_blank" rel="noopener" aria-label="Open link for ${esc(r.ask)}">Open</a>` : ''}
             </li>`;
         const stateLbl = (h) => ({ working: 'Working', available: 'Online' }[st(h)] || 'Not running');
@@ -66,7 +66,16 @@
                 ${byWho[h] ? `<ul class="sc-board-list">${byWho[h].map(askLi).join('')}</ul>` : ''}
             </div>`;
         const names = (hs) => hs.map((h) => esc(label(h))).join('、');
+        // Overview first (Lu, 11-11): how many in each step, waiting-on-you first; then who's free.
+        const counts = {};
+        for (const r of open) counts[r.state] = (counts[r.state] || 0) + 1;
+        const tiles = STATE_ORDER.filter((k) => k !== 'live' && (counts[k] || k === 'waiting_lu'))
+            .map((k) => `<div class="sc-ov-tile" data-state="${k}"><b>${counts[k] || 0}</b><span>${esc((data.states || {})[k] || k)}</span></div>`).join('');
         box.innerHTML = `<div class="sc-board-head"><h3>Who's on what</h3><span>${open.length ? open.length + ' open' : 'Nothing open'}</span></div>
+            ${open.length ? `<div class="sc-ch-card sc-ov">
+                <div class="sc-ov-tiles">${tiles}</div>
+                <div class="sc-ov-foot"><span>${busy.length} busy</span><span>${free.length} free${free.length ? ': ' + names(free) : ''}</span>${live.length ? `<span>${live.length} live today</span>` : ''}</div>
+            </div>` : ''}
             <div class="sc-ch-card sc-who-card">
                 ${busy.map(person).join('')}
                 ${byWho._ ? `<div class="sc-who"><div class="sc-who-head"><b>Not assigned</b><span class="sc-who-n">${byWho._.length}</span></div><ul class="sc-board-list">${byWho._.map(askLi).join('')}</ul></div>` : ''}
