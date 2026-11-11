@@ -44,3 +44,10 @@ def test_reset_parsing():
     now = 1_000_000.0
     assert q.reset_from_text("Resets in 155h21m9s.", now) == now + 155 * 3600 + 21 * 60
     assert q.reset_from_text("nothing here", now) is None
+
+
+def test_quoted_limit_and_api_credit():
+    assert wu._QUOTED.search("webdev 每 30 分钟发一次的「hit its usage limit」，最后一条是 06:10")
+    assert not wu._QUOTED.search("Error: You've hit your usage limit")
+    rx = dict((k, r) for k, r, _ in wu._PROBLEMS)["api_credit"]
+    assert rx.search("⎿  Credit balance too low · Add funds:")

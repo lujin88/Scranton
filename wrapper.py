@@ -653,8 +653,12 @@ def _post(server_port: int, sender: str, token: str, channel: str, reply_to, tex
         print(f"  couldn't post to chat: {exc}", flush=True)
 
 
+_LIMIT_API_OK = [False]   # the last limit check said the plan is really out (numbers, not screen text)
+
+
 def _ask_limit_check(server_port: int, token: str, place: dict, problem: str) -> str:
     """'ignore' (the plan has room), 'switched' (another model) or 'report'."""
+    _LIMIT_API_OK[0] = False
     try:
         import urllib.request
         from wrapper_unix import pane_text
@@ -665,7 +669,9 @@ def _ask_limit_check(server_port: int, token: str, place: dict, problem: str) ->
                              "thread": place.get("thread")}).encode(),
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"})
         with urllib.request.urlopen(req, timeout=10) as r:
-            return str(json.loads(r.read() or b"{}").get("action") or "report")
+            got = json.loads(r.read() or b"{}")
+            _LIMIT_API_OK[0] = bool(got.get("api_ok"))
+            return str(got.get("action") or "report")
     except Exception:
         return "report"
 
@@ -1402,14 +1408,14 @@ def main():
                 if problem != _seen[0]:
                     _seen[0], _seen[1] = problem, now
                 if not problem and _seen[1] and now - _seen[1] > 60:
-                    for k in ("limit", "model_limit"):
+                    for k in ("limit", "model_limit", "api_credit"):
                         _reported.pop(k, None)   # gone from the screen: next time is a new one
                 if problem and not active and now - _seen[1] >= 5 and now - _reported.get(problem, 0) > 1800:
                     # say it once where the agent was last asked; a limit is said once until it clears
-                    _reported[problem] = now + (10 ** 9 if problem in ("limit", "model_limit") else 0)
+                    _reported[problem] = now + (10 ** 9 if problem in ("limit", "model_limit", "api_credit") else 0)
                     from wrapper_unix import problem_text
                     cur, _ = get_identity()
-                    if problem in ("limit", "model_limit"):
+                    if problem in ("limit", "model_limit", "api_credit"):
                         # Ask Scranton first: a warning isn't the end (keep going), a model that's out
                         # moves to one with room, then the backup API key; only then "I stopped".
                         verdict = _ask_limit_check(server_port, get_token(), _LAST_PLACE, problem)
@@ -1418,7 +1424,7 @@ def main():
                             continue
                         if verdict == "switched":
                             continue
-                    if problem == "limit" and _ask_api_fallback(server_port, get_token(), _LAST_PLACE):
+                    if problem == "limit" and _LIMIT_API_OK[0] and _ask_api_fallback(server_port, get_token(), _LAST_PLACE):
                         continue
                     _post(server_port, cur, get_token(), _LAST_PLACE["channel"], _LAST_PLACE["thread"],
                           problem_text(problem, _app_name))

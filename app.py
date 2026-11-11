@@ -4514,6 +4514,11 @@ async def scranton_api_fallback(request: Request):
     base = inst.get("base") or inst["name"]
     cfg = (config or {}).get("agents", {}).get(base, {})
     provider = _sc_keys.provider_of_command(cfg.get("command", ""))
+    # Only when the real numbers say the plan is out (11-11: pm was moved to a key with no money
+    # because it had quoted "hit its usage limit" in a reply, with 77% of the week used).
+    usage = _sc_quota.provider_usage(provider or "", _current_model(base)[1])
+    if not usage or usage["pct"] < 99:
+        return JSONResponse({"switching": False, "pct": (usage or {}).get("pct")})
     if not provider or _sc_keys.on_api(base) or not _sc_keys.start_api(base, provider):
         return JSONResponse({"switching": False})
     body = await request.json()
@@ -4574,6 +4579,16 @@ async def scranton_limit_check(request: Request):
     place = {"channel": str(body.get("channel") or "general"),
              "reply_to": body.get("thread") if isinstance(body.get("thread"), int) else None}
     provider, model = _current_model(base)
+    # The backup key has no money: go back to the plan (it has room, or we'd not be here twice).
+    if problem == "api_credit":
+        if _sc_keys.on_api(base):
+            _sc_keys.end_api(base)
+            store.add(inst["name"], "The backup API key has no credit left, so I'm going back to the plan. "
+                                    "Add funds with the provider, or remove the key in Settings → Connections.",
+                      channel=place["channel"], reply_to=place["reply_to"])
+            asyncio.create_task(_sc_restart_quiet(base))
+            return JSONResponse({"action": "switched"})
+        return JSONResponse({"action": "report"})
     usage = _sc_quota.provider_usage(provider, model)
     # 1. A warning: the numbers say there's room. Keep working, say nothing.
     if problem == "limit" and usage and usage["pct"] < 99:
@@ -4593,7 +4608,10 @@ async def scranton_limit_check(request: Request):
         await broadcast_team_changed()
         asyncio.create_task(_sc_restart_quiet(base))
         return JSONResponse({"action": "switched", "model": fb})
-    return JSONResponse({"action": "report", "pct": (usage or {}).get("pct")})
+    # The backup key (money) only when the numbers say the plan is really out. A screen saying
+    # "limit" without numbers behind it has been wrong too often (11-10, 11-11) to spend money on.
+    return JSONResponse({"action": "report", "pct": (usage or {}).get("pct"),
+                         "api_ok": bool(usage and usage["pct"] >= 99)})
 
 
 async def _sc_model_back_once(now: float | None = None) -> list[str]:

@@ -95,6 +95,7 @@ _CODEX_NUDGE_CONFIRM = re.compile(r"to confirm", re.I)
 _CODEX_NUDGE_LINE = re.compile(r"Approaching rate limits|rate limit reminders", re.I)
 
 
+_QUOTED = re.compile(r"[「『“][^」』”]{0,80}(?:limit|quota|额度)[^」』”]{0,80}[」』”]", re.I)
 _WARNING = re.compile(r"approaching|heads.?up|\b\d{1,2}(?:\.\d+)?\s*%|% (?:used|left)|\b(?:left|remaining)\b|reminder|you(?:'ve| have) used", re.I)
 
 
@@ -316,6 +317,9 @@ _PROBLEMS = [
     ("model_limit", re.compile(r"switch to a different model|otherModelsLimitSwitchTarget|Individual quota reached|"
                                r"exhausted your capacity on this model", re.I),
      "I stopped: my model's quota on {app} is used up. Pick another model for me: Settings → Agents → me → Model."),
+    # On the backup API key with no money on it (Lu, 11-11: pm sat on "Credit balance too low").
+    ("api_credit", re.compile(r"credit balance (?:is )?too low|insufficient_quota|exceeded your current quota|billing (?:hard )?limit", re.I),
+     "I stopped: the backup API key for {app} has no credit left. Add funds with the provider, or remove the key in Settings → Connections."),
     ("limit", re.compile(r"usage limit|limit reached|hit your limit|rate.?limit|quota (?:exceeded|reached)|out of (?:credits|messages)", re.I),
      "I stopped: my {app} plan has hit its usage limit. @ me again after it resets, or switch me to another app: Settings → Agents → me → Runs on."),
     ("login", re.compile(r"please (?:run )?/login|not logged in|log ?in again|invalid api key|authentication (?:failed|error)|token (?:has )?expired", re.I),
@@ -369,7 +373,8 @@ def describe_screen(tmux_session: str) -> tuple[str, str | None]:
         bottom = "\n".join(l for l in bottom.splitlines() if not _CODEX_NUDGE_LINE.search(l))
     # A warning ("approaching", "90% used", "10% left") is not the end of the plan (Lu, 11-11:
     # ~50 "I stopped: usage limit" came at 90–93% of the week). Those lines don't count.
-    bottom = "\n".join(l for l in bottom.splitlines() if not _WARNING.search(l))
+    # A teammate quoting it ("「hit its usage limit」") isn't the app saying it (pm, 11-11 06:43).
+    bottom = "\n".join(l for l in bottom.splitlines() if not _WARNING.search(l) and not _QUOTED.search(l))
     problem = next((key for key, rx, _ in _PROBLEMS if rx.search(bottom)), None)
     if nudge and not problem:
         problem = "question"   # Codex asking whether to switch models: not a usage limit
