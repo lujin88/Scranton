@@ -1551,10 +1551,21 @@
         if (!root) return;
         const team = (window.scGetTeam && window.scGetTeam()) || {};
         const people = [];
-        const add = (n) => { n = String(n || '').toLowerCase().replace(/-\d+$/, ''); if (team[n] && !people.includes(n)) people.push(n); };
-        [...(replies.get(Number(root.id)) || [])].reverse().forEach((m) => add(m.sender));
+        // "@项目经理" is a label, not a handle: map labels back to handles.
+        const byLabel = {};
+        for (const h of Object.keys(team)) byLabel[String(labelOf(h)).toLowerCase()] = h;
+        const add = (n) => {
+            n = String(n || '').toLowerCase().replace(/-\d+$/, '');
+            n = team[n] ? n : (byLabel[n] || '');
+            if (n && !people.includes(n)) people.push(n);
+        };
+        const tags = (t) => (String(t || '').match(/@([^\s@，。,.:：!?！？()（）]+)/g) || []).forEach((x) => add(x.slice(1)));
+        [...(replies.get(Number(root.id)) || [])].reverse().forEach((m) => { add(m.sender); tags(m.text); });
         add(root.sender);
-        (String(root.text || '').match(/@([\w-]+)/g) || []).forEach((t) => add(t.slice(1)));
+        tags(root.text);
+        // A thread you started with nobody in it yet still gets chips (Lu, 11-11: none showed):
+        // fill up with the channel's own quick @ (the people you @ most here).
+        document.querySelectorAll('#mention-toggles .mention-toggle').forEach((b) => add(b.dataset.agent));
         for (const h of people.slice(0, 3)) {
             const b = document.createElement('button');
             b.type = 'button'; b.className = 'mention-toggle'; b.textContent = '@' + labelOf(h);
