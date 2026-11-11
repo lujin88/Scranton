@@ -175,11 +175,13 @@
                     return `<button type="button" class="sc-ch-row sc-ch-members" data-i="members"><div class="sc-ch-rt">Members<span class="sc-ch-edit" data-i="add-people">Edit</span></div>
                         <div class="sc-ch-avs">${ms.slice(0, 6).map((m) => `<span class="sc-ch-av">${window.scAvatarHtml ? window.scAvatarHtml(m) : ''}</span>`).join('')}<em>${ms.length + 1} with you</em></div></button>`; })()}
             </div>
+            <div id="sc-ch-board"></div>
             <h3 class="sc-ch-sub">Files</h3>
             ${files.length ? `<div class="sc-ch-card sc-ch-files">${files.map((f) => `<a class="sc-ch-file" href="${esc(f.url)}" target="_blank" rel="noopener">
                 <span class="sc-pend-ic" aria-hidden="true"><i></i><i></i><i></i></span>
                 <span class="sc-ch-fi"><b>${esc(f.name)}</b><small>${esc([label(String(f.by || '').toLowerCase()), f.time ? fmtDate(f.time) : '', fmtSize(f.size)].filter(Boolean).join(' · '))}</small></span></a>`).join('')}</div>`
                 : '<p class="sc-info-empty">No files shared here yet.</p>'}`;
+        if (window.scBoardFill) window.scBoardFill();   // Your asks (scranton-board.js) at the top
         const ed = document.getElementById('sc-ch-edit');
         if (ed) { ed.focus(); if (editing === 'name') ed.value = ch; ed.select && ed.select(); }
     }

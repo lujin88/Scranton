@@ -95,7 +95,7 @@
 (function () {
     'use strict';
     let tip = null, timer = null, cur = null;
-    const iconOnly = (b) => !b.textContent.trim() || b.closest('.sc-tools, .sc-ap-tool, .sc-agentpick-btn');
+    const iconOnly = (b) => !b.textContent.trim() || b.hasAttribute('data-tip-always') || b.closest('.sc-tools, .sc-ap-tool, .sc-agentpick-btn');
     function hide() { clearTimeout(timer); timer = null; tip?.remove(); tip = null; cur = null; }
     function show(el) {
         const text = el.dataset.tip;

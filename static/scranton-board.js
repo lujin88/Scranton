@@ -1,100 +1,86 @@
-// What Lu asked for, pinned in the channel head (scranton_board.py). One pill: "Your asks · 5 open · 2 在 PR";
-// click it for the list. The project manager keeps the rows; nothing here posts to chat.
+// What Lu asked for (scranton_board.py), kept by the project manager.
+// Lu, 11-11: no pill in the head. Hovering the channel pill says "21 open · 3 排队 · 10 在做 …";
+// clicking it opens the channel overview on the right, with the list at the top.
 (function () {
     'use strict';
     const STATE_ORDER = ['waiting_lu', 'blocked', 'doing', 'in_pr', 'waiting_qa', 'todo', 'live'];
     let data = { rows: [], summary: '', states: {} };
-    let loadedFor = '';
 
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const ch = () => window.activeChannel || 'general';
     const isDm = (c) => String(c || '').startsWith('dm-');
     const label = (h) => { const t = (window.scGetTeam && window.scGetTeam()) || {}; return (t[h] && t[h].label) || h; };
 
-    async function load(force) {
+    async function load() {
         const c = ch();
         if (isDm(c)) { data = { rows: [], summary: '', states: {} }; paint(); return; }
-        if (!force && loadedFor === c && document.hidden) return;
         try {
             const r = await fetch('/api/scranton/board?channel=' + encodeURIComponent(c), { headers: { 'X-Session-Token': window.SESSION_TOKEN } });
-            if (!r.ok) return;
-            const j = await r.json();
-            if (ch() !== c) return;
-            data = j; loadedFor = c;
+            if (!r.ok || ch() !== c) return;
+            data = await r.json();
             paint();
         } catch (_) { /* offline */ }
     }
 
     function paint() {
-        const head = document.getElementById('sc-pane-head');
-        if (!head) return;
-        let btn = document.getElementById('sc-board-btn');
-        if (!data.rows || !data.rows.length || isDm(ch())) { if (btn) btn.remove(); closePanel(); return; }
-        if (!btn) {
-            btn = document.createElement('button');
-            btn.id = 'sc-board-btn';
-            btn.type = 'button';
-            btn.setAttribute('aria-haspopup', 'dialog');
-            btn.addEventListener('click', (e) => { e.stopPropagation(); togglePanel(); });
-            const members = document.getElementById('sc-members-btn');
-            if (members) head.insertBefore(btn, members); else head.appendChild(btn);
+        document.getElementById('sc-board-btn')?.remove();   // the old head pill
+        const pill = document.getElementById('sc-pane-pill');
+        if (pill) {
+            if (data.rows && data.rows.length && !isDm(ch())) { pill.dataset.tip = `Your asks: ${data.summary}`; pill.setAttribute('data-tip-always', ''); }
+            else { delete pill.dataset.tip; pill.removeAttribute('data-tip-always'); }
         }
-        const waiting = data.rows.filter((r) => r.state === 'waiting_lu').length;
-        btn.classList.toggle('sc-board-you', waiting > 0);
-        btn.innerHTML = `<span class="sc-board-k">Your asks</span><span class="sc-board-s">${esc(data.summary)}</span>`;
-        btn.setAttribute('aria-label', `Your asks: ${data.summary}`);
-        const panel = document.getElementById('sc-board-panel');
-        if (panel) renderPanel(panel);
+        fill();
     }
 
-    function renderPanel(panel) {
-        const rows = [...data.rows].sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state) || (b.at || 0) - (a.at || 0));
-        const when = (t) => { const d = new Date((t || 0) * 1000); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
-        panel.innerHTML = `<div class="sc-board-head"><h3>Your asks in #${esc(ch())}</h3><span>Kept by the project manager</span></div>
-            <ul class="sc-board-list">${rows.map((r) => `
-                <li class="sc-board-row" data-state="${esc(r.state)}">
-                    <span class="sc-board-chip">${esc((data.states || {})[r.state] || r.state)}</span>
-                    <div class="sc-board-main">
-                        <div class="sc-board-ask">${esc(r.ask)}</div>
-                        <div class="sc-board-meta">${[r.who ? esc(label(r.who)) : '', r.due ? '交 ' + esc(r.due) : '', r.note ? esc(r.note) : '', 'updated ' + when(r.at)].filter(Boolean).join(' · ')}</div>
-                    </div>
-                    ${r.link && /^https?:\/\//.test(r.link) ? `<a class="sc-board-link" href="${esc(r.link)}" target="_blank" rel="noopener" aria-label="Open link for ${esc(r.ask)}">Open</a>` : ''}
-                </li>`).join('')}</ul>`;
+    // Under the channel setup: who's on what (Lu, 11-11: "底下就是谁在干活、谁没在干活").
+    // One block per person with their open asks; free people are named so work can go to them.
+    function fill() {
+        const box = document.getElementById('sc-ch-board');
+        if (!box) return;
+        const c = ch();
+        if (isDm(c)) { box.innerHTML = ''; return; }
+        const team = (window.scGetTeam && window.scGetTeam()) || {};
+        const members = (((window.scChannelMembers && window.scChannelMembers()) || {})[c] || []).filter((h) => team[h]);
+        const st = (h) => (window.scAgentState ? window.scAgentState(h) : 'offline');
+        const open = (data.rows || []).filter((r) => r.state !== 'live');
+        const live = (data.rows || []).filter((r) => r.state === 'live');
+        const byWho = {};
+        for (const r of open) (byWho[r.who && team[r.who] ? r.who : '_'] = byWho[r.who && team[r.who] ? r.who : '_'] || []).push(r);
+        for (const k of Object.keys(byWho)) byWho[k].sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
+        const people = [...new Set([...members, ...Object.keys(byWho).filter((h) => h !== '_')])];
+        const rank = (h) => (st(h) === 'working' ? 0 : 2) + (byWho[h] ? 0 : 1) + (st(h) === 'offline' ? 4 : 0);
+        people.sort((a, b) => rank(a) - rank(b) || (byWho[b] || []).length - (byWho[a] || []).length);
+        const busy = people.filter((h) => byWho[h] || st(h) === 'working');
+        const free = people.filter((h) => !byWho[h] && st(h) === 'available');
+        const off = people.filter((h) => !byWho[h] && st(h) !== 'working' && st(h) !== 'available');
+        const askLi = (r) => `<li class="sc-board-row" data-state="${esc(r.state)}">
+                <span class="sc-board-chip">${esc((data.states || {})[r.state] || r.state)}</span>
+                <span class="sc-board-ask">${esc(r.ask)}${r.due ? `<small> · 交 ${esc(r.due)}</small>` : ''}${r.note ? `<small> · ${esc(r.note)}</small>` : ''}</span>
+                ${r.link && /^https?:\/\//.test(r.link) ? `<a class="sc-board-link" href="${esc(r.link)}" target="_blank" rel="noopener" aria-label="Open link for ${esc(r.ask)}">Open</a>` : ''}
+            </li>`;
+        const stateLbl = (h) => ({ working: 'Working', available: 'Online' }[st(h)] || 'Not running');
+        const person = (h) => `<div class="sc-who">
+                <div class="sc-who-head"><span class="sc-who-av">${window.scAvatarHtml ? window.scAvatarHtml(h) : ''}</span>
+                    <b>${esc(label(h))}</b><span class="sc-who-st" data-st="${esc(st(h))}">${stateLbl(h)}</span>
+                    ${byWho[h] ? `<span class="sc-who-n">${byWho[h].length}</span>` : ''}</div>
+                ${byWho[h] ? `<ul class="sc-board-list">${byWho[h].map(askLi).join('')}</ul>` : ''}
+            </div>`;
+        const names = (hs) => hs.map((h) => esc(label(h))).join('、');
+        box.innerHTML = `<div class="sc-board-head"><h3>Who's on what</h3><span>${open.length ? open.length + ' open' : 'Nothing open'}</span></div>
+            <div class="sc-ch-card sc-who-card">
+                ${busy.map(person).join('')}
+                ${byWho._ ? `<div class="sc-who"><div class="sc-who-head"><b>Not assigned</b><span class="sc-who-n">${byWho._.length}</span></div><ul class="sc-board-list">${byWho._.map(askLi).join('')}</ul></div>` : ''}
+                ${free.length ? `<div class="sc-who sc-who-line"><span class="sc-who-st" data-st="available">Free</span>${names(free)}</div>` : ''}
+                ${off.length ? `<div class="sc-who sc-who-line"><span class="sc-who-st">Not running</span>${names(off)}</div>` : ''}
+                ${live.length ? `<div class="sc-who sc-who-line"><span class="sc-who-st">Live today</span>${live.map((r) => esc(r.ask)).join('、')}</div>` : ''}
+            </div>`;
     }
 
-    function togglePanel() {
-        if (document.getElementById('sc-board-panel')) { closePanel(); return; }
-        const btn = document.getElementById('sc-board-btn');
-        if (!btn) return;
-        const panel = document.createElement('div');
-        panel.id = 'sc-board-panel';
-        panel.setAttribute('role', 'dialog');
-        panel.setAttribute('aria-label', 'Your asks');
-        document.body.appendChild(panel);
-        renderPanel(panel);
-        const r = btn.getBoundingClientRect();
-        panel.style.top = (r.bottom + 8) + 'px';
-        panel.style.left = Math.max(8, Math.min(r.left, innerWidth - panel.offsetWidth - 8)) + 'px';
-        btn.setAttribute('aria-expanded', 'true');
-        setTimeout(() => document.addEventListener('click', outside, true), 0);
-        document.addEventListener('keydown', esc_, true);
-    }
-    function outside(e) { const p = document.getElementById('sc-board-panel'); if (p && !p.contains(e.target) && e.target.id !== 'sc-board-btn') closePanel(); }
-    function esc_(e) { if (e.key === 'Escape') { closePanel(); const b = document.getElementById('sc-board-btn'); if (b) b.focus(); } }
-    function closePanel() {
-        const p = document.getElementById('sc-board-panel');
-        if (p) p.remove();
-        const b = document.getElementById('sc-board-btn');
-        if (b) b.setAttribute('aria-expanded', 'false');
-        document.removeEventListener('click', outside, true);
-        document.removeEventListener('keydown', esc_, true);
-    }
-
-    window.scBoardRefresh = () => load(true);
+    window.scBoardFill = fill;
+    window.scBoardRefresh = load;
     let last = '';
-    setInterval(() => { if (ch() !== last) { last = ch(); closePanel(); load(true); } }, 300);
-    setInterval(() => load(false), 20000);
-    // the members pill re-renders the head; keep ours in front of it
-    new MutationObserver(() => { const b = document.getElementById('sc-board-btn'), m = document.getElementById('sc-members-btn');
-        if (b && m && b.nextElementSibling !== m) m.before(b); }).observe(document.getElementById('sc-pane-head') || document.body, { childList: true });
+    setInterval(() => { if (ch() !== last) { last = ch(); load(); } }, 300);
+    setInterval(load, 20000);
+    // working / online changes: repaint the list without refetching
+    setInterval(() => { if (document.getElementById('sc-ch-board')) fill(); }, 5000);
 })();
