@@ -1003,14 +1003,16 @@ BOARD = None   # set by run.py: scranton_board.Board(<data>/board.json)
 
 def chat_board(sender: str, action: str = "read", channel: str = "", id: int = 0, ask: str = "",
                state: str = "", who: str = "", due: str = "", link: str = "", note: str = "",
-               ctx: Context | None = None) -> str:
+               msg: int = 0, ctx: Context | None = None) -> str:
     """The pinned list of what the owner asked for in a channel, one row each, kept up to date by
     the project manager instead of status messages.
 
     action: read | set | remove.
       set without id adds a row (ask = what was asked, a few words). set with id changes that row:
       state (todo, doing, in_pr, waiting_qa, waiting_lu, live, blocked), who (teammate handle),
-      due ("10:30"), link (PR or page URL), note (one short line: what it's waiting on).
+      due ("10:30"), link (PR or page URL), note (one short line: what it's waiting on),
+      msg (the chat message id to open: for waiting_lu, the id of your question to the owner, from
+      chat_send's "Sent (id=…)"; the owner clicks the row and lands there).
     When something moves (PR opened, QA passed, merged, live), change the row; don't post a message
     saying so unless someone has to act."""
     sender, err = _resolve_tool_identity(sender, ctx, field_name="sender", required=False)
@@ -1024,7 +1026,7 @@ def chat_board(sender: str, action: str = "read", channel: str = "", id: int = 0
         if action == "read":
             return json.dumps({"channel": channel, "rows": BOARD.rows(channel)}, ensure_ascii=False)
         if action == "set":
-            row = BOARD.upsert(channel, sender, id=id, ask=ask, state=state, who=who, due=due, link=link, note=note)
+            row = BOARD.upsert(channel, sender, id=id, ask=ask, state=state, who=who, due=due, link=link, note=note, msg=msg)
             return json.dumps({"ok": True, "row": row}, ensure_ascii=False)
         if action == "remove":
             return json.dumps({"ok": BOARD.remove(channel, id)})

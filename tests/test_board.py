@@ -34,3 +34,11 @@ def test_chat_board_tool(tmp_path, monkeypatch):
     assert '"ok": true' in out
     assert "How I Work" in mcp_bridge.chat_board("pm", "read", channel="lu-portfolio")
     assert mcp_bridge.chat_board("pm", "set", channel="lu-portfolio", id=1, state="nope").startswith("Error")
+
+
+def test_row_keeps_message_id(tmp_path):
+    B = b.Board(tmp_path / "board.json")
+    B.upsert("c", "pm", ask="视频两版选一个", state="waiting_lu", msg=7820)
+    assert B.rows("c")[0]["msg"] == 7820
+    B.upsert("c", "pm", id=1, note="等你选")
+    assert B.rows("c")[0]["msg"] == 7820

@@ -44,7 +44,7 @@ class Board:
             return [dict(r) for r in keep]
 
     def upsert(self, channel: str, by: str, id: int = 0, ask: str = "", state: str = "", who: str = "",
-               due: str = "", link: str = "", note: str = "", now: float | None = None) -> dict:
+               due: str = "", link: str = "", note: str = "", msg: int = 0, now: float | None = None) -> dict:
         now = time.time() if now is None else now
         state = (state or "").strip().lower().replace(" ", "_")
         if state and state not in STATES:
@@ -63,6 +63,8 @@ class Board:
             for k, v in (("ask", ask), ("state", state), ("who", who), ("due", due), ("link", link), ("note", note)):
                 if v:
                     row[k] = str(v).strip()[:200 if k != "ask" else 120]
+            if msg and int(msg) > 0:
+                row["msg"] = int(msg)
             row["at"] = now
             row["by"] = by
             self._save()
