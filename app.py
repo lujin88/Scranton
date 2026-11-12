@@ -3958,6 +3958,10 @@ async def heartbeat(agent_name: str, request: Request):
             was_active = mcp_bridge._activity.get(current_name, False)
             mcp_bridge.set_active(current_name, active_val)
             _activity_changed = was_active != active_val
+            if active_val:
+                _sc_idle_since.pop(current_name, None)
+            else:
+                _sc_idle_since.setdefault(current_name, __import__("time").time())
         if "active" in body:
             _sc_report.note_active(current_name, bool(body["active"]))
         # Scranton: a few words on what it's doing ("Reading page.tsx"), for "X is working · …"
@@ -4932,11 +4936,47 @@ def _label_of(handle: str) -> str:
         return handle
 
 
+_sc_idle_since: dict[str, float] = {}   # teammate -> when it last went quiet (heartbeat activity)
+IDLE_POKE_MIN = 15
+
+
+def _sc_idle_pokes(board, now: float) -> list[tuple[str, str, int | None, str]]:
+    """Lu, 11-12: a row said 在做 while the teammate sat at its prompt (it said "转入定帧任务" and its
+    turn ended; nobody woke it). Running, quiet for 15+ min, with a 在做 row: poke it once per 30 min.
+    Returns (channel, handle, reply_to, text)."""
+    import mcp_bridge
+    out = []
+    with board.lock:
+        for ch, rows in board.data.items():
+            for r in rows:
+                h = str(r.get("who") or "")
+                if r.get("state") != "doing" or h not in (config or {}).get("agents", {}):
+                    continue
+                names = [n for n in list(mcp_bridge._presence) if n.split("-")[0] == h]
+                if not names or any(mcp_bridge._activity.get(n) for n in names):
+                    continue
+                if not any(now - mcp_bridge._presence.get(n, 0) < 90 for n in names):
+                    continue   # not running: that's for the PM, not a poke
+                quiet = min((_sc_idle_since.get(n, now) for n in names), default=now)
+                if now - quiet < IDLE_POKE_MIN * 60 or now - float(r.get("poked") or 0) < 1800:
+                    continue
+                r["poked"] = now
+                mins = int((now - quiet) // 60)
+                out.append((ch, h, r.get("msg") if isinstance(r.get("msg"), int) else None,
+                            f"@{h} Your asks 上「{str(r.get('ask', ''))[:50]}」还是在做，你已经停了 {mins} 分钟。"
+                            f"接着做；做不了就一句话说卡在哪。"))
+        if out:
+            board._save()
+    return out
+
+
 async def _sc_board_tick() -> None:
     """Your asks: PR merged → row live; rows untouched for 4 h and people over 5 rows → one note to the PM."""
     import mcp_bridge, scranton_board
     if mcp_bridge.BOARD is None:
         return
+    for ch, h, reply_to, text in _sc_idle_pokes(mcp_bridge.BOARD, time.time()):
+        store.add("Scranton", text, channel=ch, reply_to=reply_to)
     reps = await asyncio.to_thread(scranton_board.housekeeping, mcp_bridge.BOARD, _pr_state)
     for ch, rep in reps.items():
         if rep["stale"] or rep.get("overloaded"):

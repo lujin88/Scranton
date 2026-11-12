@@ -67,3 +67,20 @@ def test_long_message_note():
     assert "characters" in mcp_bridge._length_note("x" * 500, [])
     assert mcp_bridge._length_note("x" * 500, ["A"]) == ""
     assert mcp_bridge._length_note("问你：\nA. 一\nB. 二\n" + "x" * 500, []) == ""
+
+
+def test_idle_poke(tmp_path, monkeypatch):
+    import app, mcp_bridge
+    B = b.Board(tmp_path / "board.json")
+    B.upsert("c", "pm", ask="4 只站立定帧", state="doing", who="visintern")
+    B.upsert("c", "pm", ask="别的", state="doing", who="motion")
+    now = time.time()
+    monkeypatch.setattr(app, "config", {"agents": {"visintern": {}, "motion": {}}})
+    monkeypatch.setattr(mcp_bridge, "_presence", {"visintern": now, "motion": now})
+    monkeypatch.setattr(mcp_bridge, "_activity", {"visintern": False, "motion": True})
+    monkeypatch.setattr(app, "_sc_idle_since", {"visintern": now - 20 * 60})
+    pokes = app._sc_idle_pokes(B, now)
+    assert [(p[1]) for p in pokes] == ["visintern"] and "停了 20 分钟" in pokes[0][3]
+    assert app._sc_idle_pokes(B, now + 60) == []          # once per 30 min
+    mcp_bridge._presence["visintern"] = now + 1890
+    assert len(app._sc_idle_pokes(B, now + 1900)) == 1
