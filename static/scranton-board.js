@@ -61,10 +61,14 @@
                 <span class="sc-board-ask"><span class="sc-board-t">${esc(r.ask)}${r.due ? `<small> · 交 ${esc(r.due)}</small>` : ''}${staleH(r) ? `<small class="sc-board-stale"> · ${staleH(r)} h 没更新</small>` : ''}</span>${r.note ? `<small class="sc-board-note" title="${esc(r.note)}">${esc(r.note)}</small>` : ''}</span>
                 ${r.link && /^https?:\/\//.test(r.link) ? `<a class="sc-board-link" href="${esc(r.link)}" target="_blank" rel="noopener" aria-label="Open link for ${esc(r.ask)}">Open</a>` : ''}
             </li>`;
-        const stateLbl = (h) => ({ working: 'Working', available: 'Online' }[st(h)] || 'Not running');
+        // "在做" on the board is what the PM wrote down; Working / Online is what the teammate is doing
+        // right now. Online with work marked 在做 means it isn't on it at the moment: say so (Lu, 11-12).
+        const doingNow = (h) => (byWho[h] || []).some((r) => r.state === 'doing');
+        const stateLbl = (h) => st(h) === 'working' ? 'Working'
+            : st(h) === 'available' ? (doingNow(h) ? 'Idle, not on it right now' : 'Online') : 'Not running';
         const person = (h) => `<div class="sc-who">
                 <div class="sc-who-head"><span class="sc-who-av">${window.scAvatarHtml ? window.scAvatarHtml(h) : ''}</span>
-                    <b>${esc(label(h))}</b><span class="sc-who-st" data-st="${esc(st(h))}">${stateLbl(h)}</span>
+                    <b>${esc(label(h))}</b><span class="sc-who-st" data-st="${esc(st(h))}"${st(h) !== 'working' && doingNow(h) ? ' data-idle' : ''}>${stateLbl(h)}</span>
                     ${byWho[h] ? `<span class="sc-who-n">${byWho[h].length}</span>` : ''}</div>
                 ${byWho[h] ? `<ul class="sc-board-list">${byWho[h].map(askLi).join('')}</ul>` : ''}
             </div>`;

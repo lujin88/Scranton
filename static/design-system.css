@@ -1736,3 +1736,4 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 /* Side panels (thread, channel overview): the title starts where the content starts (32 px in), not 18 px left of it. */
 #sc-thread .sc-thread-head { padding-left: 28px !important; }
 .sc-board-stale { color: var(--ds-warn-text) !important; }
+.sc-who-st[data-idle] { color: var(--ds-warn-text); }
