@@ -64,11 +64,12 @@
         // "在做" on the board is what the PM wrote down; Working / Online is what the teammate is doing
         // right now. Online with work marked 在做 means it isn't on it at the moment: say so (Lu, 11-12).
         const doingNow = (h) => (byWho[h] || []).some((r) => r.state === 'doing');
-        const stateLbl = (h) => st(h) === 'working' ? 'Working'
+        const stuck = (h) => { const d = String((window.scDoing || {})[h] || ''); return /^Stuck\?/.test(d) ? d : ''; };
+        const stateLbl = (h) => stuck(h) ? stuck(h) : st(h) === 'working' ? 'Working'
             : st(h) === 'available' ? (doingNow(h) ? 'Idle, not on it right now' : 'Online') : 'Not running';
         const person = (h) => `<div class="sc-who">
                 <div class="sc-who-head"><span class="sc-who-av">${window.scAvatarHtml ? window.scAvatarHtml(h) : ''}</span>
-                    <b>${esc(label(h))}</b><span class="sc-who-st" data-st="${esc(st(h))}"${st(h) !== 'working' && doingNow(h) ? ' data-idle' : ''}>${stateLbl(h)}</span>
+                    <b>${esc(label(h))}</b><span class="sc-who-st" data-st="${esc(st(h))}"${stuck(h) ? ' data-stuck' : st(h) !== 'working' && doingNow(h) ? ' data-idle' : ''}>${stateLbl(h)}</span>
                     ${byWho[h] ? `<span class="sc-who-n">${byWho[h].length}</span>` : ''}</div>
                 ${byWho[h] ? `<ul class="sc-board-list">${byWho[h].map(askLi).join('')}</ul>` : ''}
             </div>`;

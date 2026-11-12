@@ -1737,3 +1737,4 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 #sc-thread .sc-thread-head { padding-left: 28px !important; }
 .sc-board-stale { color: var(--ds-warn-text) !important; }
 .sc-who-st[data-idle] { color: var(--ds-warn-text); }
+.sc-who-st[data-stuck] { color: var(--ds-err-text); }

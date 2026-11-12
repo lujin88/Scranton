@@ -719,6 +719,17 @@ def _take_queue(queue_file: Path, taking: Path, keep: int | None = None) -> int:
 
 # Scranton: fresh-session handover (Settings → Agents → Fresh sessions). Filled in by main().
 _HANDOVER = {"command": "", "handoff_dir": None, "busy": None, "cache": None, "at": 0.0}
+STUCK_TELL = 30   # minutes "working" with an unchanged screen before saying so
+STUCK_ESC = 60    # ... before pressing Esc
+
+
+def _stuck_signature(screen: str) -> str:
+    """The screen with digits and spinner glyphs removed: timers and spinners aren't progress."""
+    import re as _r
+    lines = [l for l in (screen or "").splitlines() if l.strip()]
+    text = "\n".join(lines[-15:])
+    text = _r.sub(r"[0-9]", "", text)
+    return _r.sub(r"[✻✽✶✳✢·⏺●◐◓◑◒⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏*]", "", text)
 _HANDOFF_ASK = ("Scranton: before your next message, save a handoff for a fresh session with the chat_handoff "
                 "tool: what you're working on, decisions made and why, open items and who is waiting on what, "
                 "the next step, and files / branches / PRs. Plain, under 40 lines. Don't post in the chat; "
@@ -1379,6 +1390,46 @@ def main():
     _nudged = {}             # request time -> when we reminded the agent to reply
 
     _started_at = time.time()
+    _frozen = {"sig": None, "since": 0.0, "told": False, "esc": False}   # stuck-command watch
+
+    def _stuck_check(active: bool, now: float) -> str:
+        """Lu, 11-12: motionintern showed "working" for an hour on a `cat << EOF` waiting for input.
+        Working, yet the screen (digits ignored, so timers don't count as change) hasn't changed:
+        at STUCK_TELL min say so in the channel; at STUCK_ESC min press Esc to stop the command.
+        Returns the "doing" text to show while stuck ("" when not)."""
+        if not active or not _HANDOVER.get("tmux"):
+            _frozen.update(sig=None, since=0.0, told=False, esc=False)
+            return ""
+        try:
+            from wrapper_unix import pane_text
+            sig = _stuck_signature(pane_text(_HANDOVER["tmux"], 20))
+        except Exception:
+            return ""
+        if sig != _frozen["sig"]:
+            _frozen.update(sig=sig, since=now, told=False, esc=False)
+            return ""
+        mins = int((now - _frozen["since"]) // 60)
+        if mins < STUCK_TELL:
+            return ""
+        last = next((l.strip() for l in reversed(pane_text(_HANDOVER["tmux"], 20).splitlines())
+                     if l.strip() and not set(l.strip()) <= set("─━-│ ")), "")[:80]
+        cur, _ = get_identity()
+        if not _frozen["told"]:
+            _frozen["told"] = True
+            _post(server_port, cur, get_token(), _LAST_PLACE["channel"], _LAST_PLACE["thread"],
+                  f"My screen hasn't changed for {mins} minutes while I'm \"working\": a command may be stuck "
+                  f"(last line: {last}). I'll stop it myself at {STUCK_ESC} minutes; open my terminal to stop it sooner.")
+        if mins >= STUCK_ESC and not _frozen["esc"]:
+            _frozen["esc"] = True
+            try:
+                import subprocess
+                subprocess.run(["tmux", "send-keys", "-t", _HANDOVER["tmux"], "Escape"], capture_output=True, timeout=5)
+                _post(server_port, cur, get_token(), _LAST_PLACE["channel"], _LAST_PLACE["thread"],
+                      f"Stopped a command that was stuck for {mins} minutes (pressed Esc). Picking up again.")
+            except Exception:
+                pass
+        return f"Stuck? no change for {mins} min"
+
     def _work():
         try:
             return json.loads(_work_file(queue_file, assigned_name).read_text("utf-8")) or {}
@@ -1472,6 +1523,10 @@ def main():
                     or (not active and now - last_report_time >= IDLE_REPORT_INTERVAL)
                     or (active and doing != last_doing)
                 )
+                stuck = _stuck_check(bool(active), now)
+                if stuck:
+                    doing = stuck
+                    should_send = should_send or doing != last_doing
                 if should_send:
                     current_name, _ = get_identity()
                     current_token = get_token()
