@@ -89,3 +89,61 @@ def summary(rows: list[dict]) -> str:
         counts[r.get("state", "todo")] = counts.get(r.get("state", "todo"), 0) + 1
     parts = [f"{len(open_rows)} open"] + [f"{n} {STATE_ZH[s]}" for s in STATES if (n := counts.get(s)) and s != "live"]
     return " · ".join(parts)
+
+
+STALE_H = 4          # a row nobody touched for this long is probably out of date
+MAX_PER_PERSON = 5   # Lu, 11-12: one person holding 11 of 25 is the bottleneck
+
+
+def housekeeping(board: "Board", pr_state, now: float | None = None) -> dict[str, dict]:
+    """Per channel: rows whose PR has merged (set live here) and what to tell the project manager:
+    {channel: {"merged": [row], "stale": [row], "overloaded": {who: n}}}. Each stale row is
+    reported once per STALE_H window. pr_state(url) -> "MERGED" / "OPEN" / "CLOSED" / None."""
+    now = time.time() if now is None else now
+    out: dict[str, dict] = {}
+    with board.lock:
+        changed = False
+        for ch, rows in board.data.items():
+            rep = {"merged": [], "stale": [], "overloaded": {}}
+            counts: dict[str, int] = {}
+            for r in rows:
+                if r.get("state") == "live":
+                    continue
+                link = str(r.get("link") or "")
+                if "/pull/" in link:
+                    try:
+                        st = pr_state(link)
+                    except Exception:
+                        st = None
+                    if st == "MERGED":
+                        r["state"], r["at"], r["by"], r["note"] = "live", now, "Scranton", "PR merged"
+                        rep["merged"].append(dict(r))
+                        changed = True
+                        continue
+                if r.get("who"):
+                    counts[r["who"]] = counts.get(r["who"], 0) + 1
+                last = max(float(r.get("at") or 0), float(r.get("nudged") or 0))
+                if now - last > STALE_H * 3600:
+                    r["nudged"] = now
+                    rep["stale"].append(dict(r))
+                    changed = True
+            rep["overloaded"] = {w: n for w, n in counts.items() if n > MAX_PER_PERSON}
+            if rep["merged"] or rep["stale"]:
+                out[ch] = rep
+        if changed:
+            board._save()
+    return out
+
+
+def nudge_text(rep: dict, label=lambda h: h) -> str:
+    """One message to the project manager about a channel's board."""
+    lines = []
+    if rep["stale"]:
+        hrs = lambda r: int((time.time() - float(r.get("at") or 0)) // 3600)
+        lines.append(f"@pm Your asks 里有 {len(rep['stale'])} 行超过 {STALE_H} 小时没更新，按实际改一下（没在做就写 todo，卡住写 blocked + note）：")
+        lines += [f"· #{r['id']} {r.get('ask', '')[:40]}（{label(r.get('who', '')) or '没人'}，{hrs(r)} 小时）" for r in rep["stale"][:8]]
+        if len(rep["stale"]) > 8:
+            lines.append(f"· 还有 {len(rep['stale']) - 8} 行")
+    if rep.get("overloaded"):
+        lines.append("超过 5 件的人，把没开始的转给别人：" + "，".join(f"{label(w)} {n} 件" for w, n in rep["overloaded"].items()))
+    return "\n".join(lines)

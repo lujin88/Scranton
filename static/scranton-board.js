@@ -54,9 +54,11 @@
         const busy = people.filter((h) => byWho[h] || (!filter && st(h) === 'working'));
         const free = people.filter((h) => !byWho[h] && st(h) === 'available');
         const off = people.filter((h) => !byWho[h] && st(h) !== 'working' && st(h) !== 'available');
+        // Rows nobody touched for 4 h may be out of date (Lu, 11-12: most were 17–20 h old).
+        const staleH = (r) => { const h = Math.floor((Date.now() / 1000 - (r.at || 0)) / 3600); return h >= 4 ? h : 0; };
         const askLi = (r) => `<li class="sc-board-row" data-state="${esc(r.state)}" data-row="${r.id}" tabindex="0" role="button" aria-label="Open the chat for ${esc(r.ask)}">
                 <span class="sc-board-chip">${esc((data.states || {})[r.state] || r.state)}</span>
-                <span class="sc-board-ask"><span class="sc-board-t">${esc(r.ask)}${r.due ? `<small> · 交 ${esc(r.due)}</small>` : ''}</span>${r.note ? `<small class="sc-board-note" title="${esc(r.note)}">${esc(r.note)}</small>` : ''}</span>
+                <span class="sc-board-ask"><span class="sc-board-t">${esc(r.ask)}${r.due ? `<small> · 交 ${esc(r.due)}</small>` : ''}${staleH(r) ? `<small class="sc-board-stale"> · ${staleH(r)} h 没更新</small>` : ''}</span>${r.note ? `<small class="sc-board-note" title="${esc(r.note)}">${esc(r.note)}</small>` : ''}</span>
                 ${r.link && /^https?:\/\//.test(r.link) ? `<a class="sc-board-link" href="${esc(r.link)}" target="_blank" rel="noopener" aria-label="Open link for ${esc(r.ask)}">Open</a>` : ''}
             </li>`;
         const stateLbl = (h) => ({ working: 'Working', available: 'Online' }[st(h)] || 'Not running');

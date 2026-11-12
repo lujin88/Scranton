@@ -4932,10 +4932,31 @@ def _label_of(handle: str) -> str:
         return handle
 
 
+async def _sc_board_tick() -> None:
+    """Your asks: PR merged → row live; rows untouched for 4 h and people over 5 rows → one note to the PM."""
+    import mcp_bridge, scranton_board
+    if mcp_bridge.BOARD is None:
+        return
+    reps = await asyncio.to_thread(scranton_board.housekeeping, mcp_bridge.BOARD, _pr_state)
+    for ch, rep in reps.items():
+        if rep["stale"] or rep.get("overloaded"):
+            text = scranton_board.nudge_text(rep, _label_of)
+            if text:
+                store.add("Scranton", text, channel=ch)
+
+
 async def _sc_due_loop():
-    """Once a minute: anyone past their '交 HH:MM' with nothing delivered → tell the PM once."""
+    """Once a minute: anyone past their '交 HH:MM' with nothing delivered → tell the PM once.
+    Every 10 minutes: tidy the asks board (merged PRs, stale rows)."""
     await asyncio.sleep(30)
+    tick = 0
     while True:
+        tick += 1
+        if tick % 10 == 1:
+            try:
+                await _sc_board_tick()
+            except Exception:
+                _log_rate_limited("board tick failed")
         try:
             for h, it in _sc_due_book().overdue():
                 store.add("Scranton", _sc_due_text(h, it), channel=it.get("channel") or "general",

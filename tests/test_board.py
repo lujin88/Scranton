@@ -42,3 +42,28 @@ def test_row_keeps_message_id(tmp_path):
     assert B.rows("c")[0]["msg"] == 7820
     B.upsert("c", "pm", id=1, note="等你选")
     assert B.rows("c")[0]["msg"] == 7820
+
+
+def test_housekeeping_merged_stale_overloaded(tmp_path):
+    B = b.Board(tmp_path / "board.json")
+    old = time.time() - 6 * 3600
+    B.upsert("c", "pm", ask="BMW 首屏", state="in_pr", who="webdev", link="https://github.com/x/y/pull/1", now=old)
+    for i in range(6):
+        B.upsert("c", "pm", ask=f"活 {i}", state="doing", who="webdev", now=old)
+    B.upsert("c", "pm", ask="新的", state="doing", who="dev")
+    rep = b.housekeeping(B, lambda u: "MERGED" if u.endswith("/1") else "OPEN")["c"]
+    assert [r["ask"] for r in rep["merged"]] == ["BMW 首屏"]
+    assert B.rows("c")[0]["state"] == "live"
+    assert len(rep["stale"]) == 6 and rep["overloaded"] == {"webdev": 6}
+    txt = b.nudge_text(rep)
+    assert "6 行超过 4 小时" in txt and "webdev 6 件" in txt
+    # reported once per window
+    assert b.housekeeping(B, lambda u: "OPEN") == {}
+
+
+def test_long_message_note():
+    import mcp_bridge
+    assert mcp_bridge._length_note("短", []) == ""
+    assert "characters" in mcp_bridge._length_note("x" * 500, [])
+    assert mcp_bridge._length_note("x" * 500, ["A"]) == ""
+    assert mcp_bridge._length_note("问你：\nA. 一\nB. 二\n" + "x" * 500, []) == ""

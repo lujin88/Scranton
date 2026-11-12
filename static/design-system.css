@@ -1735,3 +1735,4 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-rp > .sc-page-head { margin-bottom: var(--ds-4) !important; }
 /* Side panels (thread, channel overview): the title starts where the content starts (32 px in), not 18 px left of it. */
 #sc-thread .sc-thread-head { padding-left: 28px !important; }
+.sc-board-stale { color: var(--ds-warn-text) !important; }

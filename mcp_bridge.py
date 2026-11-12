@@ -381,7 +381,19 @@ def chat_send(
     _update_cursor(sender, [msg], channel)
     with _presence_lock:
         _presence[sender] = time.time()
-    return f"Sent (id={msg['id']})"
+    return f"Sent (id={msg['id']})" + _length_note(message, clean_choices)
+
+
+LONG_MSG = 400   # Lu, 11-12: reports are at most three lines; webdev averaged 355 characters
+
+
+def _length_note(message: str, choices: list) -> str:
+    """Sent anyway; the sender is told so the next one is shorter. Questions with options are exempt."""
+    text = (message or "").strip()
+    if choices or len(text) <= LONG_MSG or _re_mod.search(r"(?m)^\s*[A-D][.、:：]\s", text):
+        return ""
+    return (f" Note: that was {len(text)} characters. Channel messages are at most 3 lines "
+            "(result, link, what's missing); put details in the PR comment or a file and link it.")
 
 
 def chat_propose_job(
