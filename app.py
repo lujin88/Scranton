@@ -4904,6 +4904,22 @@ async def scranton_quota_move(request: Request):
     return JSONResponse({"ok": True, "moved": done, "until": until})
 
 
+@app.post("/api/scranton/quota/approve")
+async def scranton_quota_approve(request: Request):
+    """Lu, 11-13: "ChatGPT 还有 500 块 API". Allow the backup key for ONE app until its plan resets,
+    without turning the global switch on (the Claude key has no credit). {"provider": "codex"}."""
+    body = await request.json()
+    prov = str(body.get("provider") or "")
+    u = _sc_quota.provider_usage(prov, "")
+    until = float((u or {}).get("resets") or 0)
+    if prov not in ("claude", "codex") or not until or not _sc_keys.get_key(prov):
+        return JSONResponse({"ok": False, "error": "need claude or codex, a saved key and a reset time"}, status_code=400)
+    st = _sc_qa()
+    st.approved[prov] = {"mode": "api", "until": until, "then": None}
+    st.save()
+    return JSONResponse({"ok": True, "until": until})
+
+
 def _sc_qa_apply(meta: dict, chosen: str) -> None:
     """Lu answered the 98% question: remember it for when the plan really runs out."""
     qa = (meta or {}).get("quota_ask") or {}
