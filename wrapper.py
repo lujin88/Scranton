@@ -724,12 +724,19 @@ STUCK_ESC = 60    # ... before pressing Esc
 
 
 def _stuck_signature(screen: str) -> str:
-    """The screen with digits and spinner glyphs removed: timers and spinners aren't progress."""
+    """Fingerprint that ignores spinners and elapsed-time ticks, but keeps real progress.
+
+    Stripping every digit made ffmpeg/wget look frozen (frame=, %, kB only change by
+    number), so a 60-minute encode was Esc'd. Only the Working… (12m 03s) timer and
+    spinner glyphs are noise; progress numbers are not.
+    """
     import re as _r
     lines = [l for l in (screen or "").splitlines() if l.strip()]
     text = "\n".join(lines[-15:])
-    text = _r.sub(r"[0-9]", "", text)
-    return _r.sub(r"[✻✽✶✳✢·⏺●◐◓◑◒⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏*]", "", text)
+    text = _r.sub(r"[✻✽✶✳✢·⏺●◐◓◑◒⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏*]", "", text)
+    text = _r.sub(r"\(\s*\d+\s*m\s*\d+\s*s\s*\)", "()", text)
+    text = _r.sub(r"\(\s*\d+\s*s\s*\)", "()", text)
+    return text
 _HANDOFF_ASK = ("Scranton: before your next message, save a handoff for a fresh session with the chat_handoff "
                 "tool: what you're working on, decisions made and why, open items and who is waiting on what, "
                 "the next step, and files / branches / PRs. Plain, under 40 lines. Don't post in the chat; "
@@ -1423,7 +1430,12 @@ def main():
             _frozen["esc"] = True
             try:
                 import subprocess
-                subprocess.run(["tmux", "send-keys", "-t", _HANDOVER["tmux"], "Escape"], capture_output=True, timeout=5)
+                # Exact pane + raw Esc: a bare session name prefix-matches (visual → visualqa),
+                # and tmux's named Escape is ignored by Antigravity (app.py keys endpoint).
+                subprocess.run(
+                    ["tmux", "send-keys", "-t", f"={_HANDOVER['tmux']}:", "-H", "1b"],
+                    capture_output=True, timeout=5,
+                )
                 _post(server_port, cur, get_token(), _LAST_PLACE["channel"], _LAST_PLACE["thread"],
                       f"Stopped a command that was stuck for {mins} minutes (pressed Esc). Picking up again.")
             except Exception:
