@@ -4857,11 +4857,18 @@ async def _sc_qa_tick(now: float | None = None) -> None:
         if not u:
             continue
         # one question per plan window; without a reset time, one per day
-        key = f"{prov}:{u['label']}" + ("" if u.get("resets") else time.strftime(":%Y-%m-%d", time.localtime(now)))
+        # One question per plan window. Agent Monitor's label flips language ("每周" / "Weekly") and its
+        # reset time moves by an hour, so key on the provider (+ Cursor's pool) and compare resets loosely
+        # (11-13: the same question went out 4 times in one night).
+        pool = u["label"] if prov == "cursor" else ""
+        key = f"{prov}:{pool}" + ("" if u.get("resets") else time.strftime(":%Y-%m-%d", time.localtime(now)))
         g = groups.setdefault(key, {"provider": prov, "pct": u["pct"], "resets": u.get("resets"), "who": []})
         g["who"].append(_label_of(h))
     for key, g in groups.items():
-        if g["pct"] < _sc_qask.ASK_AT or str(st.asked.get(key)) == str(g["resets"]):
+        prev = st.asked.get(key)
+        same = (prev is not None and g["resets"] is not None and abs(float(prev) - float(g["resets"])) < 6 * 3600) \
+            or (prev is not None and g["resets"] is None)
+        if g["pct"] < _sc_qask.ASK_AT or same:
             continue
         other = _sc_qask.standin(g["provider"], _sc_quota.provider_usage)
         has_key = bool(_sc_keys.get_key(g["provider"])) if g["provider"] in ("claude", "codex") else False
@@ -4960,7 +4967,14 @@ def _sc_idle_pokes(board, now: float) -> list[tuple[str, str, int | None, str]]:
                 quiet = min((_sc_idle_since.get(n, now) for n in names), default=now)
                 if now - quiet < IDLE_POKE_MIN * 60 or now - float(r.get("poked") or 0) < 1800:
                     continue
+                # At most twice per row until someone changes it (11-13: 40 pokes in one night, most to
+                # people waiting on someone else, each one a paid wake-up).
+                if float(r.get("poked") or 0) < float(r.get("at") or 0):
+                    r["pokes"] = 0
+                if int(r.get("pokes") or 0) >= 2:
+                    continue
                 r["poked"] = now
+                r["pokes"] = int(r.get("pokes") or 0) + 1
                 mins = int((now - quiet) // 60)
                 out.append((ch, h, r.get("msg") if isinstance(r.get("msg"), int) else None,
                             f"@{h} Your asks 上「{str(r.get('ask', ''))[:50]}」还是在做，你已经停了 {mins} 分钟。"
@@ -4978,7 +4992,12 @@ async def _sc_board_tick() -> None:
     for ch, h, reply_to, text in _sc_idle_pokes(mcp_bridge.BOARD, time.time()):
         store.add("Scranton", text, channel=ch, reply_to=reply_to)
     reps = await asyncio.to_thread(scranton_board.housekeeping, mcp_bridge.BOARD, _pr_state)
+    night = time.localtime().tm_hour >= 23 or time.localtime().tm_hour < 7
     for ch, rep in reps.items():
+        # Night: no "update the board" notes. They wake the project manager, who runs on Claude
+        # (11-12 night: 15 of them; Claude went 87 % → 98 % in a day). The rows stay marked stale.
+        if night:
+            continue
         if rep["stale"] or rep.get("overloaded"):
             text = scranton_board.nudge_text(rep, _label_of)
             if text:

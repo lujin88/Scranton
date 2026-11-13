@@ -127,8 +127,15 @@ def housekeeping(board: "Board", pr_state, now: float | None = None) -> dict[str
                     r["nudged"] = now
                     rep["stale"].append(dict(r))
                     changed = True
-            rep["overloaded"] = {w: n for w, n in counts.items() if n > MAX_PER_PERSON}
-            if rep["merged"] or rep["stale"]:
+            # once per person per STALE_H window (11-12: "法务 8 件" went out 7 times in an afternoon)
+            told = board.__dict__.setdefault("_told_over", {})
+            rep["overloaded"] = {}
+            for w, n in counts.items():
+                k = f"{ch}:{w}"
+                if n > MAX_PER_PERSON and now - told.get(k, 0) > STALE_H * 3600:
+                    told[k] = now
+                    rep["overloaded"][w] = n
+            if rep["merged"] or rep["stale"] or rep["overloaded"]:
                 out[ch] = rep
         if changed:
             board._save()

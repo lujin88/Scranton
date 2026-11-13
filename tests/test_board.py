@@ -84,3 +84,5 @@ def test_idle_poke(tmp_path, monkeypatch):
     assert app._sc_idle_pokes(B, now + 60) == []          # once per 30 min
     mcp_bridge._presence["visintern"] = now + 1890
     assert len(app._sc_idle_pokes(B, now + 1900)) == 1
+    mcp_bridge._presence["visintern"] = now + 3790
+    assert app._sc_idle_pokes(B, now + 3800) == []        # at most twice until the row changes
