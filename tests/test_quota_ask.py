@@ -1,4 +1,6 @@
 import time
+from types import SimpleNamespace
+
 import scranton_quota_ask as q
 
 NOW = 1_800_000_000.0
@@ -53,7 +55,7 @@ def test_tick_asks_once_and_answer_unlocks_api(monkeypatch, tmp_path):
     monkeypatch.setattr(app._sc_keys, "get_key", lambda p: "k" if p == "claude" else "")
     monkeypatch.setitem(app.room_settings, "api_backup_enabled", False)
     posted = []
-    monkeypatch.setattr(app.store, "add", lambda *a, **k: posted.append((a, k)))
+    monkeypatch.setattr(app, "store", SimpleNamespace(add=lambda *a, **k: posted.append((a, k))))
     asyncio.run(app._sc_qa_tick())
     asyncio.run(app._sc_qa_tick())   # asked once per window
     assert len(posted) == 1
@@ -64,4 +66,31 @@ def test_tick_asks_once_and_answer_unlocks_api(monkeypatch, tmp_path):
     assert not app._api_allowed("claude")
     app._sc_qa_apply(kw["metadata"], choices[0])
     assert app._api_allowed("claude") and app._sc_qa().approved["claude"]["then"] == "cursor"
+    app._SC_QA.clear()
+
+
+def test_tick_asks_once_when_resets_is_none(monkeypatch, tmp_path):
+    import asyncio
+    import app
+    qa_path = tmp_path / "qa.json"
+    app._SC_QA.clear()
+    app._SC_QA.append(q.State(qa_path))
+    monkeypatch.setattr(app, "config", {"agents": {"pm": {"command": "claude", "label": "项目经理"},
+                                                   "dev": {"command": "claude", "label": "开发"}}, "server": {}})
+    usage = {"claude": {"pct": 98.0, "label": "每周", "resets": None}, "cursor": {"pct": 75.0, "label": "c", "resets": None}}
+    monkeypatch.setattr(app._sc_quota, "provider_usage", lambda p, m="", *a, **k: usage.get(p))
+    monkeypatch.setattr(app._sc_keys, "get_key", lambda p: "k" if p == "claude" else "")
+    monkeypatch.setitem(app.room_settings, "api_backup_enabled", False)
+    posted = []
+    monkeypatch.setattr(app, "store", SimpleNamespace(add=lambda *a, **k: posted.append((a, k))))
+    asyncio.run(app._sc_qa_tick())
+    asyncio.run(app._sc_qa_tick())
+    assert len(posted) == 1
+    (sender, text), kw = posted[0]
+    assert sender == "Scranton" and kw["msg_type"] == "decision"
+    app._SC_QA[0].save()
+    app._SC_QA.clear()
+    app._SC_QA.append(q.State(qa_path))
+    asyncio.run(app._sc_qa_tick())
+    assert len(posted) == 1
     app._SC_QA.clear()

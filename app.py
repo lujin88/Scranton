@@ -4866,8 +4866,11 @@ async def _sc_qa_tick(now: float | None = None) -> None:
         g["who"].append(_label_of(h))
     for key, g in groups.items():
         prev = st.asked.get(key)
-        same = (prev is not None and g["resets"] is not None and abs(float(prev) - float(g["resets"])) < 6 * 3600) \
-            or (prev is not None and g["resets"] is None)
+        asked_already = key in st.asked
+        same = asked_already and (
+            g["resets"] is None
+            or (prev is not None and abs(float(prev) - float(g["resets"])) < 6 * 3600)
+        )
         if g["pct"] < _sc_qask.ASK_AT or same:
             continue
         other = _sc_qask.standin(g["provider"], _sc_quota.provider_usage)
