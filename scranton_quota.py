@@ -97,10 +97,12 @@ def _base(name: str) -> str:
     return re.sub(r"-\d+$", "", str(name or "").strip().lower())
 
 
-def reroute(cfg: dict | None, targets: list[str], channel: str, sender: str) -> tuple[list[str], dict]:
+def reroute(cfg: dict | None, targets: list[str], channel: str, sender: str,
+            api_ok: bool = False) -> tuple[list[str], dict]:
     """Swap visual/motion for their interns while the plan is low. DMs stay as they are
-    (a DM with @visual is that conversation). Returns (targets, {original: intern})."""
-    if not _state["low"] or channel.startswith("dm-"):
+    (a DM with @visual is that conversation). api_ok: Lu picked "API first" for this plan
+    (data/quota_ask.json), so they carry on on the key instead. Returns (targets, {original: intern})."""
+    if not _state["low"] or api_ok or channel.startswith("dm-"):
         return targets, {}
     mapping = settings(cfg)["map"]
     agents = (cfg or {}).get("agents", {}) or {}

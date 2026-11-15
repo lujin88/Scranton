@@ -53,3 +53,19 @@ def test_disabled_and_missing_intern(tmp_path):
     q.check(cfg)
     cfg["agents"] = {"visual": {}}
     assert q.reroute(cfg, ["visual"], "general", "Lu") == (["visual"], {})
+
+
+def test_api_first_pick_keeps_visual(tmp_path):
+    cfg = _cfg(tmp_path, [{"label": "每周", "usedPercent": 97, "resetsAt": None}])
+    q.check(cfg)
+    assert q.reroute(cfg, ["visual", "motion"], "contour-slide", "pm", api_ok=True) == (["visual", "motion"], {})
+    assert q.reroute(cfg, ["visual"], "contour-slide", "pm", api_ok=False)[1] == {"visual": "visintern"}
+
+
+def test_api_ok_follows_quota_ask_state(tmp_path):
+    import scranton_quota_ask as qa
+    st = qa.State(tmp_path / "quota_ask.json")
+    st.approved["codex"] = {"mode": "api", "until": time.time() + 3600}
+    assert st.api_ok("codex")
+    st.approved["codex"]["until"] = time.time() - 1   # after the reset it moves again
+    assert not st.api_ok("codex")
