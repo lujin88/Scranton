@@ -1160,8 +1160,11 @@ async def _handle_new_message(msg: dict):
     if _lu_ask_for_pm(sender, text, channel) and _mentions_from() not in targets:
         targets.append(_mentions_from())
     # ChatGPT plan running low (Agent Monitor's numbers): visual/motion work goes to the
-    # Gemini interns instead (Lu, 11-10). DMs are left alone.
-    targets, _quota_moved = _sc_quota.reroute(config, targets, channel, sender)
+    # Gemini interns instead (Lu, 11-10). DMs are left alone, and so is everything while Lu's
+    # "API first" pick for that plan holds (11-15: #13209 moved visual at 97% despite it).
+    targets, _quota_moved = _sc_quota.reroute(
+        config, targets, channel, sender,
+        api_ok=_sc_qa().api_ok(_sc_quota.settings(config)["source"]))
     if _quota_moved:
         pct = _sc_quota.status().get("percent")
         pairs = "、".join(f"{_label_of(a)} → {_label_of(b)}" for a, b in _quota_moved.items())
