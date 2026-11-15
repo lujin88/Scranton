@@ -52,3 +52,58 @@ def test_long_ack_is_not_a_delivery(tmp_path):
     assert "visual" in b.public()
     b.note({"sender": "visual", "text": "@pm v7 已交，三张并排在附图。", "channel": "c", "timestamp": t0 + 900}, AG)
     assert b.public() == {}
+
+
+def _assigned(tmp_path):
+    b = DueBook(tmp_path / "due.json")
+    t0 = at(10, 0)
+    b.note({"sender": "pm", "text": "@dev 修这个，交 15:00", "channel": "c", "id": 1, "timestamp": t0}, AG)
+    assert "dev" in b.public()
+    return b, t0
+
+
+def test_wrapper_status_is_not_a_delivery(tmp_path):
+    """wrapper._post and app store.add speak as the teammate. Those lines used to clear 交 HH:MM
+    because they are long and not 收到 — so the PM was never told when the work actually overran."""
+    samples = [
+        "I can't read this yet: my terminal is waiting on a question: “Allow?”. "
+        "Open my terminal to answer it, and I'll pick this up right after.",
+        "I stopped: my Claude plan has hit its usage limit. @ me again after it resets, "
+        "or switch me to another app: Settings → Agents → me → Runs on.",
+        "I stopped without replying, even after a reminder. Open my terminal to see where I am, or @ me again.",
+        'My screen hasn\'t changed for 12 minutes while I\'m "working": a command may be stuck '
+        "(last line: ffmpeg -i in.mp4). I'll stop it myself at 60 minutes; open my terminal to stop it sooner.",
+        "Stopped a command that was stuck for 60 minutes (pressed Esc). Picking up again.",
+        "Your message didn't reach me after 3 tries. Restart me: Settings → Agents → me → Restart.",
+        "Claude 额度用完了，按 Lu 的选择，换到 Cursor 接着干，11-15 08:00 换回来。",
+        "为了把 Claude 额度留给项目经理和 QA（Lu 定），换到 Cursor 接着干，11-15 08:00 换回来。",
+        "备用 API key 用不了，按 Lu 的选择，换到 Cursor 接着干，11-15 08:00 换回来。",
+        "My ChatGPT plan has hit its limit, so I'm carrying on with the backup API key until it resets.",
+        "The backup API key has no credit left, so I'm going back to the plan. "
+        "Add funds with the provider, or remove the key in Settings → Connections.",
+        "Composer 2.5 has used up its quota, but the plan still has room on other models: "
+        "I'm carrying on with Composer 2 and will switch back after it resets (11-15 08:00).",
+        "I hit an error from Claude and stopped. Open my terminal to see it, or restart me.",
+    ]
+    for text in samples:
+        b, t0 = _assigned(tmp_path)
+        b.note({"sender": "dev", "text": text, "channel": "c", "timestamp": t0 + 60}, AG)
+        assert "dev" in b.public(), text
+        # still told once when the time passes
+        late = b.overdue(at(15, 3))
+        assert [h for h, _ in late] == ["dev"], text
+
+
+def test_status_with_a_pr_still_counts_as_delivery(tmp_path):
+    b, t0 = _assigned(tmp_path)
+    b.note({"sender": "dev", "text": "I stopped fighting the rebase; PR #42 is up.",
+            "channel": "c", "timestamp": t0 + 60}, AG)
+    assert b.public() == {}
+
+
+def test_long_real_reply_still_counts_as_delivery(tmp_path):
+    b, t0 = _assigned(tmp_path)
+    b.note({"sender": "dev", "text": "左墙改直了，踢脚线压在红线上，三张对比图在附图，"
+            "踢脚线和窗框的接缝也对上了，颜色按 v6 米白。",
+            "channel": "c", "timestamp": t0 + 60}, AG)
+    assert b.public() == {}

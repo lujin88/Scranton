@@ -6,6 +6,10 @@ tell the project manager once, so chasing is the PM's job, not Lu's.
 
 Delivered = the teammate wrote something real in that channel after being asked (not just a
 "收到", which is short), or a new due time replaced the old one.
+
+Status lines the wrapper or Scranton posts *as* the teammate (stuck command, usage-limit
+move, waiting on a question) are long and not acks, so they used to look like a delivery
+and silently drop the due.
 """
 from __future__ import annotations
 
@@ -20,6 +24,23 @@ MENTION_RE = re.compile(r"@([A-Za-z0-9_-]+)")
 ACK_MAX = 40   # a reply this short is "收到", not a delivery
 ACK_RE = re.compile(r"^(@\S+\s*)*(收到|已读|好的|好|明白|ok\b|got it|on it|will do|接了|开始做|在做)", re.I)
 DELIVERED_RE = re.compile(r"已交|交了|交付|已完成|做完了|done|delivered|https?://|PR\s*#?\d", re.I)
+# Posted as the teammate, but they didn't hand in the work. Keep the due so the PM is still told.
+STATUS_RE = re.compile(
+    r"^(?:"
+    r"I (?:can't read this yet|stopped\b|hit an error from)|"
+    r"My screen hasn't changed|"
+    r"Stopped a command that was stuck|"
+    r"Your message didn't reach me|"
+    r"My \S+ plan has hit|"
+    r"The backup API key has no credit|"
+    r"备用 API key 用不了|"
+    r"额度重置了|"
+    r".{0,80}额度用完了|"
+    r"为了把.{0,40}额度留给|"
+    r".{0,80} has used up its quota"
+    r")",
+    re.I,
+)
 
 
 def parse_due(text: str, now: float | None = None) -> float | None:
@@ -67,7 +88,8 @@ class DueBook:
             t = text.strip()
             # Agents' "收到" can be long ("收到 #6892。以 v6 为底，v7 改回…"): an ack is never a delivery.
             ack = bool(ACK_RE.match(t)) and not DELIVERED_RE.search(t)
-            if not ack and (len(t) > ACK_MAX or DELIVERED_RE.search(t) or msg.get("attachments")):
+            status = bool(STATUS_RE.search(t)) and not DELIVERED_RE.search(t) and not msg.get("attachments")
+            if not ack and not status and (len(t) > ACK_MAX or DELIVERED_RE.search(t) or msg.get("attachments")):
                 self.items.pop(base, None)
                 changed = True
         # 2. an assignment with a due time
