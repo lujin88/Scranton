@@ -4793,14 +4793,15 @@ async def _sc_qa_move_if_planned(base: str, provider: str, channel: str, after_a
     st = _sc_qa()
     plan = st.approved.get(provider) or {}
     to = plan.get("then")
-    if not to or time.time() >= float(plan.get("until") or 0) or base in st.moved:
+    if not to or not _sc_qask.holds(plan.get("until")) or base in st.moved:
         return False
     why = "备用 API key 用不了" if after_api else f"{_sc_qask.APP_NAMES.get(provider, provider)} 额度用完了"
-    return await _sc_qa_move(base, to, float(plan["until"]), channel, why + "，按 Lu 的选择")
+    return await _sc_qa_move(base, to, float(plan.get("until") or 0), channel, why + "，按 Lu 的选择")
 
 
 async def _sc_qa_move(base: str, to: str, until: float, channel: str, why: str) -> bool:
-    """Run a teammate on another app until `until`, then _sc_qa_tick puts it back as it was."""
+    """Run a teammate on another app until `until`, then _sc_qa_tick puts it back as it was.
+    until 0: no reset time known — stay until the original plan has room again."""
     st = _sc_qa()
     if base in st.moved or base not in (config or {}).get("agents", {}):
         return False
@@ -4810,7 +4811,7 @@ async def _sc_qa_move(base: str, to: str, until: float, channel: str, why: str) 
     st.moved[base] = {"provider": _sc_team.provider_of(cfg.get("command", "")) or provider,
                       "model": ov.get("model") or cfg.get("model") or "",
                       "effort": ov.get("effort") or cfg.get("effort") or "",
-                      "until": float(until)}
+                      "until": float(until or 0)}
     st.save()
     try:
         _sc_team.set_override(base, "provider", to, config)
@@ -4819,8 +4820,11 @@ async def _sc_qa_move(base: str, to: str, until: float, channel: str, why: str) 
     except ValueError:
         st.moved.pop(base, None); st.save()
         return False
-    when = time.strftime("%m-%d %H:%M", time.localtime(float(until)))
-    store.add(base, f"{why}，换到 {_sc_qask.APP_NAMES.get(to, to)} 接着干，{when} 换回来。", channel=channel)
+    if until:
+        back = time.strftime("%m-%d %H:%M", time.localtime(float(until))) + " 换回来"
+    else:
+        back = "额度有空再换回来"
+    store.add(base, f"{why}，换到 {_sc_qask.APP_NAMES.get(to, to)} 接着干，{back}。", channel=channel)
     await broadcast_team_changed()
     asyncio.create_task(_sc_restart_quiet(base))
     return True
@@ -4831,10 +4835,16 @@ async def _sc_qa_tick(now: float | None = None) -> None:
     now = time.time() if now is None else now
     st = _sc_qa()
     changed = False
-    # put back
+    # put back: a dated until that has passed, or (no reset time) the original plan has room again
     for base, rec in list(st.moved.items()):
-        if now < float(rec.get("until") or 0):
-            continue
+        until = rec.get("until")
+        if until:
+            if _sc_qask.holds(until, now):
+                continue
+        else:
+            u = _sc_quota.provider_usage(rec.get("provider") or "", rec.get("model") or "")
+            if not u or u["pct"] >= _sc_qask.RECOVERED_AT:
+                continue
         st.moved.pop(base, None); changed = True
         if base not in (config or {}).get("agents", {}):
             continue
@@ -4850,8 +4860,15 @@ async def _sc_qa_tick(now: float | None = None) -> None:
         await broadcast_team_changed()
         asyncio.create_task(_sc_restart_quiet(base))
     for p, a in list(st.approved.items()):
-        if now >= float(a.get("until") or 0):
+        until = a.get("until")
+        if until:
+            if _sc_qask.holds(until, now):
+                continue
             st.approved.pop(p, None); changed = True
+        else:
+            u = _sc_quota.provider_usage(p, "")
+            if u and u["pct"] < _sc_qask.RECOVERED_AT:
+                st.approved.pop(p, None); changed = True
     # ask
     groups: dict[str, dict] = {}
     for h, cfg in ((config or {}).get("agents", {}) or {}).items():
@@ -4883,7 +4900,7 @@ async def _sc_qa_tick(now: float | None = None) -> None:
         text, choices = q
         store.add("Scranton", text, msg_type="decision", channel=_pm_channel(),
                   metadata={"choices": choices, "resolved": False,
-                            "quota_ask": {"provider": g["provider"], "until": g["resets"] or (now + 5 * 3600),
+                            "quota_ask": {"provider": g["provider"], "until": g["resets"] or 0,
                                           "then": other[0] if other else None}})
     if changed:
         st.save()
@@ -4932,7 +4949,15 @@ def _sc_qa_apply(meta: dict, chosen: str) -> None:
     mode = _sc_qask.classify(chosen)
     st = _sc_qa()
     if mode in ("api", "move"):
-        st.approved[p] = {"mode": mode, "until": float(qa.get("until") or 0), "then": qa.get("then")}
+        # Live usage beats the card: a missing resetsAt used to be stored as now+5h, which
+        # expired the pick while ChatGPT's week was still at 97% (PR #15 then rerouted).
+        live = (_sc_quota.provider_usage(p, "") or {}).get("resets")
+        until = float(live or qa.get("until") or 0)
+        if not live:
+            # Card until within ~5h is the old guess, not a real weekly reset.
+            if not until or until - time.time() <= 6 * 3600:
+                until = 0
+        st.approved[p] = {"mode": mode, "until": until, "then": qa.get("then")}
     else:
         st.approved.pop(p, None)
     st.save()

@@ -69,3 +69,5 @@ def test_api_ok_follows_quota_ask_state(tmp_path):
     assert st.api_ok("codex")
     st.approved["codex"]["until"] = time.time() - 1   # after the reset it moves again
     assert not st.api_ok("codex")
+    st.approved["codex"]["until"] = 0                 # no reset time: hold until the plan recovers
+    assert st.api_ok("codex")

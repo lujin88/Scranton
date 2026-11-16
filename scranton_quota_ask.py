@@ -15,10 +15,28 @@ import time
 from pathlib import Path
 
 ASK_AT = 98.0
+RECOVERED_AT = 80.0        # plan has room again: Lu's pick no longer applies
 APP_NAMES = {"claude": "Claude", "codex": "ChatGPT", "cursor": "Cursor", "gemini": "Gemini"}
 STANDIN_MODEL = {"cursor": "composer-2.5", "codex": "", "claude": ""}
 WAIT_IF_WITHIN_H = 1.0     # resets within an hour: waiting is cheapest
 API_UP_TO_H = 24.0         # longer than a day on pay-per-use gets expensive: suggest another app
+
+
+def holds(until, now: float | None = None) -> bool:
+    """True while Lu's pick should still apply.
+
+    until 0/None means "until the plan has room again". Agent Monitor often omits
+    resetsAt on ChatGPT's weekly window; guessing 5 hours used to expire the pick
+    while the week was still exhausted, so visual/motion went to the interns again
+    and teammates on the backup key were pulled back onto the dead plan.
+    """
+    if not until:
+        return True
+    now = time.time() if now is None else now
+    try:
+        return now < float(until)
+    except (TypeError, ValueError):
+        return True
 
 
 class State:
@@ -38,9 +56,8 @@ class State:
                                         ensure_ascii=False, indent=1), "utf-8")
 
     def api_ok(self, provider: str, now: float | None = None) -> bool:
-        now = time.time() if now is None else now
         a = self.approved.get(provider) or {}
-        return a.get("mode") == "api" and now < float(a.get("until") or 0)
+        return a.get("mode") == "api" and holds(a.get("until"), now)
 
 
 def standin(provider: str, usage_of) -> tuple[str, float] | None:
