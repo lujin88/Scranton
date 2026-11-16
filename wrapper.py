@@ -573,10 +573,38 @@ def _read_channel(server_port: int, token: str, channel: str) -> list:
     return json.loads(urllib.request.urlopen(req, timeout=5).read())
 
 
+def _team_restart(queue_file: Path, name: str, window: float = 240.0) -> bool:
+    """True when 3+ other teammates were started within the last few minutes (pid files)."""
+    try:
+        now = time.time()
+        fresh = [p for p in (queue_file.parent / "run").glob("*.pid")
+                 if p.stem not in (name, "server") and now - p.stat().st_mtime < window]
+        return len(fresh) >= 3
+    except OSError:
+        return False
+
+
 def _resume_unfinished(queue_file: Path, name: str, server_port: int, get_token_fn, delay: float = 25.0) -> None:
     """After a restart (Mac rebooted, agent restarted): if the last request wasn't answered,
     ask the agent to pick it up again, without Lu having to @ it."""
     time.sleep(delay)   # let the CLI start and draw its prompt first
+    # Lu, 11-16: after a team-wide restart everyone picked up its last request, also in projects she
+    # had put aside. Now only the project manager speaks, and asks her which project to resume.
+    # One teammate restarted on its own (Restart button, model change) still picks up its own work.
+    if _team_restart(queue_file, name):
+        if name != "pm":
+            return
+        line = {"channel": "dm-pm", "prompt": (
+            "Scranton and the whole team were just restarted. Do NOT @ any teammate yet. Use chat_board (read) "
+            "for the channels you run, then send ONE message to the owner in #dm-pm: which projects have open "
+            "work (one line each: project, how many open, what was in progress), and ask which to resume, as "
+            "options A/B/C with your pick first. Assign work only in the projects the owner picks; the rest stay quiet.")}
+        try:
+            with open(queue_file, "a", encoding="utf-8") as q:
+                q.write(json.dumps(line, ensure_ascii=False) + "\n")
+        except OSError:
+            pass
+        return
     f = _work_file(queue_file, name)
     try:
         w = json.loads(f.read_text("utf-8"))

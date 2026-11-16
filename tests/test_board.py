@@ -86,3 +86,18 @@ def test_idle_poke(tmp_path, monkeypatch):
     assert len(app._sc_idle_pokes(B, now + 1900)) == 1
     mcp_bridge._presence["visintern"] = now + 3790
     assert app._sc_idle_pokes(B, now + 3800) == []        # at most twice until the row changes
+
+
+def test_housekeeping_asks_github_outside_the_lock_and_skips_paused(tmp_path):
+    B = b.Board(tmp_path / "board.json")
+    old = time.time() - 6 * 3600
+    B.upsert("c", "pm", ask="x", state="in_pr", who="dev", link="https://github.com/x/y/pull/1", now=old)
+    B.upsert("p", "pm", ask="y", state="doing", who="dev", now=old)
+    held = []
+    def pr(url):
+        held.append(B.lock.acquire(blocking=False))   # must be free while we "call GitHub"
+        if held[-1]:
+            B.lock.release()
+        return "OPEN"
+    rep = b.housekeeping(B, pr, skip={"p"})
+    assert held == [True] and "p" not in rep and "c" in rep

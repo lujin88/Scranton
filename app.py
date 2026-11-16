@@ -625,6 +625,16 @@ def configure(cfg: dict, session_token: str = ""):
                 # Crash timeout: if a wrapper hasn't heartbeated for 60s,
                 # it's dead — deregister it to free the slot.
                 _CRASH_TIMEOUT = 15
+                # If this loop itself was late, the server was frozen (or the Mac asleep) and could not
+                # take heartbeats: nobody crashed. Give everyone a fresh window instead of dropping them.
+                _prev_tick = getattr(_sc_stall_guard, "at", now)
+                _sc_stall_guard.at = now
+                if now - _prev_tick > 8:
+                    log.warning("Server stalled %.0f s: not counting missed heartbeats", now - _prev_tick)
+                    with mcp_bridge._presence_lock:
+                        for _n in list(mcp_bridge._presence):
+                            if now - mcp_bridge._presence[_n] < _CRASH_TIMEOUT + (now - _prev_tick):
+                                mcp_bridge._presence[_n] = now
                 registered = set(registry.get_all_names())
                 for name in registered:
                     with mcp_bridge._presence_lock:
@@ -4962,6 +4972,29 @@ def _label_of(handle: str) -> str:
         return handle
 
 
+def _sc_stall_guard(): pass   # holds .at: when the presence loop last ran
+
+
+def _paused_channels() -> set:
+    return set(room_settings.get("paused_channels") or [])
+
+
+@app.post("/api/scranton/channel/pause")
+async def scranton_channel_pause(request: Request):
+    """Lu, 11-16: a project she put aside gets no reminders and nobody is woken for it."""
+    body = await request.json()
+    ch = str(body.get("channel") or "")
+    if not ch or ch.startswith("dm-"):
+        return JSONResponse({"ok": False}, status_code=400)
+    cur = _paused_channels()
+    (cur.add if body.get("paused") else cur.discard)(ch)
+    room_settings["paused_channels"] = sorted(cur)
+    _save_settings()
+    store.add("Scranton", ("这个项目先放一放：不再发提醒，也不为它叫醒谁。恢复时在频道概览里点 Resume。"
+                           if body.get("paused") else "@pm 这个项目恢复了。看 Your asks，按现在的优先级重新排。"), channel=ch)
+    return JSONResponse({"ok": True, "paused": ch in cur})
+
+
 _sc_idle_since: dict[str, float] = {}   # teammate -> when it last went quiet (heartbeat activity)
 IDLE_POKE_MIN = 15
 
@@ -4974,6 +5007,8 @@ def _sc_idle_pokes(board, now: float) -> list[tuple[str, str, int | None, str]]:
     out = []
     with board.lock:
         for ch, rows in board.data.items():
+            if ch in _paused_channels():
+                continue
             for r in rows:
                 h = str(r.get("who") or "")
                 if r.get("state") != "doing" or h not in (config or {}).get("agents", {}):
@@ -5010,7 +5045,7 @@ async def _sc_board_tick() -> None:
         return
     for ch, h, reply_to, text in _sc_idle_pokes(mcp_bridge.BOARD, time.time()):
         store.add("Scranton", text, channel=ch, reply_to=reply_to)
-    reps = await asyncio.to_thread(scranton_board.housekeeping, mcp_bridge.BOARD, _pr_state)
+    reps = await asyncio.to_thread(scranton_board.housekeeping, mcp_bridge.BOARD, _pr_state, None, _paused_channels())
     night = time.localtime().tm_hour >= 23 or time.localtime().tm_hour < 7
     for ch, rep in reps.items():
         # Night: no "update the board" notes. They wake the project manager, who runs on Claude
@@ -5037,6 +5072,8 @@ async def _sc_due_loop():
                 _log_rate_limited("board tick failed")
         try:
             for h, it in _sc_due_book().overdue():
+                if (it.get("channel") or "") in _paused_channels():
+                    continue
                 store.add("Scranton", _sc_due_text(h, it), channel=it.get("channel") or "general",
                           reply_to=it.get("id") if isinstance(it.get("id"), int) else None)
                 await _broadcast_json({"type": "scranton_due", "items": _sc_due_book().public()})
@@ -5052,7 +5089,7 @@ async def scranton_board_get(channel: str = "general"):
         return JSONResponse({"rows": [], "summary": ""})
     rows = mcp_bridge.BOARD.rows(channel)
     return JSONResponse({"rows": rows, "summary": scranton_board.summary(rows) if rows else "",
-                         "states": scranton_board.STATE_ZH})
+                         "states": scranton_board.STATE_ZH, "paused": channel in _paused_channels()})
 
 
 @app.get("/api/scranton/due")

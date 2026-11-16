@@ -1738,3 +1738,4 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-board-stale { color: var(--ds-warn-text) !important; }
 .sc-who-st[data-idle] { color: var(--ds-warn-text); }
 .sc-who-st[data-stuck] { color: var(--ds-err-text); }
+.sc-board-head .sc-board-pause { flex-shrink: 0; }

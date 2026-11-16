@@ -79,7 +79,8 @@
         for (const r of open) counts[r.state] = (counts[r.state] || 0) + 1;
         const tiles = STATE_ORDER.filter((k) => k !== 'live' && (counts[k] || k === 'waiting_lu'))
             .map((k) => `<button type="button" class="sc-ov-tile${filter === k ? ' on' : ''}" data-state="${k}" aria-pressed="${filter === k}"><b>${counts[k] || 0}</b><span>${esc((data.states || {})[k] || k)}</span></button>`).join('');
-        const html = `<div class="sc-board-head"><h3>Who's on what</h3><span>${open.length ? open.length + ' open' : 'Nothing open'}</span></div>
+        const html = `<div class="sc-board-head"><h3>Who's on what</h3><span>${data.paused ? 'Paused: no reminders, nobody woken' : open.length ? open.length + ' open' : 'Nothing open'}</span>
+                <button type="button" class="sc-ch-edit sc-board-pause" data-paused="${data.paused ? 1 : 0}">${data.paused ? 'Resume project' : 'Pause project'}</button></div>
             ${open.length ? `<div class="sc-ch-card sc-ov">
                 <div class="sc-ov-tiles">${tiles}</div>
                 <div class="sc-ov-foot"><span>${busy.length} busy</span><span>${free.length} free${free.length ? ': ' + names(free) : ''}</span>${live.length ? `<span>${live.length} live today</span>` : ''}</div>
@@ -131,6 +132,12 @@
             filter = filter === k ? '' : k; fill(); return;
         }
         if (e.target.closest('#sc-ch-board .sc-ov-clear')) { filter = ''; fill(); return; }
+        const pb = e.target.closest('#sc-ch-board .sc-board-pause');
+        if (pb) {
+            fetch('/api/scranton/channel/pause', { method: 'POST', headers: { 'X-Session-Token': window.SESSION_TOKEN, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ channel: ch(), paused: pb.dataset.paused !== '1' }) }).then(load);
+            return;
+        }
         const li = e.target.closest('#sc-ch-board .sc-board-row');
         if (li && !e.target.closest('a')) { const r = (data.rows || []).find((x) => String(x.id) === li.dataset.row); if (r) go(r); }
     });

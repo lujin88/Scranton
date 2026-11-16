@@ -95,15 +95,31 @@ STALE_H = 4          # a row nobody touched for this long is probably out of dat
 MAX_PER_PERSON = 5   # Lu, 11-12: one person holding 11 of 25 is the bottleneck
 
 
-def housekeeping(board: "Board", pr_state, now: float | None = None) -> dict[str, dict]:
+def housekeeping(board: "Board", pr_state, now: float | None = None, skip=None) -> dict[str, dict]:
     """Per channel: rows whose PR has merged (set live here) and what to tell the project manager:
     {channel: {"merged": [row], "stale": [row], "overloaded": {who: n}}}. Each stale row is
     reported once per STALE_H window. pr_state(url) -> "MERGED" / "OPEN" / "CLOSED" / None."""
     now = time.time() if now is None else now
     out: dict[str, dict] = {}
+    skip = set(skip or ())
+    # Ask GitHub BEFORE taking the lock. 11-16: this ran `gh` (up to 15 s each) while holding it; the
+    # web page reads the board every 20 s on the server's main loop, so the whole server froze, every
+    # heartbeat was missed, and all teammates "disconnected" at once, several times a day.
+    with board.lock:
+        links = {str(r.get("link")) for ch, rows in board.data.items() if ch not in skip
+                 for r in rows if r.get("state") != "live" and "/pull/" in str(r.get("link") or "")}
+    states = {}
+    for link in links:
+        try:
+            states[link] = pr_state(link)
+        except Exception:
+            states[link] = None
+    pr_state = states.get
     with board.lock:
         changed = False
         for ch, rows in board.data.items():
+            if ch in skip:
+                continue   # a project Lu paused: no nudges
             rep = {"merged": [], "stale": [], "overloaded": {}}
             counts: dict[str, int] = {}
             for r in rows:
