@@ -737,7 +737,19 @@ def _take_queue(queue_file: Path, taking: Path, keep: int | None = None) -> int:
         fresh = None
     dropped = 0
     if keep is not None and len(lines) > keep:
-        dropped, lines = len(lines) - keep, lines[-keep:]
+        # Lu's own messages are never dropped (Lu, 11-10: "@pm 在么？" was lost while the PM was
+        # reconnecting); of everyone else's, the newest `keep` stay.
+        owner = _owner_name(queue_file).lower()
+
+        def from_owner(line: str) -> bool:
+            try:
+                return str(json.loads(line).get("sender", "")).strip().lower() == owner
+            except ValueError:
+                return False
+        others = [i for i, l in enumerate(lines) if not from_owner(l)]
+        keep_idx = set(others[-keep:]) | {i for i, l in enumerate(lines) if from_owner(l)}
+        dropped = len(lines) - len(keep_idx)
+        lines = [l for i, l in enumerate(lines) if i in keep_idx]
     from safe_io import atomic_write
     atomic_write(taking, "".join(l + "\n" for l in lines))
     if fresh is not None:
