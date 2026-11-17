@@ -5075,6 +5075,10 @@ def _sc_today_set(text: str, tell_pm: bool = True) -> str:
         t.choose([])
     elif kind in ("set", "add"):
         chans = t.choose(chans, add=(kind == "add"))
+    elif kind == "keep" and t.chosen() is not None:
+        st = t.chosen()
+        return "对，没选的项目今天不提醒、不 @ 人。" + (
+            "今天：所有项目。" if st[0] else f"今天只做：{'、'.join(st[1]) or '（没有）'}。")
     else:
         return _sc_today_mod.help_text(t.chosen(), [c for c in _project_channels() if not c.startswith("dm-")])
     out = _sc_today_mod.confirm(kind, chans)

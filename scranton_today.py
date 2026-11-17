@@ -88,20 +88,43 @@ class Today:
         return bool(self.s.get("all")), list(self.s.get("channels") or [])
 
 
+def _norm(x: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(x or "").lower())
+
+
 def parse(text: str, channels) -> tuple[str, list[str]]:
-    """What Lu meant: ("all" | "none" | "set" | "add" | "", [channels]). Channel names are matched
-    longest first, so "contour" doesn't steal "contour-slide"."""
-    t = MENTION_RE.sub(" ", str(text or "")).lower()
+    """What Lu meant: ("all" | "none" | "set" | "add" | "keep" | "", [channels]).
+    She writes project names the way she says them, not the channel id (11-17: "今天主要就做 client
+    advisory slides，然后来得及的话做 MAN screen" matched nothing). So compare without spaces and
+    hyphens, then by the first words of the name when only one channel starts that way."""
+    raw = MENTION_RE.sub(" ", str(text or "")).lower()
+    t = _norm(raw)
+    words = set(re.findall(r"[a-z0-9]+", raw))
     found = []
-    for c in sorted(channels, key=len, reverse=True):
-        if c.lower() in t:
+    for c in sorted(channels, key=lambda c: -len(_norm(c))):       # longest first
+        n = _norm(c)
+        if n and n in t:
             found.append(c)
-            t = t.replace(c.lower(), " ")
+            t = t.replace(n, " ")
+    for c in channels:
+        if c in found:
+            continue
+        toks = [x for x in re.split(r"[^a-z0-9]+", c.lower()) if x]
+        if not toks:
+            continue
+        two = "".join(toks[:2])
+        same_two = [o for o in channels if "".join(re.split(r"[^a-z0-9]+", o.lower())[:2]) == two]
+        same_one = [o for o in channels if re.split(r"[^a-z0-9]+", o.lower())[0] == toks[0]]
+        if (len(toks) >= 2 and len(two) >= 6 and two in t and len(same_two) == 1) \
+                or (len(toks[0]) >= 3 and toks[0] in words and len(same_one) == 1):
+            found.append(c)
     if found:
-        return ("add" if _ADD_RE.search(t) else "set"), [c for c in channels if c in found]
-    if _ALL_RE.search(t):
+        return ("add" if _ADD_RE.search(raw) else "set"), [c for c in channels if c in found]
+    if re.search(r"别的|其他|其它|剩下", raw):
+        return "keep", []          # "别的今天先不要做": that's already how it works; never wipes the choice
+    if _ALL_RE.search(raw):
         return "all", []
-    if _NONE_RE.search(t):
+    if _NONE_RE.search(raw):
         return "none", []
     return "", []
 

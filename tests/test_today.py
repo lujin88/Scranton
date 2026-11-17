@@ -72,3 +72,21 @@ def test_question_offers_recent_projects_and_wakes_no_teammate():
     text, choices = T.question("Lu", ["client-advisory-slid", "lu-portfolio"])
     assert text.startswith("@Lu ") and "@pm" not in text
     assert choices[:2] == ["client-advisory-slid", "lu-portfolio"] and T.ALL in choices and T.NONE in choices
+
+
+MINI = ["scranton-feedback", "lu-portfolio", "agent-monitor", "ai-pet", "eon-slide", "contour-slide",
+        "client-advisory-slid", "man-screen"]
+
+
+def test_names_the_way_lu_says_them():
+    assert T.parse("今天主要就做 client advisory slides，然后来得及的话做 MAN screen", MINI) == \
+        ("set", ["client-advisory-slid", "man-screen"])
+    assert T.parse("今天做 client advisory", MINI) == ("set", ["client-advisory-slid"])
+    assert T.parse("加上 portfolio 和 contour", MINI)[1] == ["contour-slide"]      # "portfolio" alone: not a first word
+    assert T.parse("加上 lu portfolio", MINI) == ("add", ["lu-portfolio"])
+    assert T.parse("今天做 slides", MINI) == ("", [])                              # two projects end in slide: ask
+
+
+def test_the_rest_not_today_never_wipes_the_choice():
+    assert T.parse("别的今天先不要做", MINI) == ("keep", [])
+    assert T.parse("别的今天都不做", MINI) == ("keep", [])
