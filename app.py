@@ -609,32 +609,17 @@ def configure(cfg: dict, session_token: str = ""):
             # Short timeout (10s) prevents slot theft when MCP tool calls are intermittent.
             try:
                 now = _time.time()
-                with mcp_bridge._presence_lock:
-                    currently_online = {
-                        name for name, ts in mcp_bridge._presence.items()
-                        if now - ts < mcp_bridge.PRESENCE_TIMEOUT
-                    }
-                    currently_active = set()
-                    for name, active in mcp_bridge._activity.items():
-                        if active:
-                            if now - mcp_bridge._activity_ts.get(name, 0) < mcp_bridge.ACTIVITY_TIMEOUT:
-                                currently_active.add(name)
-                            else:
-                                mcp_bridge._activity[name] = False  # auto-expire
-
                 # Crash timeout: if a wrapper hasn't heartbeated for 60s,
                 # it's dead — deregister it to free the slot.
                 _CRASH_TIMEOUT = 15
-                # If this loop itself was late, the server was frozen (or the Mac asleep) and could not
-                # take heartbeats: nobody crashed. Give everyone a fresh window instead of dropping them.
+                # Forgive a stall BEFORE snapshotting who's online. 11-16 computed currently_online
+                # first, then refreshed timestamps: crash-deregister was skipped, but
+                # timed_out = registered - currently_online still posted "disconnected" for
+                # everyone (Mac sleep / a stuck loop of >10s, PRESENCE_TIMEOUT).
                 _prev_tick = getattr(_sc_stall_guard, "at", now)
                 _sc_stall_guard.at = now
-                if now - _prev_tick > 8:
-                    log.warning("Server stalled %.0f s: not counting missed heartbeats", now - _prev_tick)
-                    with mcp_bridge._presence_lock:
-                        for _n in list(mcp_bridge._presence):
-                            if now - mcp_bridge._presence[_n] < _CRASH_TIMEOUT + (now - _prev_tick):
-                                mcp_bridge._presence[_n] = now
+                _forgive_stalled_heartbeats(now, _prev_tick, _CRASH_TIMEOUT)
+                currently_online, currently_active = _snapshot_presence(now)
                 registered = set(registry.get_all_names())
                 for name in registered:
                     with mcp_bridge._presence_lock:
@@ -4973,6 +4958,41 @@ def _label_of(handle: str) -> str:
 
 
 def _sc_stall_guard(): pass   # holds .at: when the presence loop last ran
+
+
+def _forgive_stalled_heartbeats(now: float, prev: float, crash_timeout: float = 15) -> bool:
+    """If this loop was late, the server could not take heartbeats. Refresh anyone who would
+    only look dead because of that gap. Returns True when a stall was detected."""
+    import mcp_bridge
+    gap = now - prev
+    if gap <= 8:
+        return False
+    log.warning("Server stalled %.0f s: not counting missed heartbeats", gap)
+    with mcp_bridge._presence_lock:
+        for name in list(mcp_bridge._presence):
+            if now - mcp_bridge._presence[name] < crash_timeout + gap:
+                mcp_bridge._presence[name] = now
+                if name in mcp_bridge._activity_ts:
+                    mcp_bridge._activity_ts[name] = now
+    return True
+
+
+def _snapshot_presence(now: float) -> tuple[set, set]:
+    """Who looks online / actively typing right now. Call after _forgive_stalled_heartbeats."""
+    import mcp_bridge
+    with mcp_bridge._presence_lock:
+        currently_online = {
+            name for name, ts in mcp_bridge._presence.items()
+            if now - ts < mcp_bridge.PRESENCE_TIMEOUT
+        }
+        currently_active = set()
+        for name, active in mcp_bridge._activity.items():
+            if active:
+                if now - mcp_bridge._activity_ts.get(name, 0) < mcp_bridge.ACTIVITY_TIMEOUT:
+                    currently_active.add(name)
+                else:
+                    mcp_bridge._activity[name] = False  # auto-expire
+        return currently_online, currently_active
 
 
 def _paused_channels() -> set:
