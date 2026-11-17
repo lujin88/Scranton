@@ -15,7 +15,7 @@ work then goes where it was addressed, as before.
 """
 from __future__ import annotations
 
-import json
+import json, shutil
 import re
 import time
 from pathlib import Path
@@ -97,6 +97,13 @@ def _base(name: str) -> str:
     return re.sub(r"-\d+$", "", str(name or "").strip().lower())
 
 
+def can_start(agent: dict) -> bool:
+    """False when the intern's app isn't installed on this Mac (11-17: agy was missing on the
+    mini, so work moved to interns that could not start and nobody picked it up)."""
+    cmd = str((agent or {}).get("command") or "").strip()
+    return not cmd or shutil.which(cmd.split()[0]) is not None
+
+
 def reroute(cfg: dict | None, targets: list[str], channel: str, sender: str,
             api_ok: bool = False) -> tuple[list[str], dict]:
     """Swap visual/motion for their interns while the plan is low. DMs stay as they are
@@ -109,7 +116,7 @@ def reroute(cfg: dict | None, targets: list[str], channel: str, sender: str,
     out, moved = [], {}
     for t in targets:
         to = mapping.get(_base(t))
-        if to and to in agents and _base(sender) != to:
+        if to and to in agents and _base(sender) != to and can_start(agents[to]):
             moved[t] = to
             t = to
         out.append(t)
@@ -119,9 +126,14 @@ def reroute(cfg: dict | None, targets: list[str], channel: str, sender: str,
 def notice(cfg: dict | None, low: bool) -> str:
     """The one message Scranton posts to the project manager when the state changes."""
     s = settings(cfg)
-    pairs = "，".join(f"@{a} → @{b}" for a, b in s["map"].items())
+    agents = (cfg or {}).get("agents", {}) or {}
+    live = {a: b for a, b in s["map"].items() if b in agents and can_start(agents[b])}
+    pairs = "，".join(f"@{a} → @{b}" for a, b in live.items())
     pct = _state.get("percent")
     where = f"{_state.get('label') or ''} {pct:.0f}%".strip() if pct is not None else ""
+    if low and not live:
+        return (f"@pm ChatGPT 额度已用 {where}：实习生的 app 在这台 Mac 上起不来，"
+                f"视觉/动效的活不转，照常发给 @visual、@motion。")
     if low:
         return (f"@pm ChatGPT 额度已用 {where}：从现在起发给视觉/动效的活自动转给 Gemini 实习生"
                 f"（{pairs}，私信除外）。正在做的活请你看要不要转。降到 {s['back_below']:.0f}% 以下自动恢复。")

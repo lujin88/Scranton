@@ -69,3 +69,23 @@ def test_api_ok_follows_quota_ask_state(tmp_path):
     assert st.api_ok("codex")
     st.approved["codex"]["until"] = time.time() - 1   # after the reset it moves again
     assert not st.api_ok("codex")
+
+
+def test_missing_intern_app_keeps_work_with_designer(tmp_path):
+    # 11-17: agy wasn't installed on the mini; moved work went to interns that never started
+    cfg = _cfg(tmp_path, [{"label": "每周", "usedPercent": 99, "resetsAt": None}])
+    cfg["agents"] = {**CFG_AGENTS, "visintern": {"command": "no-such-app-xyz"},
+                     "motionintern": {"command": "no-such-app-xyz"}}
+    q.check(cfg)
+    assert q.reroute(cfg, ["visual", "motion"], "lu-portfolio", "pm") == (["visual", "motion"], {})
+    assert "不转" in q.notice(cfg, True)
+
+
+def test_installed_intern_app_still_moves(tmp_path):
+    cfg = _cfg(tmp_path, [{"label": "每周", "usedPercent": 99, "resetsAt": None}])
+    cfg["agents"] = {**CFG_AGENTS, "visintern": {"command": "python3"},
+                     "motionintern": {"command": "no-such-app-xyz"}}
+    q.check(cfg)
+    t, moved = q.reroute(cfg, ["visual", "motion"], "lu-portfolio", "pm")
+    assert moved == {"visual": "visintern"} and t == ["visintern", "motion"]
+    assert "@visual → @visintern" in q.notice(cfg, True) and "motionintern" not in q.notice(cfg, True)
