@@ -89,6 +89,8 @@ def main():
     mcp_bridge._HANDOFF_DIR = data_dir / "handoffs"
     import scranton_board
     mcp_bridge.BOARD = scranton_board.Board(data_dir / "board.json")
+    import scranton_said
+    mcp_bridge.SAID = scranton_said.Said(data_dir / "said.json")
     mcp_bridge._load_roles()
 
     # Start MCP servers in background threads

@@ -18,6 +18,12 @@
             const r = await fetch('/api/scranton/board?channel=' + encodeURIComponent(c), { headers: { 'X-Session-Token': window.SESSION_TOKEN } });
             if (!r.ok || ch() !== c) return;
             data = await r.json();
+            // What Lu said here that nobody has taken yet (scranton_said.py).
+            try {
+                const s = await fetch('/api/scranton/said?channel=' + encodeURIComponent(c), { headers: { 'X-Session-Token': window.SESSION_TOKEN } });
+                data.said = s.ok ? await s.json() : null;
+            } catch (_) { data.said = null; }
+            if (ch() !== c) return;
             paint();
         } catch (_) { /* offline */ }
     }
@@ -74,6 +80,16 @@
                 ${byWho[h] ? `<ul class="sc-board-list">${byWho[h].map(askLi).join('')}</ul>` : ''}
             </div>`;
         const names = (hs) => hs.map((h) => esc(label(h))).join('、');
+        // You said, not picked up yet (Lu, 11-18: "每次说完很多事情都没做"). Click one to open that message.
+        const saidCard = () => {
+            const o = (data.said && data.said.open) || [];
+            if (!o.length) return '';
+            const own = (t) => String(t || '').split('\n').filter((l) => !/^\s*>/.test(l)).join(' ').replace(/@[\w-]+/g, '').trim();
+            return `<div class="sc-ch-card sc-who-card"><div class="sc-who"><div class="sc-who-head"><b>You said, not picked up yet</b><span class="sc-who-n">${o.length}</span></div>
+                <ul class="sc-board-list">${o.slice(-12).reverse().map((it) => `<li class="sc-board-row sc-said-row" data-said="${it.id}" tabindex="0" role="button" aria-label="Open what you said">
+                    <span class="sc-board-chip">${esc(String(it.at).slice(6))}</span>
+                    <span class="sc-board-ask"><span class="sc-board-t">${esc(own(it.said).slice(0, 90))}</span></span></li>`).join('')}</ul></div></div>`;
+        };
         // Overview first (Lu, 11-11): how many in each step, waiting-on-you first; then who's free.
         const counts = {};
         for (const r of open) counts[r.state] = (counts[r.state] || 0) + 1;
@@ -85,6 +101,7 @@
                 <div class="sc-ov-tiles">${tiles}</div>
                 <div class="sc-ov-foot"><span>${busy.length} busy</span><span>${free.length} free${free.length ? ': ' + names(free) : ''}</span>${live.length ? `<span>${live.length} live today</span>` : ''}</div>
             </div>` : ''}
+            ${saidCard()}
             <div class="sc-ch-card sc-who-card">
                 ${busy.map(person).join('')}
                 ${byWho._ ? `<div class="sc-who"><div class="sc-who-head"><b>Not assigned</b><span class="sc-who-n">${byWho._.length}</span></div><ul class="sc-board-list">${byWho._.map(askLi).join('')}</ul></div>` : ''}
@@ -124,6 +141,12 @@
         if (window.scFocusMessage) window.scFocusMessage(m);
     }
     document.addEventListener('click', (e) => {
+        const said = e.target.closest('#sc-ch-board .sc-said-row');
+        if (said) {
+            if (window.scCloseRightPanel) window.scCloseRightPanel();
+            if (window.scFocusMessage) window.scFocusMessage((window.scMsgs && window.scMsgs.get(Number(said.dataset.said))) || { id: Number(said.dataset.said), channel: ch() });
+            return;
+        }
         const tile = e.target.closest('#sc-ch-board .sc-ov-tile');
         if (tile) {
             const k = tile.dataset.state;

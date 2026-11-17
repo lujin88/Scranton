@@ -27,6 +27,7 @@ import scranton_quota as _sc_quota
 import scranton_due as _sc_due_mod
 import scranton_quota_ask as _sc_qask
 import scranton_today as _sc_today_mod
+import scranton_said as _sc_said_mod
 import scranton_apikeys as _sc_keys
 from router import Router
 from agents import AgentTrigger
@@ -1158,6 +1159,12 @@ async def _handle_new_message(msg: dict):
                 metadata={"draft_id": draft_id, "revision": revision, "proposed_by": sender,
                            "errors": ["Invalid JSON in session block"], "valid": False},
             )
+
+    # Scranton: keep what Lu said (scranton_said). A teammate who cites its #number or replies to it has taken it.
+    try:
+        _sc_said_note(msg, sender, text, channel, msg_type)
+    except Exception:
+        _log_rate_limited("said failed")
 
     # Scranton: "@Scranton 今天做 …" from Lu sets today's projects. No teammate is woken for it.
     if (msg_type == "chat" and (channel == SC_DM or _sc_today_mod.MENTION_RE.search(text or ""))
@@ -5122,6 +5129,47 @@ def _sc_today():
     return _SC_TODAY[0]
 
 
+_sc_said_filled = []
+
+
+def _sc_said():
+    import mcp_bridge
+    said = mcp_bridge.SAID
+    if said is not None and not _sc_said_filled:
+        _sc_said_filled.append(1)
+        try:
+            with store._lock:
+                msgs = list(store._messages)
+            said.backfill(msgs, str(room_settings.get("username") or "Lu"), store.get_by_id)
+        except Exception:
+            _log_rate_limited("said backfill failed")
+    return said
+
+
+def _sc_said_note(msg: dict, sender: str, text: str, channel: str, msg_type: str) -> None:
+    said = _sc_said()
+    if said is None or msg_type != "chat" or channel == SC_DM:
+        return
+    owner = str(room_settings.get("username") or "").lower()
+    if sender.lower() == owner:
+        if _sc_today_mod.MENTION_RE.search(text or ""):
+            return
+        rid = msg.get("reply_to")
+        orig = store.get_by_id(rid) if isinstance(rid, int) else None
+        said.add(msg, context=f"{orig.get('sender')}: {orig.get('text')}" if orig else "")
+    elif sender.lower() not in ("scranton", "system"):
+        ids = _sc_said_mod.cited_ids(text)
+        if isinstance(msg.get("reply_to"), int):
+            ids.append(msg["reply_to"])
+        # The project manager answering her ("@Lu …") has dealt with what she said in the ten
+        # minutes before: her bursts are read together and answered once.
+        if _re.sub(r"-\d+$", "", sender.lower()) == _mentions_from() and owner and _re.search(
+                r"@" + _re.escape(owner) + r"(?![\w-])", text or "", _re.I):
+            ids += [it["id"] for it in said.open_items(channel) if time.time() - it["ts"] <= 600]
+        if ids:
+            said.take(ids, sender, msg.get("id") if isinstance(msg.get("id"), int) else 0)
+
+
 SC_DM = "dm-scranton"   # Lu's 1-on-1 with Scranton: no @ needed there, no teammate is woken
 
 
@@ -5259,6 +5307,16 @@ async def _sc_board_tick() -> None:
     for ch, h, reply_to, text in _sc_idle_pokes(mcp_bridge.BOARD, time.time()):
         store.add("Scranton", text, channel=ch, reply_to=reply_to)
     reps = await asyncio.to_thread(scranton_board.housekeeping, mcp_bridge.BOARD, _pr_state, None, _paused_channels())
+    # What Lu said that nobody took for 15 minutes: one note to the PM per channel, at most every 45.
+    said, via = _sc_said(), _mentions_from()
+    if said is not None and via:
+        owner = str(room_settings.get("username") or "Lu")
+        for ch in {it["ch"] for it in said.open_items()}:
+            if _quiet_channel(ch) and not ch.startswith("dm-"):
+                continue
+            items = said.due_note(ch)
+            if items:
+                store.add("Scranton", _sc_said_mod.note_text(owner, items, via), channel=ch)
     night = time.localtime().tm_hour >= 23 or time.localtime().tm_hour < 7
     for ch, rep in reps.items():
         if _quiet_channel(ch):
@@ -5305,6 +5363,16 @@ async def scranton_board_get(channel: str = "general"):
     rows = mcp_bridge.BOARD.rows(channel)
     return JSONResponse({"rows": rows, "summary": scranton_board.summary(rows) if rows else "",
                          "states": scranton_board.STATE_ZH, "paused": channel in _paused_channels()})
+
+
+@app.get("/api/scranton/said")
+async def scranton_said_get(channel: str = "general"):
+    """What Lu said here that nobody has taken yet (for the channel overview)."""
+    said = _sc_said()
+    if said is None:
+        return JSONResponse({"open": [], "counts": {}})
+    return JSONResponse({"open": [_sc_said_mod.line(it) for it in said.open_items(channel)][-50:],
+                         "counts": said.counts(channel)})
 
 
 @app.get("/api/scranton/due")

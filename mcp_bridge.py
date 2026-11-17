@@ -1102,6 +1102,43 @@ def chat_board(sender: str, action: str = "read", channel: str = "", id: int = 0
     return "Error: action must be read, set or remove."
 
 
+SAID = None   # set by run.py: scranton_said.Said
+
+
+def chat_said(sender: str, action: str = "open", channel: str = "", q: str = "", ids: list[int] | None = None,
+              note: str = "", ctx: Context | None = None) -> str:
+    """What the owner said in a channel, word for word, kept by Scranton (her words, her pictures,
+    the message she was replying to). Use it instead of your memory.
+
+    action:
+      find  — everything she said in this channel about `q` (a page name, a slide number, a word
+              she uses), oldest first: the last line is her latest word. Call it BEFORE you assign
+              or change a page, and paste her lines and picture paths into the assignment.
+      open  — what she said here that nobody has taken yet.
+      skip  — these `ids` won't be done; `note` says why (she can see it).
+    You take one by putting its number (#15247) in the message where you assign or do it, or by
+    replying to it. There is no "take" call."""
+    sender, err = _resolve_tool_identity(sender, ctx, field_name="sender", required=False)
+    if err:
+        return err
+    if SAID is None:
+        return "Error: not available."
+    import scranton_said as _S
+    channel = (channel or _last_channel_of(sender) or "general").strip()
+    action = (action or "open").strip().lower()
+    if action == "find":
+        if not str(q or "").strip():
+            return "Error: find needs q (a page name, a slide number, a word she uses)."
+        return json.dumps({"channel": channel, "q": q, "said": [_S.line(it) for it in SAID.find(channel, q)]}, ensure_ascii=False)
+    if action == "open":
+        return json.dumps({"channel": channel, "open": [_S.line(it) for it in SAID.open_items(channel)][-40:]}, ensure_ascii=False)
+    if action == "skip":
+        if not ids or not str(note or "").strip():
+            return "Error: skip needs ids and a note saying why."
+        return json.dumps({"skipped": SAID.skip(ids, sender, note)})
+    return "Error: action must be find, open or skip."
+
+
 def _last_channel_of(sender: str) -> str:
     with _last_read_lock:
         return str(_last_read_channel.get(sender) or "")
@@ -1109,7 +1146,7 @@ def _last_channel_of(sender: str) -> str:
 
 _ALL_TOOLS = [
     chat_send, chat_read, chat_resync, chat_join, chat_who, chat_rules, chat_decision,
-    chat_channels, chat_set_hat, chat_claim, chat_summary, chat_propose_job, chat_handoff, chat_board,
+    chat_channels, chat_set_hat, chat_claim, chat_summary, chat_propose_job, chat_handoff, chat_board, chat_said,
 ]
 
 
