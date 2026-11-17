@@ -1504,13 +1504,24 @@ def main():
                 if problem != _seen[0]:
                     _seen[0], _seen[1] = problem, now
                 if not problem and _seen[1] and now - _seen[1] > 60:
-                    for k in ("limit", "model_limit", "api_credit"):
+                    for k in ("limit", "model_limit", "api_credit", "question", "signin"):
                         _reported.pop(k, None)   # gone from the screen: next time is a new one
                 if problem and not active and now - _seen[1] >= 5 and now - _reported.get(problem, 0) > 1800:
                     # say it once where the agent was last asked; a limit is said once until it clears
-                    _reported[problem] = now + (10 ** 9 if problem in ("limit", "model_limit", "api_credit") else 0)
+                    # A question is said once until it leaves the screen, like a limit (11-17: 17 repeats).
+                    _reported[problem] = now + (10 ** 9 if problem in ("limit", "model_limit", "api_credit", "question") else 0)
                     from wrapper_unix import problem_text
                     cur, _ = get_identity()
+                    if problem == "question" and _HANDOVER.get("tmux"):
+                        try:
+                            from wrapper_unix import pane_text, is_signin
+                            if is_signin(pane_text(_HANDOVER["tmux"], 40)):
+                                _reported["signin"] = _reported[problem]
+                                _post(server_port, cur, get_token(), "dm-scranton", None,
+                                      f"@{_owner_name(queue_file)} " + problem_text("signin", _app_name, "", _HANDOVER["tmux"]))
+                                continue
+                        except Exception:
+                            pass
                     if problem in ("limit", "model_limit", "api_credit"):
                         # Ask Scranton first: a warning isn't the end (keep going), a model that's out
                         # moves to one with room, then the backup API key; only then "I stopped".

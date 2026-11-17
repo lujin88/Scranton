@@ -661,7 +661,7 @@ def configure(cfg: dict, session_token: str = ""):
                                         "new_name": renamed["new"],
                                     })
                                     asyncio.run_coroutine_threadsafe(_broadcast(rename_event), _event_loop)
-                            store.add(name, f"{name} disconnected (timeout)", msg_type="leave", channel=_agent_last_channel.get(name, _last_active_channel))
+                            _leave_note(name, f"{name} disconnected (timeout)")
                             _posted_leave.add(name)
 
                 # Re-fetch registered names (may have changed from crash timeout above)
@@ -683,7 +683,7 @@ def configure(cfg: dict, session_token: str = ""):
                     # Post leave message ONCE per offline transition (debounced)
                     if name not in _posted_leave:
                         _posted_leave.add(name)
-                        store.add(name, f"{name} disconnected", msg_type="leave", channel=_agent_last_channel.get(name, _last_active_channel))
+                        _leave_note(name, f"{name} disconnected")
 
                 # Clear leave debounce for agents that came back online
                 _posted_leave.difference_update(currently_online)
@@ -700,7 +700,7 @@ def configure(cfg: dict, session_token: str = ""):
                         continue
                     if not registry.is_registered(name) and name not in _posted_leave:
                         _posted_leave.add(name)
-                        store.add(name, f"{name} disconnected", msg_type="leave", channel=_agent_last_channel.get(name, _last_active_channel))
+                        _leave_note(name, f"{name} disconnected")
 
                 if _known_online != currently_online and _event_loop:
                     asyncio.run_coroutine_threadsafe(broadcast_status(), _event_loop)
@@ -1239,7 +1239,88 @@ async def _handle_new_message(msg: dict):
         if orig and chat_msg:
             msg_for = (f"{chat_msg}\n\n(Scranton: this was addressed to @{orig}; ChatGPT's plan is low, "
                        f"so it's yours. Read the thread for context and do it as @{orig} would.)")
+        if _sc_batchable(sender, target, msg_type, text, custom_prompt, channel):
+            _sc_batch_add(target, sender, text, channel, thread_root)
+            continue
         await _wake_teammate(target, msg_for, channel, custom_prompt, thread_root)
+
+
+# Lu, 11-17 (A): she writes to the project manager in bursts (348 messages that day, 181 of them
+# under 30 s after the one before), and each one was a full paid turn, often undoing the last.
+# Her messages to the PM wait until she has been quiet for BATCH_WAIT seconds (BATCH_MAX at most),
+# then arrive as one. 紧急 goes straight through. [team] batch_seconds = 0 turns it off.
+BATCH_MAX = 60
+_sc_batches: dict = {}
+
+
+def _sc_batch_wait() -> float:
+    try:
+        return float((config or {}).get("team", {}).get("batch_seconds", 20))
+    except (TypeError, ValueError):
+        return 20.0
+
+
+def _sc_batchable(sender, target, msg_type, text, custom_prompt, channel) -> bool:
+    via = _mentions_from()
+    return bool(via and _sc_batch_wait() > 0 and msg_type == "chat" and not custom_prompt
+                and str(sender).lower() == str(room_settings.get("username", "")).lower()
+                and _re.sub(r"-\d+$", "", str(target).lower()) == via
+                and "紧急" not in str(text or "") and "urgent" not in str(text or "").lower())
+
+
+def _sc_batch_text(sender: str, texts: list) -> str:
+    if len(texts) == 1:
+        return f"{sender}: {texts[0]}"
+    body = "\n".join(f"{i}) {t}" for i, t in enumerate(texts, 1))
+    return (f"{sender}: ({len(texts)} messages sent one after another. Read them all first: a later one may "
+            f"change an earlier one. Then answer once.)\n{body}")
+
+
+def _sc_batch_add(target: str, sender: str, text: str, channel: str, thread_root) -> None:
+    now = time.time()
+    b = _sc_batches.get(target)
+    if b is None:
+        b = _sc_batches[target] = {"first": now, "items": [], "task": None, "sender": sender}
+    b["items"].append((text, channel, thread_root))
+    if b["task"] is not None:
+        b["task"].cancel()
+    delay = max(0.0, min(_sc_batch_wait(), b["first"] + BATCH_MAX - now))
+    b["task"] = asyncio.ensure_future(_sc_batch_flush(target, delay))
+
+
+async def _sc_batch_flush(target: str, delay: float) -> None:
+    try:
+        await asyncio.sleep(delay)
+    except asyncio.CancelledError:
+        return
+    b = _sc_batches.pop(target, None)
+    if not b:
+        return
+    by_ch: dict = {}
+    for text, ch, th in b["items"]:
+        by_ch.setdefault(ch, []).append((text, th))
+    for ch, items in by_ch.items():
+        threads = {th for _, th in items}
+        try:
+            await _wake_teammate(target, _sc_batch_text(b["sender"], [t for t, _ in items]), ch, "",
+                                 threads.pop() if len(threads) == 1 else None)
+        except Exception:
+            _log_rate_limited("batch flush failed")
+
+
+def _per_turn_agent(name: str) -> bool:
+    """Cursor's CLI opens a new connection for every reply and drops it 10 s later, and extra copies
+    register as name-2, name-3 (11-17: 38 of the day's 62 "disconnected" lines were webdev). That
+    isn't someone going away, so it isn't announced."""
+    base = _re.sub(r"-\d+$", "", str(name or "").lower())
+    cmd = str(((config or {}).get("agents", {}).get(base, {}) or {}).get("command") or "")
+    return base != str(name or "").lower() or Path(cmd).name in ("agent", "cursor-agent")
+
+
+def _leave_note(name: str, text: str) -> None:
+    if _per_turn_agent(name):
+        return
+    store.add(name, text, msg_type="leave", channel=_agent_last_channel.get(name, _last_active_channel))
 
 
 def _mentions_from() -> str:
@@ -4812,6 +4893,26 @@ async def _sc_api_back_loop():
             await _sc_qa_tick()
         except Exception:
             _log_rate_limited("api fallback check failed")
+
+
+@app.on_event("shutdown")
+async def _sc_batch_drain():
+    """Lu's messages held for the 20 s batch are handed over before the server stops (an update
+    restarts it): nothing she wrote is lost."""
+    for target in list(_sc_batches):
+        b = _sc_batches.pop(target, None)
+        if not b:
+            continue
+        if b.get("task") is not None:
+            b["task"].cancel()
+        by_ch: dict = {}
+        for text, ch, th in b["items"]:
+            by_ch.setdefault(ch, []).append(text)
+        for ch, texts in by_ch.items():
+            try:
+                agents.trigger_sync(target, message=_sc_batch_text(b["sender"], texts), channel=ch)
+            except Exception:
+                pass
 
 
 @app.on_event("startup")

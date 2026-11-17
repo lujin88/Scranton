@@ -330,6 +330,13 @@ _PROBLEMS = [
      "I stopped: my {app} plan has hit its usage limit. @ me again after it resets, or switch me to another app: Settings → Agents → me → Runs on."),
     ("login", re.compile(r"please (?:run )?/login|not logged in|log ?in again|invalid api key|authentication (?:failed|error)|token (?:has )?expired", re.I),
      "I stopped: {app} needs you to sign in again. Settings → Connections → Switch account."),
+    # The question on screen is the app's sign-in (11-17: both Gemini interns sat on Antigravity's
+    # Google sign-in for 80 minutes and said "waiting on a question" 17 times; nobody could answer
+    # it from chat). Said once, in Lu's 1-on-1 with Scranton, with what to do.
+    ("signin", re.compile(r"(?!x)x"),
+     "{app} is asking me to sign in on this Mac, and only you can do that. In Terminal: "
+     "tmux attach -t {tmux} , choose the sign-in option and finish it in the browser, then press Ctrl-B and D. "
+     "I'll carry on by myself after that."),
     ("question", re.compile(r"(?!x)x"),
      "I stopped: my terminal is waiting on a question. Answer it here."),
     ("error", re.compile(r"\bAPI Error\b|Internal server error|overloaded_error|Connection error", re.I),
@@ -416,11 +423,19 @@ def describe_screen(tmux_session: str) -> tuple[str, str | None]:
     return doing[:80], problem
 
 
-def problem_text(key: str, app: str, detail: str = "") -> str:
+SIGNIN_RE = re.compile(r"not signed in|sign in with|select login method|log ?in with|google oauth|"
+                       r"login with google|sign in to continue|authenticate with", re.I)
+
+
+def is_signin(screen: str) -> bool:
+    return bool(SIGNIN_RE.search(str(screen or "")))
+
+
+def problem_text(key: str, app: str, detail: str = "", tmux: str = "") -> str:
     """The stop message. `detail` (model, which quota, % used, reset time) is added when Scranton knows it."""
     for k, _, msg in _PROBLEMS:
         if k == key:
-            return msg.format(app=app or "the app") + (f" ({detail})" if detail else "")
+            return msg.format(app=app or "the app", tmux=tmux or "<session>") + (f" ({detail})" if detail else "")
     return ""
 
 
