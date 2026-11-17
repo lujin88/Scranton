@@ -51,10 +51,53 @@ function attachmentMarkup(att, pending = false) {
     </a>`;
 }
 
+// Scranton: a long paste becomes an attachment chip instead of flooding the message box
+// (Lu, 11-17: a whole interview script pasted into the box, twice). The text is uploaded as a
+// .md file; the chip shows its first lines, and the pencil puts the text back in the box.
+const PASTE_MIN_CHARS = 1200, PASTE_MIN_LINES = 16;
+const pastedTexts = new Map();   // upload url -> the pasted text (this page only)
+
+function pasteIsLong(text) {
+    const t = String(text || '');
+    return t.length >= PASTE_MIN_CHARS || t.split('\n').length >= PASTE_MIN_LINES;
+}
+
+function pastedFile(text) {
+    const first = (String(text).split('\n').find((l) => l.trim()) || 'text').trim()
+        .replace(/[\\/:*?"<>|#\[\]`]+/g, ' ').replace(/\s+/g, ' ').slice(0, 48).trim();
+    const file = new File([text], `Pasted - ${first || 'text'}.md`, { type: 'text/markdown' });
+    file._pastedText = String(text);
+    return file;
+}
+
+function pastedPreviewMarkup(text) {
+    const lines = String(text).split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 5).join('\n');
+    const icon = window.scIcon ? window.scIcon('edit', 16) : '';
+    return `<span class="sc-pasted-text">${escapeHtml(lines.slice(0, 220))}</span>`
+        + `<span class="sc-pasted-foot"><span class="sc-pasted-tag">PASTED</span>`
+        + `<button type="button" class="sc-pasted-edit" title="Edit: put the text back in the message box" aria-label="Edit pasted text">${icon}</button></span>`;
+}
+
 function createAttachmentPreview(att, onRemove) {
     const wrap = document.createElement('div');
     wrap.className = 'attachment-preview';
-    wrap.innerHTML = attachmentMarkup(att, true);
+    const pasted = pastedTexts.get(att.url);
+    if (pasted != null) {
+        wrap.classList.add('sc-pasted');
+        wrap.innerHTML = pastedPreviewMarkup(pasted);
+        wrap.title = att.name || 'Pasted text';
+        wrap.querySelector('.sc-pasted-edit').addEventListener('click', () => {
+            const box = wrap.closest('#sc-thread-atts') ? document.getElementById('sc-thread-input') : document.getElementById('input');
+            onRemove();
+            if (!box) return;
+            const at = box.selectionStart ?? box.value.length;
+            box.value = box.value.slice(0, at) + pasted + box.value.slice(box.selectionEnd ?? at);
+            box.dispatchEvent(new Event('input', { bubbles: true }));
+            box.focus();
+        });
+    } else {
+        wrap.innerHTML = attachmentMarkup(att, true);
+    }
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'attachment-remove';
@@ -94,6 +137,7 @@ async function uploadAttachment(file) {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Upload failed. Please try again.');
+    if (file._pastedText != null && data.url) pastedTexts.set(data.url, file._pastedText);
     return data;
 }
 

@@ -1723,7 +1723,11 @@
         input.addEventListener('paste', (e) => {
             const files = Array.from(e.clipboardData?.files || []);
             // stop it here, or the page-wide paste handler uploads the same files to the main box too
-            if (files.length) { e.preventDefault(); e.stopPropagation(); addThreadFiles(files); }
+            if (files.length) { e.preventDefault(); e.stopPropagation(); addThreadFiles(files); return; }
+            const text = e.clipboardData?.getData('text/plain') || '';
+            if (typeof pasteIsLong === 'function' && pasteIsLong(text)) {
+                e.preventDefault(); e.stopPropagation(); addThreadFiles([pastedFile(text)]);
+            }
         });
         document.getElementById('sc-thread-send').addEventListener('click', sendThreadReply);
     }

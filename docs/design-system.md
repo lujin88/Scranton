@@ -81,3 +81,12 @@ Side panels (thread, channel overview): the title starts at the content edge (32
 
 In `design-system.css`, font sizes and radii use tokens: 12/13/14/15/20 px → `--ds-fs-xs/sm/md/lg/xl`; off-scale 10, 11 → xs, 12.5 → sm. Radii 7/8 → `--ds-r-control`, 10 → `--ds-r-row`, 14 → `--ds-r-card`, 999 → `--ds-r-pill`. Left as they are on purpose: 50% (circles), 16 px on phone selects (stops iOS zooming).
 Known debt: about 580 `!important` in design-system.css, from layering over the legacy styles; new rules should win by being in the right component, not by `!important`.
+
+## Pasted text chip (11-17)
+
+Pasting 1200+ characters or 16+ lines into the message box (channel or thread) does not fill the box: the text is uploaded as `Pasted - <first line>.md` and shown as a chip in the attachment row.
+
+- Chip: 200 × 132, `--ds-overlay` background, 1px `--ds-line`, `--ds-r-card`, padding 12. Up to 4 lines of the text in `--ds-fs-sm` / `--ds-text-2`.
+- Foot: a `PASTED` tag (`--ds-r-pill`, 1px `--ds-line-strong`, `--ds-fs-xs`, 600) on the left; a 28px pencil button (Remix `edit`) on the right that puts the text back into the box and removes the chip.
+- Remove (×) sits top right, shown on hover like every other attachment.
+- Shorter pastes are untouched. In a sent message it is a normal file attachment.

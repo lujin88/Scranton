@@ -2788,6 +2788,13 @@ function setupPaste() {
         if (files.length) {
             e.preventDefault();
             await uploadFiles(files, isJobFocused);
+            return;
+        }
+        // A long text pasted into the message box becomes a "PASTED" chip (attachments.js).
+        const text = e.clipboardData.getData('text/plain');
+        if (e.target === document.getElementById('input') && pasteIsLong(text)) {
+            e.preventDefault();
+            await uploadFiles([pastedFile(text)], false);
         }
     });
 }

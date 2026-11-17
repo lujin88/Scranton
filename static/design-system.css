@@ -1739,3 +1739,19 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-who-st[data-idle] { color: var(--ds-warn-text); }
 .sc-who-st[data-stuck] { color: var(--ds-err-text); }
 .sc-board-head .sc-board-pause { flex-shrink: 0; }
+
+/* Pasted text chip (11-17): a long paste becomes an attachment; the box stays short. See docs/design-system.md. */
+#attachments .attachment-preview.sc-pasted, #sc-thread-atts .attachment-preview.sc-pasted {
+  display: flex !important; flex-direction: column; justify-content: space-between; gap: 8px;
+  width: 200px; max-width: 100% !important; height: 132px; padding: 12px; box-sizing: border-box;
+  background: var(--ds-overlay); border: 1px solid var(--ds-line); border-radius: var(--ds-r-card); }
+.sc-pasted-text { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+  white-space: pre-line; font-size: var(--ds-fs-sm); line-height: 1.4; color: var(--ds-text-2); padding-right: 20px; }
+.sc-pasted-foot { display: flex; align-items: center; justify-content: space-between; }
+.sc-pasted-tag { font-size: var(--ds-fs-xs); font-weight: 600; letter-spacing: .04em; color: var(--ds-text-2);
+  padding: 2px 8px; border: 1px solid var(--ds-line-strong); border-radius: var(--ds-r-pill); }
+.sc-pasted-edit { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+  border: 0; border-radius: var(--ds-r-control); background: transparent; color: var(--ds-text-2); cursor: pointer; }
+.sc-pasted-edit:hover, .sc-pasted-edit:focus-visible { background: var(--ds-hover); color: var(--ds-text); }
+#attachments .attachment-preview.sc-pasted > .attachment-remove, #sc-thread-atts .attachment-preview.sc-pasted > .attachment-remove {
+  top: 4px !important; right: 4px !important; transform: none !important; }
