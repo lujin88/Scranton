@@ -52,6 +52,13 @@ class AgentTrigger:
 
         with open(queue_file, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")
+        if job_id is None:
+            # Scranton: where this teammate was last called. A reply sent without a channel goes
+            # there, not to whatever channel it read last (Lu, 11-17: asked in one channel, the
+            # answer turned up in another).
+            if not hasattr(self, "woken"):
+                self.woken = {}
+            self.woken[agent_name] = (channel, time.time())
 
         log.info("Queued @%s trigger (ch=%s, job=%s): %s", agent_name, channel, job_id, message[:80])
 
@@ -78,5 +85,12 @@ class AgentTrigger:
 
         with open(queue_file, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")
+        if job_id is None:
+            # Scranton: where this teammate was last called. A reply sent without a channel goes
+            # there, not to whatever channel it read last (Lu, 11-17: asked in one channel, the
+            # answer turned up in another).
+            if not hasattr(self, "woken"):
+                self.woken = {}
+            self.woken[agent_name] = (channel, time.time())
 
         log.info("Queued @%s trigger (ch=%s, job=%s): %s", agent_name, channel, job_id, message[:80])

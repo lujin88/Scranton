@@ -259,8 +259,11 @@ def chat_send(
         with _last_read_lock:
             fallback_job = _last_read_job_id.get(sender, 0)
             fallback_channel = _last_read_channel.get(sender, "")
+        woke = (getattr(agents, "woken", None) or {}).get(sender)
         if fallback_job:
             job_id = fallback_job
+        elif woke and time.time() - woke[1] < WOKEN_FOR:
+            channel = woke[0]            # answer where you were called
         elif fallback_channel:
             channel = fallback_channel
     # Final fallback if still nothing: original 'general' behavior.
@@ -366,6 +369,19 @@ def chat_send(
     reply_id = reply_to if reply_to >= 0 else None
     if reply_id is not None and store.get_by_id(reply_id) is None:
         return f"Message #{reply_to} not found."
+    moved = ""
+    if reply_id is not None:
+        # A reply belongs with the message it answers, whatever channel was passed.
+        home = (store.get_by_id(reply_id) or {}).get("channel") or channel
+        if home != channel:
+            moved = f" Note: put in #{home}, where message #{reply_id} is (you passed #{channel})."
+            channel = home
+    else:
+        owed = _owner_waiting(sender, channel, message)
+        if owed:
+            return (f"Not sent. {_owner_name()} wrote to you in #{owed[0]} at {owed[1]} and you haven't answered there. "
+                    f"Answer in #{owed[0]} first (channel=\"{owed[0]}\"): her answer goes where she asked. "
+                    f"If this is a different matter for #{channel}, send it after that, and say which project it is about.")
 
     # Determine message type and metadata based on choices
     msg_type = "chat"
@@ -381,7 +397,46 @@ def chat_send(
     _update_cursor(sender, [msg], channel)
     with _presence_lock:
         _presence[sender] = time.time()
-    return f"Sent (id={msg['id']})" + _length_note(message, clean_choices)
+    return f"Sent (id={msg['id']})" + moved + _length_note(message, clean_choices)
+
+
+WOKEN_FOR = 30 * 60      # a call counts as "where you were called" for half an hour
+OWED_FOR = 15 * 60
+
+
+def _owner_waiting(sender: str, channel: str, message: str):
+    """Lu, 11-17: "我在 channel 1 里面讲，莫名其妙的回复会跑到 channel 2 里面去". A message that speaks to
+    Lu is held back when she wrote to this teammate in another channel in the last 15 minutes and
+    hasn't had an answer there. Returns (her channel, HH:MM) or None. Talking to teammates in other
+    channels is never held back: only a message that @s her."""
+    owner = _owner_name()
+    if not owner or not _re_mod.search(r"@" + _re_mod.escape(owner) + r"(?![\w-])", message or "", _re_mod.I):
+        return None
+    base = _re_mod.sub(r"-\d+$", "", sender.lower())
+    now = time.time()
+    try:
+        with store._lock:
+            recent = list(store._messages[-600:])
+    except Exception:
+        return None
+    asked = None
+    for m in recent:
+        ts = float(m.get("timestamp") or 0)
+        if now - ts > OWED_FOR or m.get("type") not in ("chat", None):
+            continue
+        ch = m.get("channel") or "general"
+        who = str(m.get("sender") or "")
+        if who.lower() == owner.lower():
+            to_me = ch == f"dm-{base}"[:20] or _re_mod.search(r"@" + _re_mod.escape(base) + r"(?![\w-])", str(m.get("text") or ""), _re_mod.I)
+            body = _re_mod.sub(r"@[\w-]+", "", str(m.get("text") or "")).strip()
+            # A click on a card ("A：…") or a bare "好"/"ok" is her answer, not a question waiting for one.
+            if to_me and len(body) >= 4 and not _re_mod.match(r"^[A-Fa-f1-9]{1,2}\s*[：:]", body):
+                asked = (ch, ts)
+        elif asked and _re_mod.sub(r"-\d+$", "", who.lower()) == base and ch == asked[0] and ts > asked[1]:
+            asked = None            # answered there
+    if asked and asked[0] != channel:
+        return asked[0], time.strftime("%H:%M", time.localtime(asked[1]))
+    return None
 
 
 LONG_MSG = 400   # Lu, 11-12: reports are at most three lines; webdev averaged 355 characters
