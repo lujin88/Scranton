@@ -575,7 +575,25 @@
             handles.sort((a, b) => at(a) - at(b));
         }
         let shown = 0;
+        // Scranton itself, always first (Lu, 11-17: "能不能给他一个 1-on-1"): what you write there goes
+        // to Scranton, no @ needed, and wakes no teammate. It asks "今天做哪几个项目" there.
+        {
+            const ch = 'dm-scranton';
+            const unread = (window.channelUnread && window.channelUnread[ch]) || 0;
+            const row = document.createElement('button');
+            row.type = 'button';
+            row.className = 'sc-side-row sc-dm-row available' + (ch === window.activeChannel && !inboxOpen() ? ' active' : '');
+            row.dataset.h = 'scranton';
+            row.title = 'Scranton: which projects today, reminders';
+            row.innerHTML = `<span class="sc-dm-avatar">${window.scAvatarHtml ? window.scAvatarHtml('scranton') : ''}</span>`
+                + `<span class="sc-side-label">Scranton</span>`
+                + (unread && ch !== window.activeChannel ? `<span class="sc-badge">${unread > 99 ? '99+' : unread}</span>` : '');
+            row.addEventListener('click', () => openDm('scranton'));
+            list.appendChild(row);
+            shown++;
+        }
         for (const h of handles) {
+            if (h === 'scranton') continue;
             const ch = `dm-${h}`.slice(0, 20);
             const unreadNow = (window.channelUnread && window.channelUnread[ch]) || 0;
             if (hidden.includes(h) && !unreadNow && ch !== window.activeChannel) continue;

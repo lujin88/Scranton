@@ -1147,7 +1147,7 @@ async def _handle_new_message(msg: dict):
             )
 
     # Scranton: "@Scranton 今天做 …" from Lu sets today's projects. No teammate is woken for it.
-    if (msg_type == "chat" and _sc_today_mod.MENTION_RE.search(text or "")
+    if (msg_type == "chat" and (channel == SC_DM or _sc_today_mod.MENTION_RE.search(text or ""))
             and sender.lower() == str(room_settings.get("username", "")).lower()
             and _sc_today_is_for_scranton(msg)):
         try:
@@ -1163,7 +1163,7 @@ async def _handle_new_message(msg: dict):
     # Scranton: a DM whose handle isn't a teammate would route nowhere silently.
     if (channel.startswith("dm-") and not raw_targets and msg_type == "chat"
             and sender.lower() == str(room_settings.get("username", "")).lower()
-            and channel[3:] not in router.agent_names):
+            and channel[3:] not in router.agent_names and channel != SC_DM):
         store.add("system", f"Nobody received this: there's no teammate called @{channel[3:]}.",
                   msg_type="system", channel=channel)
     # Resolve base family names to actual registered instances
@@ -5008,8 +5008,11 @@ def _sc_today():
     return _SC_TODAY[0]
 
 
+SC_DM = "dm-scranton"   # Lu's 1-on-1 with Scranton: no @ needed there, no teammate is woken
+
+
 def _project_channels() -> list:
-    return [c for c in room_settings.get("channels", []) if c != "general"]
+    return [c for c in room_settings.get("channels", []) if c not in ("general", SC_DM)]
 
 
 def _quiet_channel(ch: str) -> bool:
@@ -5032,7 +5035,10 @@ def _sc_today_recent() -> list:
 def _sc_today_ask() -> None:
     owner = str(room_settings.get("username") or "Lu")
     text, choices = _sc_today_mod.question(owner, _sc_today_recent())
-    store.add("Scranton", text, msg_type="decision", channel="general",
+    if SC_DM not in room_settings.get("channels", []):
+        room_settings.setdefault("channels", ["general"]).append(SC_DM)
+        _save_settings()
+    store.add("Scranton", text, msg_type="decision", channel=SC_DM,
               metadata={"choices": choices, "resolved": False, "today_ask": True})
 
 

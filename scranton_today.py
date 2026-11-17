@@ -53,9 +53,11 @@ class Today:
         """True once per day, until asked. Marks it asked."""
         with self.lock:
             d = day_of(now)
-            if self.s.get("asked") == d or self.s.get("day") == d:
+            # where: 11-17 the first question went to #general and Lu never saw it; ask again in the DM.
+            if (self.s.get("asked") == d and self.s.get("where") == "dm") or self.s.get("day") == d:
                 return False
             self.s["asked"] = d
+            self.s["where"] = "dm"
             self._save()
             return True
 
@@ -107,11 +109,11 @@ def parse(text: str, channels) -> tuple[str, list[str]]:
 def question(owner: str, recent: list[str]) -> tuple[str, list[str]]:
     opts = recent[:4] + [ALL, NONE]
     return (f"@{owner} 今天做哪几个项目？点一个；要选多个，就在最后一行打字，例如「{'、'.join(recent[:2]) or '项目名'}」。"
-            f"没选的项目今天不发提醒，也不为它 @ 任何人。之后想改，写「@Scranton 今天做 …」。", opts)
+            f"没选的项目今天不发提醒，也不为它 @ 任何人。之后想改，直接在这里写「今天做 …」「加上 …」。", opts)
 
 
 def confirm(kind: str, chans: list[str]) -> str:
-    tail = "要改就写「@Scranton 今天做 …」或「@Scranton 加上 …」。"
+    tail = "要改就在和 Scranton 的私信里写「今天做 …」或「加上 …」。"
     if kind == "all":
         return "好，今天所有项目都照常提醒。" + tail
     if kind == "none" or not chans:
@@ -126,5 +128,5 @@ def help_text(state, channels) -> str:
         cur = "今天：所有项目都提醒。"
     else:
         cur = f"今天只做：{'、'.join(state[1])}。" if state[1] else "今天不发项目提醒。"
-    return (cur + " 可以这样写：「@Scranton 今天做 项目名、项目名」｜「@Scranton 加上 项目名」｜"
-            "「@Scranton 全部」｜「@Scranton 今天不做」。项目名：" + "、".join(channels))
+    return (cur + " 在这里可以这样写：「今天做 项目名、项目名」｜「加上 项目名」｜「全部」｜「今天不做」。"
+            "项目名：" + "、".join(channels))
