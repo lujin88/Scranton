@@ -26,6 +26,7 @@ from schedules import ScheduleStore, parse_schedule_spec
 import scranton_quota as _sc_quota
 import scranton_due as _sc_due_mod
 import scranton_quota_ask as _sc_qask
+import scranton_today as _sc_today_mod
 import scranton_apikeys as _sc_keys
 from router import Router
 from agents import AgentTrigger
@@ -1144,6 +1145,16 @@ async def _handle_new_message(msg: dict):
                 metadata={"draft_id": draft_id, "revision": revision, "proposed_by": sender,
                            "errors": ["Invalid JSON in session block"], "valid": False},
             )
+
+    # Scranton: "@Scranton 今天做 …" from Lu sets today's projects. No teammate is woken for it.
+    if (msg_type == "chat" and _sc_today_mod.MENTION_RE.search(text or "")
+            and sender.lower() == str(room_settings.get("username", "")).lower()
+            and _sc_today_is_for_scranton(msg)):
+        try:
+            store.add("Scranton", _sc_today_set(text), channel=channel,
+                      reply_to=msg.get("id") if isinstance(msg.get("id"), int) else None)
+        except Exception:
+            _log_rate_limited("today set failed")
 
     was_paused = router.is_paused(channel)
     raw_targets = router.get_targets(sender, text, channel)
@@ -2470,6 +2481,7 @@ async def resolve_decision(msg_id: int, request: Request):
         store.add(username, reply_text, reply_to=msg_id, channel=channel)
     except Exception:
         import traceback; traceback.print_exc()
+    # "@Scranton A：…" above is handled like any "@Scranton …" Lu types (_handle_new_message).
     # Broadcast updated decision card so the UI swaps buttons to resolved state
     updated = store.get_by_id(msg_id)
     if updated:
@@ -3308,9 +3320,16 @@ def _pm_channel() -> str:
 async def scranton_presence(request: Request):
     """The page pings this while Lu is looking. Back after 2+ hours: ask the PM for one list."""
     away = _sc_presence.seen()
-    if away and "pm" in ((config or {}).get("agents") or {}):
+    # Lu, 11-17: ask her which projects today before anyone is @'d. The PM is told when she answers.
+    if _sc_today().need_ask():
+        _sc_today_ask()
+        return JSONResponse({"ok": True, "asked_today": True})
+    state = _sc_today().chosen()
+    if away and state and (state[0] or state[1]) and "pm" in ((config or {}).get("agents") or {}):
         owner = room_settings.get("username") or "Lu"
-        store.add("Scranton", _sc_presence.catch_up_text(owner, away), channel=_pm_channel())
+        only = "" if state[0] else "、".join(state[1])
+        ch = state[1][0] if (state[1] and not state[1][0].startswith("dm-")) else _pm_channel()
+        store.add("Scranton", _sc_presence.catch_up_text(owner, away, only), channel=ch)
         return JSONResponse({"ok": True, "caught_up": True})
     return JSONResponse({"ok": True})
 
@@ -4979,6 +4998,76 @@ def _paused_channels() -> set:
     return set(room_settings.get("paused_channels") or [])
 
 
+_SC_TODAY: list = []
+
+
+def _sc_today():
+    if not _SC_TODAY:
+        data_dir = Path((config or {}).get("server", {}).get("data_dir", "./data"))
+        _SC_TODAY.append(_sc_today_mod.Today(data_dir / "today.json"))
+    return _SC_TODAY[0]
+
+
+def _project_channels() -> list:
+    return [c for c in room_settings.get("channels", []) if c != "general"]
+
+
+def _quiet_channel(ch: str) -> bool:
+    """No reminders here: Lu paused the project, or didn't pick it for today (11-17)."""
+    return ch in _paused_channels() or not _sc_today().active(ch)
+
+
+def _sc_today_recent() -> list:
+    """Project channels (no DMs), the ones Lu wrote in most recently first."""
+    owner = str(room_settings.get("username") or "Lu").lower()
+    chans = [c for c in _project_channels() if not c.startswith("dm-") and c not in _paused_channels()]
+    last: dict = {}
+    with store._lock:
+        for m in store._messages[-4000:]:
+            if str(m.get("sender", "")).lower() == owner and m.get("channel") in chans:
+                last[m["channel"]] = float(m.get("timestamp") or 0)
+    return sorted(chans, key=lambda c: -last.get(c, 0))
+
+
+def _sc_today_ask() -> None:
+    owner = str(room_settings.get("username") or "Lu")
+    text, choices = _sc_today_mod.question(owner, _sc_today_recent())
+    store.add("Scranton", text, msg_type="decision", channel="general",
+              metadata={"choices": choices, "resolved": False, "today_ask": True})
+
+
+def _sc_today_is_for_scranton(msg: dict) -> bool:
+    """Lu's click on another Scranton card (the 98 % quota question) also posts "@Scranton A：…":
+    that one is not about today's projects."""
+    rid = msg.get("reply_to")
+    orig = store.get_by_id(rid) if isinstance(rid, int) else None
+    if orig and orig.get("type") == "decision":
+        return bool((orig.get("metadata") or {}).get("today_ask"))
+    return True
+
+
+def _sc_today_set(text: str, tell_pm: bool = True) -> str:
+    """Apply what Lu wrote or clicked. Returns the line Scranton answers with."""
+    kind, chans = _sc_today_mod.parse(text, _project_channels())
+    t = _sc_today()
+    if kind == "all":
+        t.choose([], all_=True)
+    elif kind == "none":
+        t.choose([])
+    elif kind in ("set", "add"):
+        chans = t.choose(chans, add=(kind == "add"))
+    else:
+        return _sc_today_mod.help_text(t.chosen(), [c for c in _project_channels() if not c.startswith("dm-")])
+    out = _sc_today_mod.confirm(kind, chans)
+    if tell_pm and kind != "none" and "pm" in ((config or {}).get("agents") or {}):
+        owner = str(room_settings.get("username") or "Lu")
+        what = "所有项目" if kind == "all" else "、".join(chans)
+        ch = chans[0] if chans and not chans[0].startswith("dm-") else _pm_channel()
+        store.add("Scranton", f"@pm {owner} 今天只做：{what}。只给这些项目派活；其他项目今天不派活、不 @ 人，"
+                              f"有要 {owner} 定的事攒着。把这些项目里要 {owner} 定的事一次列给 @{owner}（A/B 选项）。", channel=ch)
+    return out
+
+
 @app.post("/api/scranton/channel/pause")
 async def scranton_channel_pause(request: Request):
     """Lu, 11-16: a project she put aside gets no reminders and nobody is woken for it."""
@@ -5007,7 +5096,7 @@ def _sc_idle_pokes(board, now: float) -> list[tuple[str, str, int | None, str]]:
     out = []
     with board.lock:
         for ch, rows in board.data.items():
-            if ch in _paused_channels():
+            if _quiet_channel(ch):
                 continue
             for r in rows:
                 h = str(r.get("who") or "")
@@ -5048,6 +5137,8 @@ async def _sc_board_tick() -> None:
     reps = await asyncio.to_thread(scranton_board.housekeeping, mcp_bridge.BOARD, _pr_state, None, _paused_channels())
     night = time.localtime().tm_hour >= 23 or time.localtime().tm_hour < 7
     for ch, rep in reps.items():
+        if _quiet_channel(ch):
+            continue   # merged PRs above still turn rows live; only the note to the PM is held
         # Night: no "update the board" notes. They wake the project manager, who runs on Claude
         # (11-12 night: 15 of them; Claude went 87 % → 98 % in a day). The rows stay marked stale.
         if night:
@@ -5072,7 +5163,7 @@ async def _sc_due_loop():
                 _log_rate_limited("board tick failed")
         try:
             for h, it in _sc_due_book().overdue():
-                if (it.get("channel") or "") in _paused_channels():
+                if _quiet_channel(it.get("channel") or ""):
                     continue
                 store.add("Scranton", _sc_due_text(h, it), channel=it.get("channel") or "general",
                           reply_to=it.get("id") if isinstance(it.get("id"), int) else None)

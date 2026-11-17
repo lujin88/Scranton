@@ -79,6 +79,9 @@ def test_idle_poke(tmp_path, monkeypatch):
     monkeypatch.setattr(mcp_bridge, "_presence", {"visintern": now, "motion": now})
     monkeypatch.setattr(mcp_bridge, "_activity", {"visintern": False, "motion": True})
     monkeypatch.setattr(app, "_sc_idle_since", {"visintern": now - 20 * 60})
+    monkeypatch.setattr(app, "_quiet_channel", lambda ch: True)
+    assert app._sc_idle_pokes(B, now) == []               # not one of today's projects: nobody is poked
+    monkeypatch.setattr(app, "_quiet_channel", lambda ch: False)
     pokes = app._sc_idle_pokes(B, now)
     assert [(p[1]) for p in pokes] == ["visintern"] and "停了 20 分钟" in pokes[0][3]
     assert app._sc_idle_pokes(B, now + 60) == []          # once per 30 min

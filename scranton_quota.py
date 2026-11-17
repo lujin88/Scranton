@@ -128,16 +128,18 @@ def notice(cfg: dict | None, low: bool) -> str:
     s = settings(cfg)
     agents = (cfg or {}).get("agents", {}) or {}
     live = {a: b for a, b in s["map"].items() if b in agents and can_start(agents[b])}
-    pairs = "，".join(f"@{a} → @{b}" for a, b in live.items())
+    # Names without @: every @ wakes that teammate for a paid turn, and this is news for the PM only
+    # (Lu, 11-17: the notice woke visual and motion on a day they had nothing to do with it).
+    pairs = "，".join(f"{a} → {b}" for a, b in live.items())
     pct = _state.get("percent")
     where = f"{_state.get('label') or ''} {pct:.0f}%".strip() if pct is not None else ""
     if low and not live:
         return (f"@pm ChatGPT 额度已用 {where}：实习生的 app 在这台 Mac 上起不来，"
-                f"视觉/动效的活不转，照常发给 @visual、@motion。")
+                f"视觉/动效的活不转，照常发给 visual、motion。")
     if low:
         return (f"@pm ChatGPT 额度已用 {where}：从现在起发给视觉/动效的活自动转给 Gemini 实习生"
                 f"（{pairs}，私信除外）。正在做的活请你看要不要转。降到 {s['back_below']:.0f}% 以下自动恢复。")
-    return f"@pm ChatGPT 额度恢复（{where or '已重置'}）：视觉/动效的活回到 @visual、@motion。"
+    return f"@pm ChatGPT 额度恢复（{where or '已重置'}）：视觉/动效的活回到 visual、motion。"
 
 
 # ---------------------------------------------------------------- is it really out? (Lu, 11-11)

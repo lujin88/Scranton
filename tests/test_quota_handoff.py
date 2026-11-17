@@ -88,4 +88,4 @@ def test_installed_intern_app_still_moves(tmp_path):
     q.check(cfg)
     t, moved = q.reroute(cfg, ["visual", "motion"], "lu-portfolio", "pm")
     assert moved == {"visual": "visintern"} and t == ["visintern", "motion"]
-    assert "@visual → @visintern" in q.notice(cfg, True) and "motionintern" not in q.notice(cfg, True)
+    assert "visual → visintern" in q.notice(cfg, True) and "motionintern" not in q.notice(cfg, True)
