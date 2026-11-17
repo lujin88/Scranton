@@ -788,11 +788,24 @@ def configure(cfg: dict, session_token: str = ""):
     # the threshold either way, tell the project manager once.
     def _quota_watch():
         import time as _tq
+        # Remember the last state told to the PM: 11-17 every server restart re-announced
+        # "ChatGPT 额度已用 …" (three times in an afternoon), each one a paid wake-up.
+        seen = Path((config or {}).get("server", {}).get("data_dir", "./data")) / "quota_low.json"
+        try:
+            told = json.loads(seen.read_text("utf-8")).get("low")
+        except (OSError, ValueError):
+            told = None
         while True:
             try:
                 low, changed = _sc_quota.check(config)
-                if changed:
+                if changed and low != told:
                     store.add("scranton", _sc_quota.notice(config, low), channel="general")
+                if low != told:
+                    told = low
+                    try:
+                        seen.write_text(json.dumps({"low": low}), "utf-8")
+                    except OSError:
+                        pass
             except Exception:
                 _log_rate_limited("quota watch failed")
             _tq.sleep(60)
