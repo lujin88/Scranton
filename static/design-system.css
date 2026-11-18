@@ -1788,3 +1788,10 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-need-seen:hover, .sc-need-seen:focus-visible { background: var(--ds-accent-soft); color: var(--ds-accent); }
 .sc-need-more { padding: 4px 8px; color: var(--ds-text-2); font-size: var(--ds-fs-xs); cursor: pointer; }
 @media (max-width: 640px) { .sc-need-who { display: none; } .sc-need-row { grid-template-columns: minmax(0, 1fr) auto auto; } }
+
+/* Activity (11-18): what waits for you, project by project; everything else folded behind one row. */
+.sc-inbox-group.sc-inbox-ch { color: var(--ds-text); font-weight: 600; }
+.sc-inbox-rest { display: block; margin: 12px 16px 24px; padding: 8px 12px; border: 1px solid var(--ds-line); border-radius: var(--ds-r-control); background: transparent; color: var(--ds-text-2); font-size: var(--ds-fs-sm); cursor: pointer; }
+.sc-inbox-rest:hover, .sc-inbox-rest:focus-visible { background: var(--ds-hover); color: var(--ds-text); }
+/* One number per channel: when something waits for your answer there, that count replaces the unread count. */
+.channel-sidebar-row:has(> .sc-need-pill) .channel-sidebar-row-unread { display: none !important; }

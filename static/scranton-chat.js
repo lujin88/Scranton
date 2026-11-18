@@ -1323,23 +1323,49 @@
     window.scOpenThread = openThread;
     // Take me to a message (Activity, links): a reply opens its thread with that reply in view
     // and the reply box ready; a channel message scrolls into view. Waits for the channel to load.
-    window.scFocusMessage = (m) => {
+    // Land on a message and stay on it. One smooth scroll used to miss (Lu, 11-18: "定位有时候不是
+    // 特别精准"): pictures above it load afterwards and push it away, and the channel's own
+    // scroll-to-bottom could pull the view back down. So: jump at once, then keep the message in
+    // the middle for 3 s while the page settles, and let go the moment you scroll or type.
+    function holdOn(getEl, flash) {
+        const t0 = Date.now();
+        let stop = false, flashed = false;
+        const cancel = () => { stop = true; };
+        ['wheel', 'touchmove', 'keydown', 'mousedown'].forEach((ev) => window.addEventListener(ev, cancel, { once: true, passive: true, capture: true }));
+        try { autoScroll = false; } catch (_) { /* chat.js not loaded */ }
+        const tick = () => {
+            if (stop || Date.now() - t0 > 3000) return;
+            const el = getEl();
+            if (el) {
+                const r = el.getBoundingClientRect(), box = (el.closest('#timeline, #sc-thread-list, #sc-thread') || document.documentElement).getBoundingClientRect();
+                const tall = r.height > box.height * 0.8;
+                const want = tall ? box.top + 16 : box.top + (box.height - r.height) / 2;
+                if (Math.abs(r.top - want) > 24) el.scrollIntoView({ block: tall ? 'start' : 'center', behavior: 'auto' });
+                if (!flashed) { flashed = true; el.classList.add(flash); setTimeout(() => el.classList.remove(flash), 1800); }
+            }
+            setTimeout(tick, 120);
+        };
+        tick();
+    }
+    // opts.reply: open its thread with the reply box focused, so the answer can be typed at once
+    // (a card keeps its buttons; the box is there for "something else").
+    window.scFocusMessage = (m, opts) => {
         const id = Number(m.id), root = m.reply_to != null ? Number(m.reply_to) : null;
+        const reply = !!(opts && opts.reply);
         let tries = 0;
         const step = () => {
             const known = byId.get(id) || (root != null && byId.get(root));
             if (!known && tries++ < 40) { setTimeout(step, 100); return; }
-            const r = root != null ? (rootOf(byId.get(id) || m) ?? root) : null;
+            let r = root != null ? (rootOf(byId.get(id) || m) ?? root) : null;
+            if (r == null && reply && byId.has(id)) r = id;
             if (r != null && byId.has(r)) {
                 openThread(r);
-                setTimeout(() => {
-                    const el = document.querySelector(`#sc-thread .sc-tmsg[data-mid="${id}"]`);
-                    if (el) { el.scrollIntoView({ block: 'center' }); el.classList.add('sc-flash'); setTimeout(() => el.classList.remove('sc-flash'), 1800); }
-                    document.querySelector(`.message[data-id="${r}"]`)?.scrollIntoView({ block: 'center' });
-                }, 80);
+                holdOn(() => document.querySelector(`.message[data-id="${r}"]`), 'highlight');
+                if (r !== id) holdOn(() => document.querySelector(`#sc-thread .sc-tmsg[data-mid="${id}"]`), 'sc-flash');
+                if (reply) setTimeout(() => { const t = document.getElementById('sc-thread-input'); if (t) t.focus({ preventScroll: true }); }, 200);
                 return;
             }
-            if (typeof scrollToMessage === 'function') scrollToMessage(id);
+            holdOn(() => document.querySelector(`.message[data-id="${id}"]`), 'highlight');
         };
         step();
     };

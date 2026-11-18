@@ -35,7 +35,9 @@
     const myLastInThread = new Map();     // thread parent id -> id of your latest message in it
     const OPT_LINE = /(^|\n)\s*[A-H]\s*[.、:：)]/g;
     const isQuestion = (m) => (m.type === 'decision' && Array.isArray((m.metadata || {}).choices) && m.metadata.choices.length > 0)
-        || (String(m.text || '').match(OPT_LINE) || []).length >= 2;
+        || (String(m.text || '').match(OPT_LINE) || []).length >= 2
+        // a message that ends on a question (11-18: "@Lu 这行小字删不删？" wasn't counted as waiting for her)
+        || /[?？]\s*$|吗[。 ]?$/.test((String(m.text || '').trim().split('\n').filter((l) => l.trim()).pop() || '').trim());
     // "Please merge #93": done once GitHub says merged (or closed). Lu doesn't report back.
     const PR_RE = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
     const prUrls = (m) => [...new Set(String(m.text || '').match(PR_RE) || [])];
@@ -112,6 +114,7 @@
         if (forceUnread.has(k)) return true;
         if (readKeys.has(k)) return false;
         if (Date.now() / 1000 - tsOf(m) > STALE_S) return false;   // cheap checks first: this runs for every Activity item on each repaint
+        if (isStuck(m)) return !stuckOver(m);
         if (answered(m) || prRepeat(m)) return false;
         // Only asks count (Lu, 11-09: "我只需要关注我的 event", 52 when 2 really needed her):
         // a question for you, or a PR for you to merge. Everything else is just listed;
@@ -191,6 +194,11 @@
         if (m) { m.reactions = e.detail.reactions || {}; scheduleRender(); if (window.scRefreshNeedCount) window.scRefreshNeedCount(); }
     });
 
+    const STUCK_RE = /^\s*I (stopped|can't read this yet)\b/;
+    const lastTalk = new Map();   // teammate -> id of its latest ordinary message
+    const isStuck = (m) => !!(m && m._kinds && m._kinds.has('stuck'));
+    const stuckOver = (m) => (lastTalk.get(String(m.sender || '').toLowerCase().replace(/-\d+$/, '')) || 0) > Number(m.id) || reactedByMe(m);
+
     function consider(msg) {
         if (!msg || msg.id == null) return;
         // Work stopped because teammates handed off too many times in a row: Lu must see that.
@@ -221,6 +229,12 @@
             return;
         }
         const kinds = new Set();
+        // A teammate that stopped and says so ("I stopped: …", "I can't read this yet: …") is yours to
+        // unblock (Lu, 11-18: Activity is for what is stuck and what waits for my answer). It clears
+        // when that teammate talks again, or when you react to it.
+        const base = String(msg.sender || '').toLowerCase().replace(/-\d+$/, '');
+        if (STUCK_RE.test(String(msg.text || ''))) { kinds.add('stuck'); kinds.add('mention'); }
+        else { lastTalk.set(base, Math.max(lastTalk.get(base) || 0, Number(msg.id))); scheduleRender(); }
         // Only when the message opens with @Lu, like the "needs you" count. "@Lu" further down is talk
         // about you, often "静默时段不 @Lu" (Lu, 11-09: why are these under Mentions?). They stay in All.
         // And only from the project manager (Lu, 11-10: "只让 PM @我，别人 @PM"): anyone else's @Lu
@@ -349,7 +363,7 @@
         if (e.target.closest('.sc-need-more')) { if (window.scOpenInbox) window.scOpenInbox(); return; }
         const row = e.target.closest('.sc-need-row');
         const m = row && inbox.get(Number(row.dataset.id));
-        if (m && window.scFocusMessage) window.scFocusMessage(m);
+        if (m && window.scFocusMessage) window.scFocusMessage(m, { reply: true });
     });
     if (typeof renderChannelSidebar === 'function') {
         const origSide = renderChannelSidebar;
@@ -383,6 +397,7 @@
         sel.value = senders.includes(cur) ? cur : '';
     }
 
+    let showRest = false, restN = 0;
     function renderInbox() {
         const list = document.getElementById('sc-inbox-list');
         if (!list) return;
@@ -406,10 +421,31 @@
             .filter((m) => !from || String(m.sender).toLowerCase() === from)
             .filter((m) => mode !== 'only' || isUnread(m))
             .sort((a, b) => (mode === 'needs' ? (isUnread(b) - isUnread(a)) : 0) || (b.id - a.id)).slice(0, 300);
+        // Needs-you first, one project after another; the rest stays folded (Lu, 11-18: "progress 不要").
+        if (mode === 'needs') {
+            const need = items.filter(isUnread), rest = items.filter((m) => !isUnread(m));
+            const firstIn = new Map();
+            need.forEach((m) => { const c = m.channel || 'general'; if (!firstIn.has(c)) firstIn.set(c, firstIn.size); });
+            need.sort((a, b) => (firstIn.get(a.channel || 'general') - firstIn.get(b.channel || 'general')) || (b.id - a.id));
+            items.length = 0;
+            items.push(...need, ...(showRest ? rest : []));
+            restN = rest.length;
+        } else restN = 0;
+        const restToggle = () => {
+            if (!restN) return;
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'sc-inbox-rest';
+            b.textContent = showRest ? 'Hide everything else' : `Show everything else · ${restN}`;
+            b.addEventListener('click', () => { showRest = !showRest; renderInbox(); });
+            list.appendChild(b);
+        };
         if (!items.length) {
-            list.innerHTML = `<div class="sc-empty">${window.scIcon ? window.scIcon('bell', 28) : ''}<h3>${inbox.size ? 'Nothing matches' : 'No activity yet'}</h3><p>${inbox.size
-                ? 'Try another filter.'
+            list.innerHTML = `<div class="sc-empty">${window.scIcon ? window.scIcon(restN ? 'check-double' : 'bell', 28) : ''}<h3>${restN ? 'Nothing is waiting for you' : inbox.size ? 'Nothing matches' : 'No activity yet'}</h3><p>${restN
+                ? 'No question to answer and nobody stuck.'
+                : inbox.size ? 'Try another filter.'
                 : 'Mentions, replies and direct messages show up here.'}</p></div>`;
+            restToggle();
             return;
         }
         list.innerHTML = '';
@@ -423,10 +459,16 @@
                 + `<button type="button" class="sc-inbox-markall" data-tip="Mark everything that needs you as done (⇧Esc)">${window.scIcon ? window.scIcon('check-double', 14) : ''}Mark all done</button></div>`);
             list.querySelector('.sc-inbox-markall').addEventListener('click', () => window.scInboxMarkRead());
         }
+        let lastCh = null;
         for (const m of items) {
-            if (mode === 'needs' && needN && !doneHead && !isUnread(m)) {
+            if (mode === 'needs' && !doneHead && !isUnread(m)) {
                 doneHead = true;
                 list.insertAdjacentHTML('beforeend', '<div class="sc-inbox-group">Everything else</div>');
+            }
+            if (mode === 'needs' && isUnread(m) && (m.channel || 'general') !== lastCh) {
+                lastCh = m.channel || 'general';
+                const n = items.filter((x) => isUnread(x) && (x.channel || 'general') === lastCh).length;
+                list.insertAdjacentHTML('beforeend', `<div class="sc-inbox-group sc-inbox-ch">${esc(isDm(lastCh) ? 'Direct message' : '# ' + lastCh)} · ${n}</div>`);
             }
             const row = document.createElement('button');
             row.type = 'button';
@@ -446,6 +488,7 @@
             const status = forMe && (isPrAsk(m) || (prs.length && prDone(m))) ? (prDone(m)
                     ? `<span class="sc-inbox-status done">${window.scIcon ? window.scIcon('check', 14) : ''}${prClosed ? 'Closed on GitHub' : 'Merged on GitHub'}</span>`
                     : `<span class="sc-inbox-status todo">Merge on GitHub</span>`)
+                : isStuck(m) ? (stuckOver(m) ? `<span class="sc-inbox-status done">${window.scIcon ? window.scIcon('check', 14) : ''}Going again</span>` : '<span class="sc-inbox-status todo">Stuck: needs you</span>')
                 : !q ? ''
                 : done ? `<span class="sc-inbox-status done">${window.scIcon ? window.scIcon('check', 14) : ''}Answered${chosen ? ': ' + esc(chosen.length > 40 ? chosen.slice(0, 40) + '…' : chosen) : ''}</span>`
                 : `<span class="sc-inbox-status todo">Needs your answer</span>`;
@@ -462,6 +505,7 @@
             row.addEventListener('contextmenu', (e) => { e.preventDefault(); rowMenu(e, m); });
             list.appendChild(row);
         }
+        restToggle();
     }
 
     // Right-click a row: the two things you'd want without opening it.
@@ -513,13 +557,14 @@
     }
 
     function jumpTo(m) {
-        setRead(m, true);
+        // Opening it is not answering it (11-18): it leaves the list when you answer, pick, or react.
+        if (!isUnread(m)) setRead(m, true);
         window.scCloseInbox();
         // 4: the channel may have been renamed or deleted since; don't open a ghost channel.
         let ch = m.channel || 'general';
         if (!window.channelList.includes(ch)) ch = 'general';
         if (ch !== window.activeChannel && typeof switchChannel === 'function') switchChannel(ch);
-        if (window.scFocusMessage) window.scFocusMessage(m);
+        if (window.scFocusMessage) window.scFocusMessage(m, { reply: true });
         else setTimeout(() => { if (typeof scrollToMessage === 'function') scrollToMessage(m.id); }, 60);
         closeDrawer();
     }
