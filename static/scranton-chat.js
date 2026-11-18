@@ -221,7 +221,14 @@
         if (who === me().toLowerCase() || String(msg.channel || '').startsWith('dm-')) return true;
         const team = (window.scGetTeam && window.scGetTeam()) || {};
         const via = Object.keys(team).find((k) => team[k] && team[k].mentions_owner);
-        return !via || who === via || !(team[who]);   // system and people keep their @
+        return !via || who === via || !(team[who]) || isDelivery(msg);   // system and people keep their @
+    }
+    // Finished work handed over with a picture, asking nothing: any teammate's reaches you (11-18).
+    function isDelivery(msg) {
+        if (!msg || !(msg.attachments || []).length || msg.type === 'decision') return false;
+        if (msg.metadata && (msg.metadata.choices || []).length) return false;
+        const last = String(msg.text || '').trim().split('\n').filter((l) => l.trim()).pop() || '';
+        return !/[?？]\s*$|吗[。 ]?$/.test(last.trim());
     }
     // 22:19:50 → 22:19 (seconds stay in the tooltip)
     function shortTime(t) {

@@ -169,7 +169,11 @@
     const fromPm = (m) => {
         const team = (window.scGetTeam && window.scGetTeam()) || {};
         const via = Object.keys(team).find((k) => team[k] && team[k].mentions_owner);
-        return !via || String(m.sender || '').toLowerCase().replace(/-\d+$/, '') === via;
+        if (!via || String(m.sender || '').toLowerCase().replace(/-\d+$/, '') === via) return true;
+        // A teammate handing over finished work with a picture, asking nothing, reaches you too (11-18).
+        if (!(m.attachments || []).length || m.type === 'decision' || (m.metadata && (m.metadata.choices || []).length)) return false;
+        const last = String(m.text || '').trim().split('\n').filter((l) => l.trim()).pop() || '';
+        return !/[?？]\s*$|吗[。 ]?$/.test(last.trim());
     };
     const leadOf = (text) => (/^\s*(?:@[\w-]+[\s,，、]*)+/.exec(String(text || '')) || [''])[0];
 

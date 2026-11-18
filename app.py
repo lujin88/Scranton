@@ -1180,6 +1180,18 @@ async def _handle_new_message(msg: dict):
     raw_targets = router.get_targets(sender, text, channel)
     if router.is_paused(channel) != was_paused:
         await broadcast_status()   # paused by the loop guard, or a message from you let them go on
+    is_owner = sender.lower() == str(room_settings.get("username", "")).lower()
+    # Lu answering a teammate's message without typing an @ still reaches that teammate (11-18:
+    # teammates now hand finished work to her directly; her "这里再改一下" under it must land).
+    if is_owner and msg_type == "chat" and not raw_targets and isinstance(msg.get("reply_to"), int):
+        o = store.get_by_id(msg["reply_to"]) or {}
+        author = _re.sub(r"-\d+$", "", str(o.get("sender") or "").lower())
+        if author in ((config or {}).get("agents") or {}):
+            raw_targets = [author]
+    try:
+        _sc_board_follow(msg, sender, text, channel, msg_type, is_owner)
+    except Exception:
+        _log_rate_limited("board follow failed")
     # Scranton: a DM whose handle isn't a teammate would route nowhere silently.
     if (channel.startswith("dm-") and not raw_targets and msg_type == "chat"
             and sender.lower() == str(room_settings.get("username", "")).lower()
@@ -1198,7 +1210,7 @@ async def _handle_new_message(msg: dict):
     # Only the project manager @s Lu (Lu, 11-10). A teammate who opens with @Lu outside a DM
     # reaches the project manager instead: it isn't in Lu's Mentions, and the PM decides
     # whether it goes on her list.
-    if _lu_ask_for_pm(sender, text, channel) and _mentions_from() not in targets:
+    if _lu_ask_for_pm(sender, text, channel, msg) and _mentions_from() not in targets:
         targets.append(_mentions_from())
     # ChatGPT plan running low (Agent Monitor's numbers): visual/motion work goes to the
     # Gemini interns instead (Lu, 11-10). DMs are left alone, and so is everything while Lu's
@@ -1339,8 +1351,57 @@ def _mentions_from() -> str:
 _LEAD_RE = _re.compile(r"^\s*(?:@[\w-]+[\s,，、]*)+")
 
 
-def _lu_ask_for_pm(sender: str, text: str, channel: str) -> bool:
-    """True when a teammate other than [team] mentions_from opens a channel message with @owner."""
+def _is_delivery(msg: dict | None) -> bool:
+    """Finished work handed to Lu: it carries a picture and asks nothing (no card, doesn't end on
+    a question). Lu, 11-18: on that day 162 of the project manager's 165 messages to her passed on
+    a teammate's report, a minute later and a paid turn each. A delivery goes to her directly;
+    questions and choices still come from the project manager only."""
+    if not isinstance(msg, dict) or not msg.get("attachments") or msg.get("type") == "decision":
+        return False
+    if ((msg.get("metadata") or {}).get("choices")):
+        return False
+    last = next((l for l in reversed(str(msg.get("text") or "").strip().split("\n")) if l.strip()), "")
+    return not _re.search(r"[?？]\s*$|吗[。 ]?$", last.strip())
+
+
+_ROW_RE = _re.compile(r"(?:\brow|行)\s*#?\s*(\d{1,3})(?!\d)", _re.I)
+
+
+def _sc_board_follow(msg: dict, sender: str, text: str, channel: str, msg_type: str, is_owner: bool) -> None:
+    """The board keeps up by itself (Lu, 11-18: "很多东西我已经回复了，点进去并没有更新，一直在等待").
+    - She answers a message a 等你 row points at (the row's message, or a #number in its note):
+      the row goes back to 在做 with her answer noted.
+    - A teammate hands her finished work and names the row ("行 48"): the row becomes 等你."""
+    import mcp_bridge
+    board = mcp_bridge.BOARD
+    if board is None or msg_type != "chat" or not isinstance(msg.get("id"), int):
+        return
+    if is_owner:
+        rid = msg.get("reply_to")
+        if not isinstance(rid, int):
+            return
+        said = _sc_said_mod.body_of(text)[:60]
+        for r in board.rows(channel):
+            if r.get("state") == "waiting_lu" and (int(r.get("msg") or 0) == rid or _re.search(rf"#{rid}(?!\d)", str(r.get("note") or ""))):
+                board.upsert(channel, "Scranton", id=r["id"], state="doing", msg=msg["id"],
+                             note=f"Lu 回了（#{msg['id']}）：{said}")
+    elif _is_delivery(msg):
+        lead = _LEAD_RE.match(text or "")
+        owner = _re.escape(str(room_settings.get("username") or "Lu"))
+        if not lead or not _re.search(r"(^|[^\w])@(" + owner + r"|lu)(?![\w-])", lead.group(0), _re.I):
+            return
+        ids = {int(x) for x in _ROW_RE.findall(text or "")}
+        for r in board.rows(channel):
+            if int(r.get("id") or 0) in ids and r.get("state") not in ("live", "waiting_lu"):
+                board.upsert(channel, "Scranton", id=r["id"], state="waiting_lu", msg=msg["id"],
+                             note=f"{sender} 交给 Lu 了（#{msg['id']}）")
+
+
+def _lu_ask_for_pm(sender: str, text: str, channel: str, msg: dict | None = None) -> bool:
+    """True when a teammate other than [team] mentions_from opens a channel message with @owner.
+    A delivery (see _is_delivery) is not routed to the project manager: it is hers to look at."""
+    if _is_delivery(msg):
+        return False
     who = str(sender or "").lower()
     owner = str(room_settings.get("username", "") or "").lower()
     via = _mentions_from()
