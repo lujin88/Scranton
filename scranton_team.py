@@ -50,9 +50,11 @@ PROVIDERS = {
         # developers.openai.com/codex/models (ChatGPT sign-in)
         "models": [
             ["", "Default", ""],
-            ["gpt-5.5", "GPT-5.5", "Recommended"], ["gpt-5.4", "GPT-5.4", "Recommended"], ["gpt-5.4-mini", "GPT-5.4 mini", "Recommended"],
-            ["gpt-5.3-codex", "GPT-5.3 Codex", "Coding"], ["gpt-5.3-codex-spark", "GPT-5.3 Codex Spark (Pro plan)", "Coding"],
-            ["gpt-5.2", "GPT-5.2", "Older"],
+            # 11-19: GPT-6 Astra (in Codex since 3 Sep 2026, needs codex-cli 0.153.1+) and the GPT-5.6
+            # family; GPT-5.4 left Codex on 31 Aug 2026 and 5.2 / 5.3-codex are deprecated.
+            ["gpt-6-astra", "GPT-6 Astra", "Recommended"], ["gpt-5.6-sol", "GPT-5.6 Sol", "Recommended"],
+            ["gpt-5.6-terra", "GPT-5.6 Terra", "Everyday"], ["gpt-5.6-luna", "GPT-5.6 Luna", "Everyday"],
+            ["gpt-5.5", "GPT-5.5", "Older"],
         ],
     },
     "cursor": {
