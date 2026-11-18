@@ -1815,3 +1815,21 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-inbox-proj-n.wait { background: var(--ds-accent-soft); color: var(--ds-text); }
 .sc-inbox-proj.open { margin-bottom: 2px; }
 @media (prefers-reduced-motion: reduce) { .sc-inbox-proj-chev { transition: none; } }
+
+/* The message you came for from Activity: stays marked until answered (11-18). */
+.message.sc-target .chat-bubble, .sc-tmsg.sc-target .sc-tmsg-body { position: relative; box-shadow: 0 0 0 2px var(--ds-accent-fill); border-radius: var(--ds-r-card); background: var(--ds-accent-soft); }
+.message.sc-target .chat-bubble::before, .sc-tmsg.sc-target .sc-tmsg-body::before { content: "Asked here"; position: absolute; top: -10px; right: 12px; padding: 1px 8px; border-radius: var(--ds-r-pill); background: var(--ds-accent-fill); color: #fff; font-size: var(--ds-fs-xs); font-weight: 600; line-height: 16px; z-index: 1; }
+
+/* Board row in Activity: answered in place (11-18). */
+.sc-inbox-row { display: flex; flex-wrap: wrap; align-items: flex-start; cursor: default; }
+.sc-inbox-row-head { display: flex; gap: 12px; flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.sc-inbox-note { display: block; margin-top: 2px; color: var(--ds-text-2); font-size: var(--ds-fs-sm); }
+.sc-inbox-answer { flex-basis: 100%; margin: 10px 0 4px 46px; }
+.sc-inbox-answer textarea { display: block; width: 100%; box-sizing: border-box; min-height: 56px; padding: 10px 12px; border: 1px solid var(--ds-line-strong); border-radius: var(--ds-r-control); background: var(--ds-surface); color: var(--ds-text); font: inherit; font-size: 16px; resize: vertical; }
+.sc-inbox-answer textarea:focus { outline: 2px solid var(--ds-accent-fill); outline-offset: 1px; }
+.sc-inbox-answer-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.sc-inbox-go, .sc-inbox-send { min-height: 36px; padding: 0 14px; border-radius: var(--ds-r-control); font: inherit; font-size: var(--ds-fs-sm); cursor: pointer; }
+.sc-inbox-go { border: 1px solid var(--ds-line); background: transparent; color: var(--ds-text-2); }
+.sc-inbox-send { border: 0; background: var(--ds-accent-fill); color: var(--ds-on-accent); font-weight: 600; }
+.sc-inbox-send:disabled { opacity: .45; cursor: default; }
+.sc-inbox-link { margin-bottom: 8px; color: var(--ds-text-3); font-size: var(--ds-fs-xs); word-break: break-all; }

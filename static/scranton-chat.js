@@ -1341,7 +1341,7 @@
                 const tall = r.height > box.height * 0.8;
                 const want = tall ? box.top + 16 : box.top + (box.height - r.height) / 2;
                 if (Math.abs(r.top - want) > 24) el.scrollIntoView({ block: tall ? 'start' : 'center', behavior: 'auto' });
-                if (!flashed) { flashed = true; el.classList.add(flash); setTimeout(() => el.classList.remove(flash), 1800); }
+                if (!flashed && flash) { flashed = true; el.classList.add(flash); setTimeout(() => el.classList.remove(flash), 1800); }
             }
             setTimeout(tick, 120);
         };
@@ -1349,8 +1349,34 @@
     }
     // opts.reply: open its thread with the reply box focused, so the answer can be typed at once
     // (a card keeps its buttons; the box is there for "something else").
+    // The message you came for stays marked (accent frame + "Asked here"), in the channel and in
+    // the thread panel, until you answer, react, press Esc, or 45 s pass (Lu, 11-18: "需要一个
+    // highlight，我不知道到底那个问题在哪：有时候在左边屏，有时候在右边屏"). The 1.8 s flash was
+    // over before the page had settled, and it lit the thread's first message instead of the question.
+    let target = null, targetTimer = null, targetEnd = null;
+    const paintTarget = () => {
+        document.querySelectorAll('.sc-target').forEach((el) => { if (target == null || Number(el.dataset.id || el.dataset.mid) !== target) el.classList.remove('sc-target'); });
+        if (target == null) return;
+        document.querySelectorAll(`.message[data-id="${target}"], #sc-thread .sc-tmsg[data-mid="${target}"]`).forEach((el) => el.classList.add('sc-target'));
+    };
+    const clearTarget = () => { target = null; clearInterval(targetTimer); clearTimeout(targetEnd); paintTarget(); };
+    const setTarget = (id) => {
+        clearTarget();
+        target = Number(id);
+        paintTarget();
+        targetTimer = setInterval(paintTarget, 250);   // the lists redraw; keep the mark on
+        targetEnd = setTimeout(clearTarget, 45000);
+    };
+    document.addEventListener('sc-reaction', clearTarget);
+    document.addEventListener('keydown', (e) => {
+        if (target == null) return;
+        if (e.key === 'Escape') clearTarget();
+        else if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.target && e.target.closest && e.target.closest('textarea, [contenteditable]')) setTimeout(clearTarget, 400);
+    }, true);
+    document.addEventListener('click', (e) => { if (target != null && e.target.closest && e.target.closest('.sc-choice, .decision-choice, .sc-card-choice, .sc-send, #send-btn')) setTimeout(clearTarget, 400); }, true);
     window.scFocusMessage = (m, opts) => {
         const id = Number(m.id), root = m.reply_to != null ? Number(m.reply_to) : null;
+        setTarget(id);
         const reply = !!(opts && opts.reply);
         let tries = 0;
         const step = () => {
@@ -1360,12 +1386,12 @@
             if (r == null && reply && byId.has(id)) r = id;
             if (r != null && byId.has(r)) {
                 openThread(r);
-                holdOn(() => document.querySelector(`.message[data-id="${r}"]`), 'highlight');
-                if (r !== id) holdOn(() => document.querySelector(`#sc-thread .sc-tmsg[data-mid="${id}"]`), 'sc-flash');
+                holdOn(() => document.querySelector(`.message[data-id="${r}"]`), '');
+                if (r !== id) holdOn(() => document.querySelector(`#sc-thread .sc-tmsg[data-mid="${id}"]`), '');
                 if (reply) setTimeout(() => { const t = document.getElementById('sc-thread-input'); if (t) t.focus({ preventScroll: true }); }, 200);
                 return;
             }
-            holdOn(() => document.querySelector(`.message[data-id="${id}"]`), 'highlight');
+            holdOn(() => document.querySelector(`.message[data-id="${id}"]`), '');
         };
         step();
     };

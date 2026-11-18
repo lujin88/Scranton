@@ -116,3 +116,11 @@ Board rows come from `GET /api/scranton/attention` (all projects that are not pa
 ### Activity summary (11-18)
 
 The two lists are shown per project. On top one line of totals (`.sc-inbox-sum`), then one row per project (`.sc-inbox-proj`: chevron, name, "N waiting for you" pill in accent-soft, "N stuck" pill). Click a row to open or close it. With 6 items or fewer every project starts open; above that all start closed. Open or closed is kept while the page is open.
+
+### Message you came for (`.sc-target`, 11-18)
+
+Coming from Activity, the asked message gets a 2px accent frame, accent-soft fill and an "Asked here" pill at its top right, in the channel and in the thread panel. It stays until you answer, react, press Esc, or 45 s pass. Only the asked message is marked, never the thread's first message.
+
+### Board row answered in Activity (11-18)
+
+A board row (`.sc-inbox-row`) does not navigate. Click it: it opens in place with the file path, a text box and two buttons, "Open #channel" (secondary, left) and "Send" (primary, right). Send posts "@teammate 行 N：answer" to the project's channel; the server moves the row back to 在做. Enter sends, Shift+Enter is a new line. The time shown is how long the row has been waiting (`since`), not when it was last nudged.

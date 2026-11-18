@@ -406,6 +406,8 @@
     let showRest = false, restN = 0, showOld = false;
     let attn = { rows: [] };
     const openProj = new Map();   // project -> open or closed, as you left it (this visit)
+    let openRow = '', focusRow = '';   // the board row being answered in Activity
+    const rowDraft = new Map();
     const FEW = 6;                // this many items or fewer: every project starts open
     const rowSeen = new Set((() => { try { return JSON.parse(LS.get('sc-row-seen', '[]')); } catch (_) { return []; } })());
     function renderInbox() {
@@ -443,28 +445,62 @@
             list.appendChild(btn);
         };
         const ic = (n, z) => (window.scIcon ? window.scIcon(n, z || 14) : '');
+        // A board row has no single message to land on (its message is often days old), so it is
+        // answered right here: click it, read what is asked, type, send. The answer goes to that
+        // project's channel as "@pm 行 45：…" and the row leaves 等你 (Lu, 11-18: "我点进去，就完全
+        // 找不到，不知道哪里要回复").
+        const team = (window.scGetTeam && window.scGetTeam()) || {};
         const addRow = (r, status) => {
-            const el = document.createElement('button');
-            el.type = 'button';
-            el.className = 'sc-inbox-item unread';
-            const who = String(r.who || '').toLowerCase();
-            const hours = Math.max(0, Math.round((Date.now() / 1000 - Number(r.at || 0)) / 3600));
-            el.innerHTML = `<span class="sc-inbox-avatar">${window.scAvatarHtml && who ? window.scAvatarHtml(who) : ''}</span>`
-                + `<span class="sc-inbox-body"><span class="sc-inbox-meta"><b>${esc(window.scLabelOf && who ? window.scLabelOf(who) : (r.who || ''))}</b> <span>${esc(r.channel)}</span></span>`
-                + `<span class="sc-inbox-text">${esc(r.ask || '')}${r.note ? ' · ' + esc(String(r.note).slice(0, 160)) : ''}</span>`
-                + `<span class="sc-inbox-status todo">${status}</span></span>`
-                + `<span class="sc-inbox-side"><span class="sc-inbox-time">${hours < 1 ? 'under an hour ago' : hours < 24 ? hours + ' hour' + (hours > 1 ? 's' : '') + ' ago' : Math.floor(hours / 24) + ' day' + (hours >= 48 ? 's' : '') + ' ago'}</span>`
-                + `<span class="sc-read-toggle" role="button" tabindex="0" data-tip="Seen: take it off this list" aria-label="Seen: take it off this list">${ic('check', 16)}</span></span>`;
+            const key = `${r.channel}|${r.id}`;
+            const meName = String(window.username || 'lu').toLowerCase();
+            const names = [r.who, r.by].map((x) => String(x || '').toLowerCase()).filter((x) => x && x !== meName && x !== 'lu' && team[x.split('-')[0]]);
+            const to = (names[0] || 'pm').split('-')[0];
+            const el = document.createElement('div');
+            el.className = 'sc-inbox-item sc-inbox-row unread' + (openRow === key ? ' open' : '');
+            const since = Number(r.since || r.at || 0);
+            const hours = Math.max(0, Math.round((Date.now() / 1000 - since) / 3600));
+            const ago = hours < 1 ? 'under an hour' : hours < 24 ? hours + ' hour' + (hours > 1 ? 's' : '') : Math.floor(hours / 24) + ' day' + (hours >= 48 ? 's' : '');
+            el.innerHTML = `<button type="button" class="sc-inbox-row-head" aria-expanded="${openRow === key}">`
+                + `<span class="sc-inbox-avatar">${window.scAvatarHtml ? window.scAvatarHtml(to) : ''}</span>`
+                + `<span class="sc-inbox-body"><span class="sc-inbox-meta"><b>${esc(window.scLabelOf ? window.scLabelOf(to) : to)}</b> <span>${esc(r.channel)} · row ${esc(r.id)}</span></span>`
+                + `<span class="sc-inbox-text">${esc(r.ask || '')}</span>`
+                + (r.note ? `<span class="sc-inbox-note">${esc(String(r.note).slice(0, 220))}</span>` : '')
+                + `<span class="sc-inbox-status todo">${status} · ${ago}</span></span></button>`
+                + `<span class="sc-inbox-side"><span class="sc-read-toggle" role="button" tabindex="0" data-tip="Seen: take it off this list" aria-label="Seen: take it off this list">${ic('check', 16)}</span></span>`
+                + (openRow === key ? `<div class="sc-inbox-answer">`
+                    + (r.link ? `<div class="sc-inbox-link">File: ${esc(r.link)}</div>` : '')
+                    + `<textarea rows="2" placeholder="Answer ${esc(window.scLabelOf ? window.scLabelOf(to) : to)} here…" aria-label="Your answer"></textarea>`
+                    + `<div class="sc-inbox-answer-foot"><button type="button" class="sc-inbox-go">Open #${esc(r.channel)}</button><button type="button" class="sc-inbox-send" disabled>Send</button></div></div>` : '');
             el.querySelector('.sc-read-toggle').addEventListener('click', (e) => {
                 e.stopPropagation(); e.preventDefault();
                 rowSeen.add(`${r.channel}|${r.id}|${r.at}`); LS.set('sc-row-seen', JSON.stringify([...rowSeen].slice(-300)));
                 renderInboxBadge(); renderInbox();
             });
-            el.addEventListener('click', () => {
-                window.scCloseInbox();
-                if (window.channelList.includes(r.channel) && r.channel !== window.activeChannel && typeof switchChannel === 'function') switchChannel(r.channel);
-                if (r.msg && window.scFocusMessage) window.scFocusMessage({ id: Number(r.msg), channel: r.channel }, { reply: true });
-            });
+            el.querySelector('.sc-inbox-row-head').addEventListener('click', () => { openRow = openRow === key ? '' : key; focusRow = openRow; renderInbox(); });
+            const ta = el.querySelector('textarea');
+            if (ta) {
+                const send = el.querySelector('.sc-inbox-send');
+                ta.value = rowDraft.get(key) || '';
+                send.disabled = !ta.value.trim();
+                ta.addEventListener('input', () => { rowDraft.set(key, ta.value); send.disabled = !ta.value.trim(); });
+                const go = () => {
+                    const v = ta.value.trim();
+                    if (!v || !window.ws || window.ws.readyState !== 1) { if (window.scToast) window.scToast('Not connected. Try again in a moment.'); return; }
+                    window.ws.send(JSON.stringify({ type: 'message', text: `@${to} 行 ${r.id}：${v}`, sender: window.username, channel: r.channel, attachments: [] }));
+                    rowDraft.delete(key); openRow = '';
+                    rowSeen.add(`${r.channel}|${r.id}|${r.at}`); LS.set('sc-row-seen', JSON.stringify([...rowSeen].slice(-300)));
+                    if (window.scToast) window.scToast(`Sent to #${r.channel}`);
+                    renderInboxBadge(); renderInbox(); setTimeout(loadAttention, 1500);
+                };
+                send.addEventListener('click', go);
+                ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); go(); } });
+                el.querySelector('.sc-inbox-go').addEventListener('click', () => {
+                    window.scCloseInbox();
+                    if (window.channelList.includes(r.channel) && r.channel !== window.activeChannel && typeof switchChannel === 'function') switchChannel(r.channel);
+                    if (r.msg && window.scFocusMessage) window.scFocusMessage({ id: Number(r.msg), channel: r.channel }, { reply: true });
+                });
+                if (focusRow === key) { focusRow = ''; setTimeout(() => ta.focus({ preventScroll: true }), 30); }
+            }
             list.appendChild(el);
         };
         const nothing = !asks.length && !waitRows.length && !stuckMsgs.length && !stuckRows.length;
@@ -533,7 +569,7 @@
                 btn.addEventListener('click', () => { openProj.set(ch, !open); renderInbox(); });
                 list.appendChild(btn);
                 if (!open) continue;
-                g.wait.forEach((x) => (x.m ? addMsg(x.m) : addRow(x.r, 'On the board as waiting for you')));
+                g.wait.forEach((x) => (x.m ? addMsg(x.m) : addRow(x.r, 'Needs your answer')));
                 g.stuck.forEach((x) => (x.m ? addMsg(x.m) : addRow(x.r, 'Stuck')));
             }
         }
@@ -552,7 +588,7 @@
     async function loadAttention() {
         try {
             const r = await fetch('/api/scranton/attention', { headers: { 'X-Session-Token': window.SESSION_TOKEN } });
-            if (r.ok) { attn = await r.json(); renderInboxBadge(); if (inboxOpen()) renderInbox(); }
+            if (r.ok) { attn = await r.json(); renderInboxBadge(); if (inboxOpen() && !openRow) renderInbox(); }
         } catch (_) { /* offline: keep what we have */ }
     }
     setInterval(loadAttention, 120000);
@@ -604,7 +640,7 @@
             if (!sortSel.value) sortSel.value = 'needs';
             sortSel.addEventListener('change', () => { LS.set('scranton-inbox-sort', sortSel.value); renderInbox(); });
         }
-        setInterval(() => { if (inboxOpen()) renderInbox(); }, 60000);  // keep "x minutes ago" fresh
+        setInterval(() => { if (inboxOpen() && !openRow) renderInbox(); }, 60000);  // keep "x minutes ago" fresh
     }
 
     function jumpTo(m) {

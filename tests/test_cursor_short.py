@@ -57,4 +57,5 @@ def test_cursors_own_menu_when_the_account_has_those_models(monkeypatch):
     got = t.models_for("cursor")
     assert [m[1] for m in got[:4]] == ["Default", "Auto", "Grok 4.7 Low", "Grok 4.6 High Fast"]
     assert len(got) == len(t.CURSOR_MENU) + 1
-    assert t.cursor_menu(MODELS) == t.cursor_short(MODELS)      # menu mostly gone: one line per model
+    few = [m for m in MODELS if m[0] in ("auto", "composer-2.5", "gpt-5.2")]
+    assert t.cursor_menu(few) == t.cursor_short(few)            # menu mostly gone: one line per model

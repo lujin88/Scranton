@@ -1153,6 +1153,10 @@ def chat_board(sender: str, action: str = "read", channel: str = "", id: int = 0
         if action == "read":
             return json.dumps({"channel": channel, "rows": BOARD.rows(channel)}, ensure_ascii=False)
         if action == "set":
+            if (state or "").strip().lower().replace(" ", "_") == "waiting_lu" and not asked_owner(msg):
+                return ("Error: 等你 (waiting_lu) means the owner has a question or finished work in front of her right now. "
+                        "Send it to her first (chat_send, with the picture), then set the row with msg = that message's id. "
+                        "If you will ask her later (\"08:00 问\"), the row is not 等你 yet: keep it doing or todo and put the time in due.")
             row = BOARD.upsert(channel, sender, id=id, ask=ask, state=state, who=who, due=due, link=link, note=note, msg=msg)
             return json.dumps({"ok": True, "row": row}, ensure_ascii=False)
         if action == "remove":
@@ -1160,6 +1164,34 @@ def chat_board(sender: str, action: str = "read", channel: str = "", id: int = 0
     except ValueError as e:
         return f"Error: {e}"
     return "Error: action must be read, set or remove."
+
+
+def asked_owner(msg_id) -> bool:
+    """Is this message something put to the owner: sent by a teammate and addressed to her (a
+    question, a card, finished work)? A row may say 等你 only when it points at one."""
+    try:
+        m = store.get_by_id(int(msg_id or 0)) if store is not None else None
+    except (TypeError, ValueError):
+        m = None
+    if not m:
+        return False
+    owner = _owner_name()
+    if str(m.get("sender", "")).lower() in (owner.lower(), "lu"):
+        return False
+    if m.get("type") == "decision":
+        return True
+    return bool(_re_mod.search(r"(^|[^\w])@(" + _re_mod.escape(owner) + r"|lu)(?![\w-])", str(m.get("text") or ""), _re_mod.I))
+
+
+def board_view(channel: str) -> list[dict]:
+    """The board as Lu sees it, in the channel overview and in Activity alike (Lu, 11-18: rows said
+    等你 for "08:00 问 Lu", a question nobody had sent yet). A 等你 row that points at no question
+    to her is shown as 在做 with not_asked set; the stored row is left as the project manager wrote it."""
+    rows = BOARD.rows(channel) if BOARD is not None else []
+    for r in rows:
+        if r.get("state") == "waiting_lu" and not asked_owner(r.get("msg")):
+            r["state"], r["not_asked"] = "doing", True
+    return rows
 
 
 SAID = None   # set by run.py: scranton_said.Said

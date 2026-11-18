@@ -1378,11 +1378,15 @@ def _sc_board_follow(msg: dict, sender: str, text: str, channel: str, msg_type: 
         return
     if is_owner:
         rid = msg.get("reply_to")
-        if not isinstance(rid, int):
+        # answered from Activity: her message opens with the row ("@pm 行 45：…")
+        named = {int(x) for x in _ROW_RE.findall((text or "")[:40])}
+        if not isinstance(rid, int) and not named:
             return
         said = _sc_said_mod.body_of(text)[:60]
         for r in board.rows(channel):
-            if r.get("state") == "waiting_lu" and (int(r.get("msg") or 0) == rid or _re.search(rf"#{rid}(?!\d)", str(r.get("note") or ""))):
+            hit = int(r.get("id") or 0) in named or (isinstance(rid, int) and (
+                int(r.get("msg") or 0) == rid or _re.search(rf"#{rid}(?!\d)", str(r.get("note") or ""))))
+            if r.get("state") in (("waiting_lu", "blocked") if int(r.get("id") or 0) in named else ("waiting_lu",)) and hit:
                 board.upsert(channel, "Scranton", id=r["id"], state="doing", msg=msg["id"],
                              note=f"Lu 回了（#{msg['id']}）：{said}")
     elif _is_delivery(msg):
@@ -5477,7 +5481,7 @@ async def scranton_board_get(channel: str = "general"):
     import mcp_bridge, scranton_board
     if mcp_bridge.BOARD is None:
         return JSONResponse({"rows": [], "summary": ""})
-    rows = mcp_bridge.BOARD.rows(channel)
+    rows = mcp_bridge.board_view(channel)
     return JSONResponse({"rows": rows, "summary": scranton_board.summary(rows) if rows else "",
                          "states": scranton_board.STATE_ZH, "paused": channel in _paused_channels()})
 
@@ -5492,11 +5496,13 @@ async def scranton_attention():
         for ch in _project_channels():
             if ch in paused:
                 continue
-            for r in mcp_bridge.BOARD.rows(ch):
+            for r in mcp_bridge.board_view(ch):
                 if r.get("state") in ("waiting_lu", "blocked"):
                     out.append({"channel": ch, "id": r.get("id"), "state": r.get("state"),
                                 "ask": r.get("ask", ""), "who": r.get("who", ""), "note": r.get("note", ""),
-                                "msg": r.get("msg") or 0, "at": r.get("updated") or r.get("at") or 0})
+                                "msg": r.get("msg") or 0, "at": r.get("updated") or r.get("at") or 0,
+                                "since": r.get("since") or r.get("at") or 0, "by": r.get("by", ""),
+                                "link": r.get("link", ""), "due": r.get("due", "")})
     out.sort(key=lambda r: -float(r["at"] or 0))
     return JSONResponse({"rows": out})
 
