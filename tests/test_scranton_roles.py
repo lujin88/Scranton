@@ -134,3 +134,15 @@ class ScrantonLogRedactionTests(unittest.TestCase):
         src = (Path(__file__).resolve().parent.parent / "run.py").read_text("utf-8")
         self.assertNotIn('Session token: {session_token}', src)
         self.assertIn("token=)[^&", src)
+
+
+def test_brief_parts_reach_only_their_teammates():
+    import tomllib
+    from pathlib import Path
+    c = tomllib.loads((Path(__file__).resolve().parent.parent / "config.toml").read_text("utf-8"))
+    parts, agents = c["team"]["briefs"], c["agents"]
+    for a in agents.values():
+        assert set(a.get("briefs", [])) <= set(parts)
+    assert "merge-pr.sh" not in c["team"]["brief"] and "merge-pr.sh" in parts["code"]
+    assert "探索" in parts["design"] and "design" in agents["visual"]["briefs"] and "code" not in agents["visual"]["briefs"]
+    assert len(c["team"]["brief"]) < 6000

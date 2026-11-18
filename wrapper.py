@@ -1372,6 +1372,12 @@ def main():
         else:
             print(f"  Warning: role_card {_card} not found")
     _team_brief = str(config.get("team", {}).get("brief", "") or "").strip()
+    # plus the parts meant for this teammate's kind of work ([team.briefs], named in its `briefs`)
+    _parts = config.get("team", {}).get("briefs", {}) or {}
+    for _k in agent_cfg.get("briefs", []) or []:
+        _extra = str(_parts.get(_k, "") or "").strip()
+        if _extra:
+            _team_brief = f"{_team_brief} {_extra}".strip()
     _hc = str(config.get("team", {}).get("harness_core", "") or "").strip()
     _team_brief = _team_brief.replace("{harness_core}", os.path.expanduser(_hc) if _hc else "harness-core")
     _OWNER_DEFAULT[0] = str(config.get("team", {}).get("owner", "") or "the owner")
