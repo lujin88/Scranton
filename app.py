@@ -5482,6 +5482,25 @@ async def scranton_board_get(channel: str = "general"):
                          "states": scranton_board.STATE_ZH, "paused": channel in _paused_channels()})
 
 
+@app.get("/api/scranton/attention")
+async def scranton_attention():
+    """Board rows that wait for Lu or are stuck, from every project that is not paused (Activity)."""
+    import mcp_bridge
+    out = []
+    if mcp_bridge.BOARD is not None:
+        paused = _paused_channels()
+        for ch in _project_channels():
+            if ch in paused:
+                continue
+            for r in mcp_bridge.BOARD.rows(ch):
+                if r.get("state") in ("waiting_lu", "blocked"):
+                    out.append({"channel": ch, "id": r.get("id"), "state": r.get("state"),
+                                "ask": r.get("ask", ""), "who": r.get("who", ""), "note": r.get("note", ""),
+                                "msg": r.get("msg") or 0, "at": r.get("updated") or r.get("at") or 0})
+    out.sort(key=lambda r: -float(r["at"] or 0))
+    return JSONResponse({"rows": out})
+
+
 @app.get("/api/scranton/said")
 async def scranton_said_get(channel: str = "general"):
     """What Lu said here that nobody has taken yet (for the channel overview)."""

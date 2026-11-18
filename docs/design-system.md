@@ -102,3 +102,13 @@ The asks put to the owner (a question or a card that @s her, a PR to merge), sho
 - **Sidebar pill**: on a channel row, right-aligned, 18px high, `--ds-accent-fill` with white `--ds-fs-xs` 600 text: how many asks wait in that channel (`9+` above nine). It is not the unread dot: unread says "new messages", the pill says "yours to answer".
 - **Strip**: pinned to the top of the channel's message list: a `--ds-raised` card, 1px `--ds-line`, `--ds-r-card`. A 40px head (count pill, "Waiting for your answer", a Remix `chevron-down` that collapses it; the choice is remembered) and up to six rows, newest first: who, the first line, the time, and a 28px Remix `check` button = "seen, nothing more from me" (adds her 👍 and takes it off). A row opens the message. With nothing waiting the strip is not drawn.
 - Her reaction on a message counts as seen everywhere: Activity, the strip, the pill, and the board row that points at it.
+
+## Activity: two lists (11-18)
+
+Activity has no tabs and no filters. It shows, in this order:
+
+1. **Waiting for your answer**: questions put to Lu, plus board rows in 等你, grouped by project (`.sc-inbox-ch`).
+2. **Stuck**: teammates that stopped, plus board rows in 卡住 from the last day. Older ones sit behind "Stuck for over a day · N".
+3. One folded line, "Everything else that mentions you · N" (`.sc-inbox-rest`).
+
+Board rows come from `GET /api/scranton/attention` (all projects that are not paused). A row uses the same `.sc-inbox-item` as a message; its ✓ takes it off the list. Clicking any item opens its channel at that message with the reply box ready. The sidebar count is the sum of lists 1 and 2.

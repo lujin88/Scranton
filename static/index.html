@@ -19,7 +19,7 @@
     <link rel="stylesheet" href="/static/sessions.css?v=223">
     <link rel="stylesheet" href="/static/jobs.css?v=225">
     <link rel="stylesheet" href="/static/scranton.css?v=51">
-    <link rel="stylesheet" href="/static/design-system.css?v=69">
+    <link rel="stylesheet" href="/static/design-system.css?v=70">
     <meta name="theme-color" content="#2d2238">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/static/manifest.json">
@@ -206,16 +206,7 @@
                     <h1>Activity</h1>
                     <button type="button" class="sc-page-x sc-inbox-x" onclick="scCloseInbox()" aria-label="Close activity"><span class="ri-wrap" data-ri="close" data-size="20"></span></button>
                 </div>
-                <div class="sc-inbox-filters">
-                    <div class="sc-tabs" role="tablist">
-                        <button type="button" class="sc-tab active" role="tab" aria-selected="true" data-kind="mention">Mentions</button>
-                        <button type="button" class="sc-tab" role="tab" aria-selected="false" data-kind="all">All</button>
-                        <button type="button" class="sc-tab" role="tab" aria-selected="false" data-kind="reply">Replies</button>
-                        <button type="button" class="sc-tab" role="tab" aria-selected="false" data-kind="dm">DMs</button>
-                    </div>
-                    <label class="sc-from">From <select id="sc-inbox-from"><option value="">Everyone</option></select></label>
-                    <label class="sc-from">Show <select id="sc-inbox-sort"><option value="needs">Needs you first</option><option value="new">Newest first</option><option value="only">Needs you only</option></select></label>
-                </div>
+                <p class="sc-inbox-lede">Only what waits for your answer and what is stuck. Click one to answer it in its channel.</p>
                 <div id="sc-inbox-list"></div>
             </section>
             <main id="timeline">
@@ -446,7 +437,7 @@
     <script src="/static/chat.js?v=289"></script>
     <script src="/static/scranton-icons.js?v=103"></script>
     <script src="/static/scranton.js?v=102"></script>
-    <script src="/static/scranton-nav.js?v=9131"></script>
+    <script src="/static/scranton-nav.js?v=9132"></script>
     <script src="/static/scranton-chat.js?v=32"></script>
     <script src="/static/scranton-mention-hl.js"></script>
     <script src="/static/scranton-firstrun.js"></script>

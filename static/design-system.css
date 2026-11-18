@@ -1795,3 +1795,9 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-inbox-rest:hover, .sc-inbox-rest:focus-visible { background: var(--ds-hover); color: var(--ds-text); }
 /* One number per channel: when something waits for your answer there, that count replaces the unread count. */
 .channel-sidebar-row:has(> .sc-need-pill) .channel-sidebar-row-unread { display: none !important; }
+
+/* Activity (11-18): two lists only, no tabs. */
+.sc-inbox-lede { max-width: var(--ds-read-w); width: 100%; box-sizing: border-box; margin: 0 auto 8px; padding: 0 calc(var(--ds-5) + 12px); color: var(--ds-text-3); font-size: var(--ds-fs-sm); }
+#sc-inbox .sc-inbox-group-top { margin-top: 20px !important; color: var(--ds-text); font-size: var(--ds-fs-sm); }
+#sc-inbox .sc-inbox-group-top:first-child { margin-top: 0 !important; }
+.sc-inbox-group.sc-inbox-ch { color: var(--ds-text-3); font-weight: 500; }

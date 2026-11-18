@@ -286,7 +286,13 @@
 
     function unreadCount() {
         let n = 0;
-        for (const m of inbox.values()) if (isUnread(m)) n++;
+        const ids = new Set();
+        for (const m of inbox.values()) if (isUnread(m)) { n++; ids.add(Number(m.id)); }
+        // board rows that wait for you or got stuck in the last day, unless already counted as an ask
+        for (const r of ((typeof attn !== 'undefined' && attn.rows) || [])) {
+            if (rowSeen.has(`${r.channel}|${r.id}|${r.at}`)) continue;
+            if (r.state === 'waiting_lu' ? !ids.has(Number(r.msg)) : Date.now() / 1000 - Number(r.at || 0) <= 86400) n++;
+        }
         return n;
     }
 
@@ -397,79 +403,73 @@
         sel.value = senders.includes(cur) ? cur : '';
     }
 
-    let showRest = false, restN = 0;
+    let showRest = false, restN = 0, showOld = false;
+    let attn = { rows: [] };
+    const rowSeen = new Set((() => { try { return JSON.parse(LS.get('sc-row-seen', '[]')); } catch (_) { return []; } })());
     function renderInbox() {
         const list = document.getElementById('sc-inbox-list');
         if (!list) return;
-        renderFromOptions();
-        const from = document.getElementById('sc-inbox-from')?.value || '';
-        // One "Show" control instead of a toggle plus a sort: needs-you first (default), newest first,
-        // or only what still needs you. The choice is remembered.
-        // each tab says how many things in it need you
-        document.querySelectorAll('#sc-inbox .sc-tab').forEach((t) => {
-            const k = t.dataset.kind;
-            const n = [...inbox.values()].filter((m) => (k === 'all' || m._kinds.has(k)) && isUnread(m)).length;
-            let b = t.querySelector('.sc-tab-n');
-            if (!b) { b = document.createElement('span'); b.className = 'sc-tab-n'; t.appendChild(b); }
-            b.textContent = n ? String(n) : '';
-        });
-        const sortSel = document.getElementById('sc-inbox-sort');
-        const mode = sortSel ? sortSel.value : 'needs';
-        const items = [...inbox.values()]
-            .filter((m) => !prRepeat(m))
-            .filter((m) => filterKind === 'all' || m._kinds.has(filterKind))
-            .filter((m) => !from || String(m.sender).toLowerCase() === from)
-            .filter((m) => mode !== 'only' || isUnread(m))
-            .sort((a, b) => (mode === 'needs' ? (isUnread(b) - isUnread(a)) : 0) || (b.id - a.id)).slice(0, 300);
-        // Needs-you first, one project after another; the rest stays folded (Lu, 11-18: "progress 不要").
-        if (mode === 'needs') {
-            const need = items.filter(isUnread), rest = items.filter((m) => !isUnread(m));
-            const firstIn = new Map();
-            need.forEach((m) => { const c = m.channel || 'general'; if (!firstIn.has(c)) firstIn.set(c, firstIn.size); });
-            need.sort((a, b) => (firstIn.get(a.channel || 'general') - firstIn.get(b.channel || 'general')) || (b.id - a.id));
-            items.length = 0;
-            items.push(...need, ...(showRest ? rest : []));
-            restN = rest.length;
-        } else restN = 0;
-        const restToggle = () => {
-            if (!restN) return;
-            const b = document.createElement('button');
-            b.type = 'button';
-            b.className = 'sc-inbox-rest';
-            b.textContent = showRest ? 'Hide everything else' : `Show everything else · ${restN}`;
-            b.addEventListener('click', () => { showRest = !showRest; renderInbox(); });
-            list.appendChild(b);
+        // Activity is two lists and nothing else (Lu, 11-18: "主要就是要看需要我回答的，以及卡住的地方
+        // （卡住也不一定是人家 @我）… 又是 mention 又是 all，我也不知道"):
+        //   1. Waiting for your answer: questions put to you, and board rows that say 等你.
+        //   2. Stuck: teammates that stopped, and board rows that say 卡住 (older than a day: folded).
+        // Everything else that mentions you is history, folded at the bottom.
+        const all = [...inbox.values()].filter((m) => !prRepeat(m)).sort((x, y) => y.id - x.id).slice(0, 400);
+        const byChannel = (arr, ch) => {
+            const first = new Map();
+            arr.forEach((m) => { const c = ch(m); if (!first.has(c)) first.set(c, first.size); });
+            return arr.slice().sort((x, y) => (first.get(ch(x)) - first.get(ch(y))));
         };
-        if (!items.length) {
-            list.innerHTML = `<div class="sc-empty">${window.scIcon ? window.scIcon(restN ? 'check-double' : 'bell', 28) : ''}<h3>${restN ? 'Nothing is waiting for you' : inbox.size ? 'Nothing matches' : 'No activity yet'}</h3><p>${restN
-                ? 'No question to answer and nobody stuck.'
-                : inbox.size ? 'Try another filter.'
-                : 'Mentions, replies and direct messages show up here.'}</p></div>`;
-            restToggle();
-            return;
-        }
+        const asks = byChannel(all.filter((m) => isUnread(m) && !isStuck(m)), (m) => m.channel || 'general');
+        const stuckMsgs = all.filter((m) => isUnread(m) && isStuck(m));
+        const rest = all.filter((m) => !isUnread(m));
+        const askIds = new Set(asks.map((m) => Number(m.id)));
+        const rows = (attn.rows || []).filter((r) => !rowSeen.has(`${r.channel}|${r.id}|${r.at}`));
+        const waitRows = byChannel(rows.filter((r) => r.state === 'waiting_lu' && !askIds.has(Number(r.msg))), (r) => r.channel);
+        const DAY = 86400;
+        const stuckRows = rows.filter((r) => r.state === 'blocked' && Date.now() / 1000 - Number(r.at || 0) <= DAY);
+        const oldRows = rows.filter((r) => r.state === 'blocked' && Date.now() / 1000 - Number(r.at || 0) > DAY);
+        restN = rest.length;
         list.innerHTML = '';
-        const needN = items.filter(isUnread).length;
-        let doneHead = false;
-        // "Mark all as read" sits with the count it clears (right above the list), not in the page header.
-        const totalN = unreadCount();
-        if (totalN) {
-            const label = needN ? `Needs you · ${needN}` : `Nothing here needs you · ${totalN} in other tabs`;
-            list.insertAdjacentHTML('beforeend', `<div class="sc-inbox-group sc-inbox-group-top"><span>${label}</span>`
-                + `<button type="button" class="sc-inbox-markall" data-tip="Mark everything that needs you as done (⇧Esc)">${window.scIcon ? window.scIcon('check-double', 14) : ''}Mark all done</button></div>`);
-            list.querySelector('.sc-inbox-markall').addEventListener('click', () => window.scInboxMarkRead());
+        const head = (text, cls) => list.insertAdjacentHTML('beforeend', `<div class="sc-inbox-group ${cls || ''}">${text}</div>`);
+        const fold = (label, open, flip) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'sc-inbox-rest';
+            btn.textContent = label;
+            btn.addEventListener('click', () => { flip(); renderInbox(); });
+            list.appendChild(btn);
+        };
+        const ic = (n, z) => (window.scIcon ? window.scIcon(n, z || 14) : '');
+        const addRow = (r, status) => {
+            const el = document.createElement('button');
+            el.type = 'button';
+            el.className = 'sc-inbox-item unread';
+            const who = String(r.who || '').toLowerCase();
+            const hours = Math.max(0, Math.round((Date.now() / 1000 - Number(r.at || 0)) / 3600));
+            el.innerHTML = `<span class="sc-inbox-avatar">${window.scAvatarHtml && who ? window.scAvatarHtml(who) : ''}</span>`
+                + `<span class="sc-inbox-body"><span class="sc-inbox-meta"><b>${esc(window.scLabelOf && who ? window.scLabelOf(who) : (r.who || ''))}</b> <span>${esc(r.channel)}</span></span>`
+                + `<span class="sc-inbox-text">${esc(r.ask || '')}${r.note ? ' · ' + esc(String(r.note).slice(0, 160)) : ''}</span>`
+                + `<span class="sc-inbox-status todo">${status}</span></span>`
+                + `<span class="sc-inbox-side"><span class="sc-inbox-time">${hours < 1 ? 'under an hour ago' : hours < 24 ? hours + ' hour' + (hours > 1 ? 's' : '') + ' ago' : Math.floor(hours / 24) + ' day' + (hours >= 48 ? 's' : '') + ' ago'}</span>`
+                + `<span class="sc-read-toggle" role="button" tabindex="0" data-tip="Seen: take it off this list" aria-label="Seen: take it off this list">${ic('check', 16)}</span></span>`;
+            el.querySelector('.sc-read-toggle').addEventListener('click', (e) => {
+                e.stopPropagation(); e.preventDefault();
+                rowSeen.add(`${r.channel}|${r.id}|${r.at}`); LS.set('sc-row-seen', JSON.stringify([...rowSeen].slice(-300)));
+                renderInboxBadge(); renderInbox();
+            });
+            el.addEventListener('click', () => {
+                window.scCloseInbox();
+                if (window.channelList.includes(r.channel) && r.channel !== window.activeChannel && typeof switchChannel === 'function') switchChannel(r.channel);
+                if (r.msg && window.scFocusMessage) window.scFocusMessage({ id: Number(r.msg), channel: r.channel }, { reply: true });
+            });
+            list.appendChild(el);
+        };
+        const nothing = !asks.length && !waitRows.length && !stuckMsgs.length && !stuckRows.length;
+        if (nothing) {
+            list.insertAdjacentHTML('beforeend', `<div class="sc-empty">${ic('check-double', 28)}<h3>Nothing is waiting for you</h3><p>No question to answer and nobody stuck.</p></div>`);
         }
-        let lastCh = null;
-        for (const m of items) {
-            if (mode === 'needs' && !doneHead && !isUnread(m)) {
-                doneHead = true;
-                list.insertAdjacentHTML('beforeend', '<div class="sc-inbox-group">Everything else</div>');
-            }
-            if (mode === 'needs' && isUnread(m) && (m.channel || 'general') !== lastCh) {
-                lastCh = m.channel || 'general';
-                const n = items.filter((x) => isUnread(x) && (x.channel || 'general') === lastCh).length;
-                list.insertAdjacentHTML('beforeend', `<div class="sc-inbox-group sc-inbox-ch">${esc(isDm(lastCh) ? 'Direct message' : '# ' + lastCh)} · ${n}</div>`);
-            }
+        const addMsg = (m) => {
             const row = document.createElement('button');
             row.type = 'button';
             const unread = isUnread(m);
@@ -504,9 +504,43 @@
             row.addEventListener('click', () => jumpTo(m));
             row.addEventListener('contextmenu', (e) => { e.preventDefault(); rowMenu(e, m); });
             list.appendChild(row);
+        };
+        if (asks.length || waitRows.length) {
+            head(`<span>Waiting for your answer · ${asks.length + waitRows.length}</span>`, 'sc-inbox-group-top');
+            // one group per project: its questions first, then its board rows
+            const both = byChannel([...asks.map((m) => ({ ch: m.channel || 'general', m })), ...waitRows.map((r) => ({ ch: r.channel, r }))], (x) => x.ch);
+            let ch = null;
+            for (const x of both) {
+                if (x.ch !== ch) { ch = x.ch; head(esc(isDm(ch) ? 'Direct message' : '# ' + ch), 'sc-inbox-ch'); }
+                if (x.m) addMsg(x.m); else addRow(x.r, 'On the board as waiting for you');
+            }
         }
-        restToggle();
+        if (stuckMsgs.length || stuckRows.length) {
+            head(`<span>Stuck · ${stuckMsgs.length + stuckRows.length}</span>`, 'sc-inbox-group-top');
+            stuckMsgs.forEach(addMsg);
+            stuckRows.forEach((r) => addRow(r, 'Stuck'));
+        }
+        if (oldRows.length) {
+            fold(showOld ? 'Hide what has been stuck for over a day' : `Stuck for over a day · ${oldRows.length}`, showOld, () => { showOld = !showOld; });
+            if (showOld) oldRows.forEach((r) => addRow(r, 'Stuck for over a day'));
+        }
+        if (rest.length) {
+            fold(showRest ? 'Hide everything else' : `Everything else that mentions you · ${rest.length}`, showRest, () => { showRest = !showRest; });
+            if (showRest) rest.slice(0, 200).forEach(addMsg);
+        }
     }
+
+    // Board rows that wait for you or are stuck, from every project (refreshed while Activity is
+    // open and every two minutes for the count).
+    async function loadAttention() {
+        try {
+            const r = await fetch('/api/scranton/attention', { headers: { 'X-Session-Token': window.SESSION_TOKEN } });
+            if (r.ok) { attn = await r.json(); renderInboxBadge(); if (inboxOpen()) renderInbox(); }
+        } catch (_) { /* offline: keep what we have */ }
+    }
+    setInterval(loadAttention, 120000);
+    setTimeout(loadAttention, 3000);
+    window.scLoadAttention = loadAttention;
 
     // Right-click a row: the two things you'd want without opening it.
     function rowMenu(e, m) {
@@ -574,6 +608,7 @@
         document.getElementById('sc-inbox')?.classList.remove('hidden');
         document.body.classList.add('sc-inbox-open');
         refreshPrsSoon();
+        loadAttention();
         document.getElementById('sc-inbox-row')?.classList.add('active');
         document.querySelectorAll('#channel-sidebar-list .channel-sidebar-row.active, #sc-dm-list .sc-side-row.active')
             .forEach((el) => el.classList.add('sc-dimmed'));
