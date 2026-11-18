@@ -5420,12 +5420,61 @@ def _sc_idle_pokes(board, now: float) -> list[tuple[str, str, int | None, str]]:
     return out
 
 
+CHECK_WAIT_MIN = 30      # a row that waits this long for a check wakes the checker
+_CHECKERS = ("visualqa", "qa", "legal")
+
+
+def _row_checker(r: dict) -> str:
+    """Who has to act on a 等 QA row. The row's owner is usually whoever built it, so read the note
+    for the checker named there (待 visualqa / 等 legal); visual QA when none is named."""
+    who = str(r.get("who") or "").lower()
+    if who in _CHECKERS:
+        return who
+    text = (str(r.get("note") or "") + " " + str(r.get("ask") or "")).lower()
+    named = [c for c in _CHECKERS if _re.search(rf"(?<![a-z]){c}(?![a-z])", text)]
+    return named[-1] if named else "visualqa"   # the last one named is the one still to come
+
+
+def _sc_check_pokes(board, now: float) -> list[tuple[str, str, int | None, str]]:
+    """Lu, 11-18: two rows sat in 等 QA for 4.8 hours past their time and nobody was told: the idle
+    poke only looks at 在做, and the 4-hour note goes to the project manager (and not at night).
+    A 等 QA row untouched for 30 minutes wakes its checker, at most twice per row until it changes."""
+    out = []
+    agents = (config or {}).get("agents", {})
+    with board.lock:
+        for ch, rows in board.data.items():
+            if _quiet_channel(ch):
+                continue
+            for r in rows:
+                if r.get("state") != "waiting_qa":
+                    continue
+                at = float(r.get("at") or 0)
+                if now - at < CHECK_WAIT_MIN * 60 or now - float(r.get("poked") or 0) < 3600:
+                    continue
+                h = _row_checker(r)
+                if h not in agents:
+                    continue
+                if float(r.get("poked") or 0) < at:
+                    r["pokes"] = 0
+                if int(r.get("pokes") or 0) >= 2:
+                    continue
+                r["poked"] = now
+                r["pokes"] = int(r.get("pokes") or 0) + 1
+                mins = int((now - at) // 60)
+                out.append((ch, h, r.get("msg") if isinstance(r.get("msg"), int) else None,
+                            f"@{h} 行 {r.get('id')}「{str(r.get('ask', ''))[:50]}」等你验了 {mins} 分钟。"
+                            f"现在验：过了或没过都用 chat_board 改这一行；轮不到你验就一句话说该谁。"))
+        if out:
+            board._save()
+    return out
+
+
 async def _sc_board_tick() -> None:
     """Your asks: PR merged → row live; rows untouched for 4 h and people over 5 rows → one note to the PM."""
     import mcp_bridge, scranton_board
     if mcp_bridge.BOARD is None:
         return
-    for ch, h, reply_to, text in _sc_idle_pokes(mcp_bridge.BOARD, time.time()):
+    for ch, h, reply_to, text in _sc_idle_pokes(mcp_bridge.BOARD, time.time()) + _sc_check_pokes(mcp_bridge.BOARD, time.time()):
         store.add("Scranton", text, channel=ch, reply_to=reply_to)
     reps = await asyncio.to_thread(scranton_board.housekeeping, mcp_bridge.BOARD, _pr_state, None, _paused_channels())
     # What Lu said that nobody took for 15 minutes: one note to the PM per channel, at most every 45.
@@ -5489,7 +5538,7 @@ async def scranton_board_get(channel: str = "general"):
 @app.get("/api/scranton/attention")
 async def scranton_attention():
     """Board rows that wait for Lu or are stuck, from every project that is not paused (Activity)."""
-    import mcp_bridge
+    import mcp_bridge, scranton_board
     out = []
     if mcp_bridge.BOARD is not None:
         paused = _paused_channels()
@@ -5497,7 +5546,11 @@ async def scranton_attention():
             if ch in paused:
                 continue
             for r in mcp_bridge.board_view(ch):
-                if r.get("state") in ("waiting_lu", "blocked"):
+                # no change for 4 hours while it says someone is on it: that is stuck too, said or not
+                quiet = time.time() - float(r.get("at") or 0) > scranton_board.STALE_H * 3600
+                if r.get("state") in ("doing", "in_pr", "waiting_qa") and quiet:
+                    r = dict(r, state="stalled", note=f"{scranton_board.STATE_ZH.get(r.get('state'), '')} · {r.get('note', '')}".strip(" ·"))
+                if r.get("state") in ("waiting_lu", "blocked", "stalled"):
                     out.append({"channel": ch, "id": r.get("id"), "state": r.get("state"),
                                 "ask": r.get("ask", ""), "who": r.get("who", ""), "note": r.get("note", ""),
                                 "msg": r.get("msg") or 0, "at": r.get("updated") or r.get("at") or 0,

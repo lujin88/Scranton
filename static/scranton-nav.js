@@ -431,8 +431,9 @@
         const rows = (attn.rows || []).filter((r) => !rowSeen.has(`${r.channel}|${r.id}|${r.at}`));
         const waitRows = byChannel(rows.filter((r) => r.state === 'waiting_lu' && !askIds.has(Number(r.msg))), (r) => r.channel);
         const DAY = 86400;
-        const stuckRows = rows.filter((r) => r.state === 'blocked' && Date.now() / 1000 - Number(r.at || 0) <= DAY);
-        const oldRows = rows.filter((r) => r.state === 'blocked' && Date.now() / 1000 - Number(r.at || 0) > DAY);
+        const isStuckRow = (r) => r.state === 'blocked' || r.state === 'stalled';
+        const stuckRows = rows.filter((r) => isStuckRow(r) && Date.now() / 1000 - Number(r.at || 0) <= DAY);
+        const oldRows = rows.filter((r) => isStuckRow(r) && Date.now() / 1000 - Number(r.at || 0) > DAY);
         restN = rest.length;
         list.innerHTML = '';
         const head = (text, cls) => list.insertAdjacentHTML('beforeend', `<div class="sc-inbox-group ${cls || ''}">${text}</div>`);
@@ -457,7 +458,7 @@
             const to = (names[0] || 'pm').split('-')[0];
             const el = document.createElement('div');
             el.className = 'sc-inbox-item sc-inbox-row unread' + (openRow === key ? ' open' : '');
-            const since = Number(r.since || r.at || 0);
+            const since = Number((r.state === 'stalled' ? r.at : r.since) || r.at || 0);
             const hours = Math.max(0, Math.round((Date.now() / 1000 - since) / 3600));
             const ago = hours < 1 ? 'under an hour' : hours < 24 ? hours + ' hour' + (hours > 1 ? 's' : '') : Math.floor(hours / 24) + ' day' + (hours >= 48 ? 's' : '');
             el.innerHTML = `<button type="button" class="sc-inbox-row-head" aria-expanded="${openRow === key}">`
@@ -570,7 +571,7 @@
                 list.appendChild(btn);
                 if (!open) continue;
                 g.wait.forEach((x) => (x.m ? addMsg(x.m) : addRow(x.r, 'Needs your answer')));
-                g.stuck.forEach((x) => (x.m ? addMsg(x.m) : addRow(x.r, 'Stuck')));
+                g.stuck.forEach((x) => (x.m ? addMsg(x.m) : addRow(x.r, x.r.state === 'stalled' ? 'No update' : 'Stuck')));
             }
         }
         if (oldRows.length) {
