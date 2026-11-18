@@ -94,3 +94,11 @@ Pasting 1200+ characters or 16+ lines into the message box (channel or thread) d
 ## Picture viewer zoom (11-18)
 
 In the full-screen picture viewer: pinch or scroll zooms at the pointer (100%–800%), drag moves a zoomed picture, double-click toggles fit and 250%, keys `+` `-` `0`. A pill at the bottom centre (above the counter) has three 32px buttons: Remix `subtract`, the current percentage (click = fit), Remix `add`. The pill is always dark (it sits on the black backdrop in both themes): `rgba(20,20,22,.78)`, 1px white 14% border, `--ds-r-pill`, white icons. Zoom resets with every picture. Clicking the backdrop while zoomed returns to fit; a second click closes.
+
+## Waiting for your answer (11-18)
+
+The asks put to the owner (a question or a card that @s her, a PR to merge), shown where she already is instead of only in Activity.
+
+- **Sidebar pill**: on a channel row, right-aligned, 18px high, `--ds-accent-fill` with white `--ds-fs-xs` 600 text: how many asks wait in that channel (`9+` above nine). It is not the unread dot: unread says "new messages", the pill says "yours to answer".
+- **Strip**: pinned to the top of the channel's message list: a `--ds-raised` card, 1px `--ds-line`, `--ds-r-card`. A 40px head (count pill, "Waiting for your answer", a Remix `chevron-down` that collapses it; the choice is remembered) and up to six rows, newest first: who, the first line, the time, and a 28px Remix `check` button = "seen, nothing more from me" (adds her 👍 and takes it off). A row opens the message. With nothing waiting the strip is not drawn.
+- Her reaction on a message counts as seen everywhere: Activity, the strip, the pill, and the board row that points at it.

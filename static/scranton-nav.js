@@ -285,7 +285,79 @@
         const row = document.getElementById('sc-inbox-row');
         if (row) row.classList.toggle('has-unread', n > 0);
         paintMarkAll();
+        paintNeeds();
     }
+
+    // ---- "Needs your answer" where you already are (Lu, 11-18: "我只是想知道哪些 task 我需要回复，
+    // 现在反而变成我要多点一步"). The same asks Activity counts, shown (1) as a number on each channel
+    // in the sidebar and (2) as a strip pinned over the channel you are in. Click one to go to it;
+    // the thumb says "seen, nothing more from me" and takes it off the list.
+    const needsIn = (ch) => [...inbox.values()].filter((m) => (m.channel || 'general') === ch && isUnread(m)).sort((a, b) => Number(a.id) - Number(b.id));
+    let needOpen = LS.get('sc-need-open', '1') !== '0';
+    function paintNeeds() {
+        const per = new Map();
+        for (const m of inbox.values()) if (isUnread(m)) per.set(m.channel || 'general', (per.get(m.channel || 'general') || 0) + 1);
+        document.querySelectorAll('#channel-sidebar-list .channel-sidebar-row').forEach((row) => {
+            const n = per.get(row.dataset.channel) || 0;
+            let pill = row.querySelector(':scope > .sc-need-pill');
+            if (!n) { if (pill) pill.remove(); return; }
+            if (!pill) {
+                pill = document.createElement('span');
+                pill.className = 'sc-need-pill';
+                row.insertBefore(pill, row.querySelector('.channel-sidebar-row-actions'));
+            }
+            pill.textContent = n > 9 ? '9+' : String(n);
+            pill.title = `${n} waiting for your answer`;
+        });
+        const host = document.getElementById('timeline');
+        if (!host) return;
+        let strip = document.getElementById('sc-need-strip');
+        const items = needsIn(window.activeChannel || 'general');
+        if (!items.length) { if (strip) strip.remove(); return; }
+        if (!strip) {
+            strip = document.createElement('section');
+            strip.id = 'sc-need-strip';
+            strip.setAttribute('aria-label', 'Waiting for your answer');
+            host.insertBefore(strip, host.firstChild);
+        }
+        const esc = (x) => String(x == null ? '' : x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        const own = (t) => String(t || '').replace(/^\s*(?:@[\w-]+[\s,，、]*)+/, '').replace(/\s+/g, ' ').trim();
+        const ic = (n) => (window.scIcon ? window.scIcon(n, 14) : '');
+        const hhmm = (m) => String(m.time || '').slice(0, 5);
+        strip.className = needOpen ? 'open' : '';
+        strip.innerHTML = `<button type="button" class="sc-need-head" aria-expanded="${needOpen}"><span class="sc-need-n">${items.length}</span>`
+            + `<b>Waiting for your answer</b><span class="sc-need-chev">${ic('chevron-down')}</span></button>`
+            + (needOpen ? `<ul class="sc-need-list">${items.slice(-6).reverse().map((m) => `<li class="sc-need-row" data-id="${m.id}" tabindex="0" role="button">`
+                + `<span class="sc-need-who">${esc(window.scLabelOf ? window.scLabelOf(String(m.sender).replace(/-\d+$/, '')) : m.sender)}</span>`
+                + `<span class="sc-need-t">${esc(own(m.text).slice(0, 140))}</span>`
+                + `<span class="sc-need-at">${esc(hhmm(m))}</span>`
+                + `<button type="button" class="sc-need-seen" data-seen="${m.id}" title="Seen, nothing more from me" aria-label="Seen, nothing more from me">${ic('check')}</button></li>`).join('')}`
+                + (items.length > 6 ? `<li class="sc-need-more">${items.length - 6} older: open Activity</li>` : '') + '</ul>' : '');
+    }
+    document.addEventListener('click', (e) => {
+        const strip = e.target.closest('#sc-need-strip');
+        if (!strip) return;
+        const seen = e.target.closest('.sc-need-seen');
+        if (seen) {
+            e.stopPropagation();
+            const m = inbox.get(Number(seen.dataset.seen));
+            if (m) { setRead(m, true); scheduleRender(); }
+            try { if (window.ws && m && !reactedByMe(m)) window.ws.send(JSON.stringify({ type: 'react', id: Number(seen.dataset.seen), emoji: '👍' })); } catch (_) { /* offline: it's marked read here anyway */ }
+            return;
+        }
+        if (e.target.closest('.sc-need-head')) { needOpen = !needOpen; LS.set('sc-need-open', needOpen ? '1' : '0'); paintNeeds(); return; }
+        if (e.target.closest('.sc-need-more')) { if (window.scOpenInbox) window.scOpenInbox(); return; }
+        const row = e.target.closest('.sc-need-row');
+        const m = row && inbox.get(Number(row.dataset.id));
+        if (m && window.scFocusMessage) window.scFocusMessage(m);
+    });
+    if (typeof renderChannelSidebar === 'function') {
+        const origSide = renderChannelSidebar;
+        renderChannelSidebar = function () { const r = origSide.apply(this, arguments); try { paintNeeds(); } catch (_) { /* not ready yet */ } return r; };
+    }
+    document.addEventListener('keydown', (e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('sc-need-row')) { e.preventDefault(); e.target.click(); }
+    });
 
     const inboxOpen = () => !document.getElementById('sc-inbox')?.classList.contains('hidden');
     function paintMarkAll() { /* the button lives in the list now and is drawn only when something needs you */ }
@@ -687,6 +759,7 @@
             if (changed && window.scThreadsFollow) window.scThreadsFollow(name);
             if (changed && window.scDraft) window.scDraft.load(name);
             if (typeof renderChannelSidebar === 'function') renderChannelSidebar();
+            paintNeeds();
             updateTitle();
             // Back / swipe-back goes to the previous conversation instead of leaving Scranton.
             if (changed && !fromHistory) {
