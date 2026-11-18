@@ -90,3 +90,16 @@ def test_names_the_way_lu_says_them():
 def test_the_rest_not_today_never_wipes_the_choice():
     assert T.parse("别的今天先不要做", MINI) == ("keep", [])
     assert T.parse("别的今天都不做", MINI) == ("keep", [])
+
+
+def test_until_she_answers_a_channel_she_is_working_in_counts(tmp_path, monkeypatch):
+    """11-18: the morning question went unseen, so nothing was chased all day."""
+    import app
+    monkeypatch.setattr(app, "_SC_TODAY", [T.Today(tmp_path / "t.json")])
+    monkeypatch.setattr(app, "_paused_channels", lambda: {"paused-one"})
+    monkeypatch.setattr(app, "_sc_lu_today", {"day": T.day_of(), "n": {"slides": 12, "portfolio": 1, "paused-one": 9}})
+    assert app._quiet_channel("slides") is False          # 12 messages today: she's on it
+    assert app._quiet_channel("portfolio") is True        # one stray message: not chased
+    assert app._quiet_channel("paused-one") is True       # paused wins
+    app._sc_today().choose(["portfolio"])                 # once she answers, her answer decides
+    assert app._quiet_channel("slides") is True and app._quiet_channel("portfolio") is False

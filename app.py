@@ -5152,6 +5152,8 @@ def _sc_said_note(msg: dict, sender: str, text: str, channel: str, msg_type: str
         return
     owner = str(room_settings.get("username") or "").lower()
     if sender.lower() == owner:
+        if _sc_lu_today["day"] == _sc_today_mod.day_of():
+            _sc_lu_today["n"][channel] = _sc_lu_today["n"].get(channel, 0) + 1
         if _sc_today_mod.MENTION_RE.search(text or ""):
             return
         rid = msg.get("reply_to")
@@ -5177,9 +5179,37 @@ def _project_channels() -> list:
     return [c for c in room_settings.get("channels", []) if c not in ("general", SC_DM)]
 
 
+_sc_lu_today: dict = {"day": "", "n": {}}
+LU_WORKING_HERE = 3      # messages from Lu in a channel today that mean "I'm working on this"
+
+
+def _sc_lu_wrote(channel: str, recount: bool = False) -> int:
+    """How many messages Lu has written in this channel today (day starts 05:00)."""
+    d = _sc_today_mod.day_of()
+    if _sc_lu_today["day"] != d or recount:
+        owner = str(room_settings.get("username") or "Lu").lower()
+        start = time.time() - 86400
+        n: dict = {}
+        with store._lock:
+            for m in store._messages[-6000:]:
+                ts = float(m.get("timestamp") or 0)
+                if ts >= start and _sc_today_mod.day_of(ts) == d and str(m.get("sender", "")).lower() == owner:
+                    n[m.get("channel") or "general"] = n.get(m.get("channel") or "general", 0) + 1
+        _sc_lu_today.update(day=d, n=n)
+    return int(_sc_lu_today["n"].get(channel, 0))
+
+
 def _quiet_channel(ch: str) -> bool:
-    """No reminders here: Lu paused the project, or didn't pick it for today (11-17)."""
-    return ch in _paused_channels() or not _sc_today().active(ch)
+    """No reminders here: Lu paused the project, or didn't pick it for today (11-17).
+    11-18: she didn't see the morning question, so nothing was chased all day ("很多事情一直被卡住")
+    while she wrote 190 messages in one channel. Until she answers, a channel she is plainly
+    working in (3+ messages today) counts as picked."""
+    if ch in _paused_channels():
+        return True
+    t = _sc_today()
+    if t.chosen() is None:
+        return _sc_lu_wrote(ch) < LU_WORKING_HERE
+    return not t.active(ch)
 
 
 def _sc_today_recent() -> list:
