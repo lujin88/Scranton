@@ -90,3 +90,7 @@ Pasting 1200+ characters or 16+ lines into the message box (channel or thread) d
 - Foot: a `PASTED` tag (`--ds-r-pill`, 1px `--ds-line-strong`, `--ds-fs-xs`, 600) on the left; a 28px pencil button (Remix `edit`) on the right that puts the text back into the box and removes the chip.
 - Remove (×) sits top right, shown on hover like every other attachment.
 - Shorter pastes are untouched. In a sent message it is a normal file attachment.
+
+## Picture viewer zoom (11-18)
+
+In the full-screen picture viewer: pinch or scroll zooms at the pointer (100%–800%), drag moves a zoomed picture, double-click toggles fit and 250%, keys `+` `-` `0`. A pill at the bottom centre (above the counter) has three 32px buttons: Remix `subtract`, the current percentage (click = fit), Remix `add`. The pill is always dark (it sits on the black backdrop in both themes): `rgba(20,20,22,.78)`, 1px white 14% border, `--ds-r-pill`, white icons. Zoom resets with every picture. Clicking the backdrop while zoomed returns to fit; a second click closes.

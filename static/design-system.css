@@ -1755,3 +1755,15 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-pasted-edit:hover, .sc-pasted-edit:focus-visible { background: var(--ds-hover); color: var(--ds-text); }
 #attachments .attachment-preview.sc-pasted > .attachment-remove, #sc-thread-atts .attachment-preview.sc-pasted > .attachment-remove {
   top: 4px !important; right: 4px !important; transform: none !important; }
+
+/* Picture viewer zoom (11-18). See docs/design-system.md. */
+#image-modal { overflow: hidden; }
+#image-modal > img { transition: transform var(--ds-dur-1, 120ms) ease-out; transform-origin: center; touch-action: none; user-select: none; -webkit-user-drag: none; }
+#image-modal > img[style*="grabbing"] { transition: none; }
+.sc-zoom { position: absolute; bottom: 48px; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 2px;
+  padding: 4px; background: rgba(20, 20, 22, .78); border: 1px solid rgba(255, 255, 255, .14); border-radius: var(--ds-r-pill); backdrop-filter: blur(8px); cursor: default; }
+.sc-zoom button { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; height: 32px; padding: 0 8px;
+  border: 0; border-radius: var(--ds-r-pill); background: transparent; color: #fff; font-size: var(--ds-fs-sm); font-variant-numeric: tabular-nums; cursor: pointer; }
+.sc-zoom button:hover, .sc-zoom button:focus-visible { background: rgba(255, 255, 255, .16); }
+.sc-zoom .sc-zoom-pct { min-width: 56px; }
+@media (prefers-reduced-motion: reduce) { #image-modal > img { transition: none; } }
