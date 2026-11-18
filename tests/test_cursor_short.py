@@ -49,3 +49,12 @@ def test_model_in_use_stays_selectable(monkeypatch):
     ids = [m[0] for m in t.models_for("cursor", "cursor-grok-4.6-low")]
     assert ids[0] == "" and "cursor-grok-4.6-low" in ids
     assert len(t.models_for("cursor", full=True)) == len(MODELS) + 1
+
+
+def test_cursors_own_menu_when_the_account_has_those_models(monkeypatch):
+    every = MODELS + [[m[0], m[1], ""] for m in t.CURSOR_MENU]
+    monkeypatch.setattr(t, "cursor_models", lambda: every)
+    got = t.models_for("cursor")
+    assert [m[1] for m in got[:4]] == ["Default", "Auto", "Grok 4.7 Low", "Grok 4.6 High Fast"]
+    assert len(got) == len(t.CURSOR_MENU) + 1
+    assert t.cursor_menu(MODELS) == t.cursor_short(MODELS)      # menu mostly gone: one line per model

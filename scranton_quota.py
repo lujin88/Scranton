@@ -147,7 +147,7 @@ def notice(cfg: dict | None, low: bool) -> str:
 # from the ChatGPT teammates came at 90–93% of the week, and Cursor's "Other models" being full
 # stopped webdev while Cursor's own models had 25% left. So before a teammate is stopped, look at
 # the real numbers Agent Monitor keeps (~/agent-monitor/usage.json).
-CURSOR_OWN = ("auto", "composer", "cursor-")
+CURSOR_OWN = ("auto", "composer", "cursor-", "grok-4.7")   # what Cursor lists under "Cursor Models"
 
 
 def is_cursor_own(model: str) -> bool:

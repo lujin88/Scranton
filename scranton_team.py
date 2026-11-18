@@ -512,12 +512,37 @@ def cursor_short(models: list[list[str]]) -> list[list[str]]:
     return out + [[best[k][2], best[k][1], "Cursor"] for k in order]
 
 
+# What Cursor's own model menu shows (Lu's screenshot, 11-18: "参考它就可以了。再做一个 mode 一般大家
+# 也都不会选"): one fixed effort per model, in Cursor's order and under Cursor's two headings.
+CURSOR_MENU = [
+    ["auto", "Auto", ""],
+    ["grok-4.7-low", "Grok 4.7 Low", "Cursor Models"],
+    ["cursor-grok-4.6-high-fast", "Grok 4.6 High Fast", "Cursor Models"],
+    ["composer-2.5-fast", "Composer 2.5 Fast", "Cursor Models"],
+    ["claude-opus-5-5-medium", "Claude Opus 5.5 Medium", "Other Models"],
+    ["gemini-4-neon-high", "Gemini 4 Neon High", "Other Models"],
+    ["gemini-4-carbon-medium", "Gemini 4 Carbon Medium", "Other Models"],
+    ["muse-wonder-1.0-high", "Muse Wonder High", "Other Models"],
+    ["gpt-5.6-sol-medium", "GPT-5.6 Sol Medium", "Other Models"],
+    ["claude-fable-5-2-high", "Claude Fable 5.2 High", "Other Models"],
+    ["claude-sonnet-5-5-high", "Claude Sonnet 5.5 High", "Other Models"],
+]
+
+
+def cursor_menu(models: list[list[str]]) -> list[list[str]]:
+    """Cursor's menu, minus anything this account's `agent models` no longer offers. When Cursor
+    has moved on so far that most of it is gone, fall back to one line per model."""
+    have = {m[0] for m in models}
+    menu = [list(m) for m in CURSOR_MENU if m[0] in have]
+    return menu if len(menu) >= 5 else cursor_short(models)
+
+
 def models_for(pid: str, current: str = "", full: bool = False) -> list[list[str]]:
     base = [list(m) + [""] * (3 - len(m)) for m in PROVIDERS.get(pid, {}).get("models", [["", "Default", ""]])]
     if pid == "cursor":
         every = cursor_models()
         seen = {m[0] for m in base}
-        base += [m for m in (every if full else cursor_short(every)) if m[0] not in seen]
+        base += [m for m in (every if full else cursor_menu(every)) if m[0] not in seen]
         if current and current not in {m[0] for m in base}:   # keep what this teammate runs on selectable
             hit = next((m for m in every if m[0] == current), None)
             base.append([current, hit[1] if hit else model_label(pid, current), "In use"])
