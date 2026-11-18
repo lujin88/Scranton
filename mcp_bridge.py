@@ -369,6 +369,9 @@ def chat_send(
     reply_id = reply_to if reply_to >= 0 else None
     if reply_id is not None and store.get_by_id(reply_id) is None:
         return f"Message #{reply_to} not found."
+    message, why_not = _picture_check(sender, message, choices, image_path, channel)
+    if why_not:
+        return why_not
     moved = ""
     if reply_id is not None:
         # A reply belongs with the message it answers, whatever channel was passed.
@@ -398,6 +401,32 @@ def chat_send(
     with _presence_lock:
         _presence[sender] = time.time()
     return f"Sent (id={msg['id']})" + moved + _length_note(message, clean_choices)
+
+
+def _picture_check(sender: str, message: str, choices, image_path: str, channel: str):
+    """Lu, 11-18: "PM 经常问我的问题我没办法回答，因为我要他配图，他也不给我配图". That day 12 of
+    44 cards and 11 of 29 other questions to her came without a picture. A question to her has to
+    show what it is about. Returns (message, error): the message loses its 「无图：…」 line."""
+    owner = _owner_name()
+    text = str(message or "")
+    m = _re_mod.match(r"\s*无图[：:]\s*(\S[^\n]{3,})\n?", text)
+    if m:
+        return text[m.end():].lstrip() or text, ""          # said why there is nothing to show
+    if not owner or str(image_path or "").strip() or sender.lower() in ("scranton", "system", owner.lower()):
+        return text, ""
+    to_owner = bool(_re_mod.search(r"@" + _re_mod.escape(owner) + r"(?![\w-])", text, _re_mod.I))
+    has_choices = any(isinstance(c, str) and c.strip() for c in (choices or []))
+    # A card, or a message that ends on a question. A "？" in the middle of a report doesn't count.
+    last = next((l for l in reversed(text.strip().split("\n")) if l.strip()), "")
+    asks = has_choices or bool(_re_mod.search(r"[?？]\s*$|吗[。 ]?$", last.strip()))
+    if not (to_owner and asks):
+        return text, ""
+    return text, (
+        f"Not sent. {owner} can't answer a question she can't see. Send it again with image_path = one picture "
+        f"(absolute path) of what you are asking about: a screenshot of the page as it is now, or the options side by "
+        f"side (A | B), or before | after. If you don't have one, make it first (ask whoever built it for a screenshot). "
+        f"Only when there is truly nothing to look at (a login, an account, a schedule, a yes/no about process), "
+        f"start the message with a line 「无图：why there is nothing to show」 and send again.")
 
 
 WOKEN_FOR = 30 * 60      # a call counts as "where you were called" for half an hour
