@@ -1801,3 +1801,17 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 #sc-inbox .sc-inbox-group-top { margin-top: 20px !important; color: var(--ds-text); font-size: var(--ds-fs-sm); }
 #sc-inbox .sc-inbox-group-top:first-child { margin-top: 0 !important; }
 .sc-inbox-group.sc-inbox-ch { color: var(--ds-text-3); font-weight: 500; }
+
+/* Activity summary: one row per project, click to open (11-18). */
+.sc-inbox-sum { padding: 0 12px 10px; color: var(--ds-text-2); font-size: var(--ds-fs-sm); }
+.sc-inbox-sum b { color: var(--ds-text); font-weight: 600; }
+.sc-inbox-sum-dot { margin: 0 8px; color: var(--ds-text-3); }
+.sc-inbox-proj { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin: 4px 0 0; padding: 0 12px; border: 1px solid var(--ds-line); border-radius: var(--ds-r-row); background: var(--ds-surface); color: var(--ds-text); font: inherit; font-size: var(--ds-fs-sm); text-align: left; cursor: pointer; }
+.sc-inbox-proj:hover { background: var(--ds-hover); }
+.sc-inbox-proj-chev { display: inline-flex; color: var(--ds-text-3); transform: rotate(-90deg); transition: transform .15s ease; }
+.sc-inbox-proj.open .sc-inbox-proj-chev { transform: none; }
+.sc-inbox-proj-name { font-weight: 600; margin-right: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-inbox-proj-n { flex: none; padding: 2px 8px; border-radius: var(--ds-r-pill); background: var(--ds-hover); color: var(--ds-text-2); font-size: var(--ds-fs-xs); }
+.sc-inbox-proj-n.wait { background: var(--ds-accent-soft); color: var(--ds-text); }
+.sc-inbox-proj.open { margin-bottom: 2px; }
+@media (prefers-reduced-motion: reduce) { .sc-inbox-proj-chev { transition: none; } }

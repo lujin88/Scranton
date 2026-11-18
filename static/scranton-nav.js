@@ -405,6 +405,8 @@
 
     let showRest = false, restN = 0, showOld = false;
     let attn = { rows: [] };
+    const openProj = new Map();   // project -> open or closed, as you left it (this visit)
+    const FEW = 6;                // this many items or fewer: every project starts open
     const rowSeen = new Set((() => { try { return JSON.parse(LS.get('sc-row-seen', '[]')); } catch (_) { return []; } })());
     function renderInbox() {
         const list = document.getElementById('sc-inbox-list');
@@ -505,20 +507,35 @@
             row.addEventListener('contextmenu', (e) => { e.preventDefault(); rowMenu(e, m); });
             list.appendChild(row);
         };
-        if (asks.length || waitRows.length) {
-            head(`<span>Waiting for your answer · ${asks.length + waitRows.length}</span>`, 'sc-inbox-group-top');
-            // one group per project: its questions first, then its board rows
-            const both = byChannel([...asks.map((m) => ({ ch: m.channel || 'general', m })), ...waitRows.map((r) => ({ ch: r.channel, r }))], (x) => x.ch);
-            let ch = null;
-            for (const x of both) {
-                if (x.ch !== ch) { ch = x.ch; head(esc(isDm(ch) ? 'Direct message' : '# ' + ch), 'sc-inbox-ch'); }
-                if (x.m) addMsg(x.m); else addRow(x.r, 'On the board as waiting for you');
+        // A summary first: one line per project with its two counts; click it to see what is inside
+        // (Lu, 11-18: "我想要一个 summary，然后我点进去。否则万一太长了"). With only a few items
+        // everything starts open, so a short list costs no extra click.
+        const proj = new Map();
+        const at = (ch) => { if (!proj.has(ch)) proj.set(ch, { wait: [], stuck: [] }); return proj.get(ch); };
+        asks.forEach((m) => at(m.channel || 'general').wait.push({ m }));
+        waitRows.forEach((r) => at(r.channel).wait.push({ r }));
+        stuckMsgs.forEach((m) => at(m.channel || 'general').stuck.push({ m }));
+        stuckRows.forEach((r) => at(r.channel).stuck.push({ r }));
+        const nWait = asks.length + waitRows.length, nStuck = stuckMsgs.length + stuckRows.length;
+        if (!nothing) {
+            const few = nWait + nStuck <= FEW;
+            list.insertAdjacentHTML('beforeend', `<div class="sc-inbox-sum"><b>${nWait}</b> waiting for your answer<span class="sc-inbox-sum-dot">·</span><b>${nStuck}</b> stuck<span class="sc-inbox-sum-dot">·</span>${proj.size} project${proj.size > 1 ? 's' : ''}</div>`);
+            for (const [ch, g] of proj) {
+                const open = openProj.has(ch) ? openProj.get(ch) : few;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'sc-inbox-proj' + (open ? ' open' : '');
+                btn.setAttribute('aria-expanded', String(open));
+                btn.innerHTML = `<span class="sc-inbox-proj-chev">${ic('chevron-down', 16)}</span>`
+                    + `<span class="sc-inbox-proj-name">${esc(isDm(ch) ? 'Direct message' : '# ' + ch)}</span>`
+                    + (g.wait.length ? `<span class="sc-inbox-proj-n wait">${g.wait.length} waiting for you</span>` : '')
+                    + (g.stuck.length ? `<span class="sc-inbox-proj-n">${g.stuck.length} stuck</span>` : '');
+                btn.addEventListener('click', () => { openProj.set(ch, !open); renderInbox(); });
+                list.appendChild(btn);
+                if (!open) continue;
+                g.wait.forEach((x) => (x.m ? addMsg(x.m) : addRow(x.r, 'On the board as waiting for you')));
+                g.stuck.forEach((x) => (x.m ? addMsg(x.m) : addRow(x.r, 'Stuck')));
             }
-        }
-        if (stuckMsgs.length || stuckRows.length) {
-            head(`<span>Stuck · ${stuckMsgs.length + stuckRows.length}</span>`, 'sc-inbox-group-top');
-            stuckMsgs.forEach(addMsg);
-            stuckRows.forEach((r) => addRow(r, 'Stuck'));
         }
         if (oldRows.length) {
             fold(showOld ? 'Hide what has been stuck for over a day' : `Stuck for over a day · ${oldRows.length}`, showOld, () => { showOld = !showOld; });

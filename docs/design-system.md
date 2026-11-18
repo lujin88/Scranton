@@ -112,3 +112,7 @@ Activity has no tabs and no filters. It shows, in this order:
 3. One folded line, "Everything else that mentions you · N" (`.sc-inbox-rest`).
 
 Board rows come from `GET /api/scranton/attention` (all projects that are not paused). A row uses the same `.sc-inbox-item` as a message; its ✓ takes it off the list. Clicking any item opens its channel at that message with the reply box ready. The sidebar count is the sum of lists 1 and 2.
+
+### Activity summary (11-18)
+
+The two lists are shown per project. On top one line of totals (`.sc-inbox-sum`), then one row per project (`.sc-inbox-proj`: chevron, name, "N waiting for you" pill in accent-soft, "N stuck" pill). Click a row to open or close it. With 6 items or fewer every project starts open; above that all start closed. Open or closed is kept while the page is open.
