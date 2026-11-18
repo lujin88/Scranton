@@ -90,3 +90,33 @@ def test_names_the_way_lu_says_them():
 def test_the_rest_not_today_never_wipes_the_choice():
     assert T.parse("别的今天先不要做", MINI) == ("keep", [])
     assert T.parse("别的今天都不做", MINI) == ("keep", [])
+
+
+def test_talk_in_the_scranton_dm_is_not_a_today_command():
+    """The 1-on-1 is also where sign-in and stuck-app notes land. Those lines must not
+    pick or wipe today's projects (11-18: 'Cursor 停了' / '停在登录页' became 今天不做)."""
+    for line in ("Cursor 停了", "停在登录页", "我去休息一下", "所有的图都要描边",
+                 "that's all", "agent monitor 额度满了", "好的我去登录"):
+        assert not T.is_command(line), line
+        assert T.parse(line, MINI) == ("", []), line
+
+
+def test_real_today_commands_still_parse():
+    assert T.is_command("今天做 client advisory slides")
+    assert T.is_command("今天主要就做 client advisory slides，然后来得及的话做 MAN screen")
+    assert T.is_command("加上 lu-portfolio")
+    assert T.is_command("@Scranton A：client-advisory-slid")
+    assert T.is_command("@Scranton E：全部项目")
+    assert T.is_command("@Scranton F：今天不做项目")
+    assert T.parse("全部项目", MINI) == ("all", [])
+    assert T.parse("全部", MINI) == ("all", [])
+    assert T.parse("今天不做", MINI) == ("none", [])
+    assert T.parse("今天不做项目", MINI) == ("none", [])
+
+
+def test_casual_dm_does_not_wipe_a_choice(tmp_path):
+    t = _t(tmp_path)
+    t.choose(["client-advisory-slid", "man-screen"])
+    kind, chans = T.parse("Cursor 停了", MINI)
+    assert (kind, chans) == ("", [])
+    assert t.chosen() == (False, ["client-advisory-slid", "man-screen"])

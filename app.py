@@ -5206,12 +5206,13 @@ def _sc_today_ask() -> None:
 
 def _sc_today_is_for_scranton(msg: dict) -> bool:
     """Lu's click on another Scranton card (the 98 % quota question) also posts "@Scranton A：…":
-    that one is not about today's projects."""
+    that one is not about today's projects. Ordinary talk in the 1-on-1 isn't either
+    ('Cursor 停了' is not '今天不做项目')."""
     rid = msg.get("reply_to")
     orig = store.get_by_id(rid) if isinstance(rid, int) else None
     if orig and orig.get("type") == "decision":
         return bool((orig.get("metadata") or {}).get("today_ask"))
-    return True
+    return _sc_today_mod.is_command(str(msg.get("text") or ""))
 
 
 def _sc_today_set(text: str, tell_pm: bool = True) -> str:

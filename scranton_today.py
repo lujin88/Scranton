@@ -20,9 +20,20 @@ from safe_io import atomic_write
 DAY_STARTS = 5          # 05:00 local
 ALL = "全部项目"
 NONE = "今天不做项目"
-_ALL_RE = re.compile(r"全部|所有|都做|\ball\b", re.I)
-_NONE_RE = re.compile(r"不做|都不|休息|安静|别提醒|不要提醒|停|\bnone\b", re.I)
+_ALL_RE = re.compile(r"全部项目|所有项目|(?<![一-龥])全部(?![一-龥])", re.I)
+_NONE_RE = re.compile(r"今天不做|都不做|不做项目|别提醒|不要提醒|今天不发", re.I)
 _ADD_RE = re.compile(r"加上|再加|也做|还做|\badd\b", re.I)
+_CARD_RE = re.compile(r"(?:^|@\S+\s+)[A-Fa-f1-9]{1,2}\s*[：:]")
+# Free text in the Scranton 1-on-1 is not a today-projects command just because it names a
+# project or says 停/休息/所有. Those words are how she talks about stuck apps and pictures.
+_INTENT_RE = re.compile(
+    r"今天(?:主要|就|先)*做(?!完)|加上|再加|也做|还做|"
+    r"全部项目|所有项目|(?<![一-龥])全部(?![一-龥])|"
+    r"今天不做|今天不发|都不做|不做项目|别提醒|不要提醒|"
+    r"(?:别的|其他|其它|剩下).{0,12}今天|今天.{0,12}(?:别的|其他|其它|剩下)|"
+    r"\badd\b",
+    re.I,
+)
 MENTION_RE = re.compile(r"@scranton(?![\w-])", re.I)
 
 
@@ -92,11 +103,21 @@ def _norm(x: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", str(x or "").lower())
 
 
+def is_command(text: str) -> bool:
+    """True when this line is picking today's projects (a card click, or 今天做 / 加上 / 全部…).
+    False for ordinary talk in the Scranton 1-on-1: 'Cursor 停了' is not '今天不做项目'."""
+    raw = str(text or "")
+    body = re.sub(r"^@\S+\s*", "", MENTION_RE.sub(" ", raw)).strip()
+    return bool(_CARD_RE.search(raw) or _CARD_RE.match(body) or _INTENT_RE.search(body))
+
+
 def parse(text: str, channels) -> tuple[str, list[str]]:
     """What Lu meant: ("all" | "none" | "set" | "add" | "keep" | "", [channels]).
     She writes project names the way she says them, not the channel id (11-17: "今天主要就做 client
     advisory slides，然后来得及的话做 MAN screen" matched nothing). So compare without spaces and
-    hyphens, then by the first words of the name when only one channel starts that way."""
+    hyphens, then by the first words of the name when only one channel starts that way.
+    A project name or 停/所有/休息 in passing is not a pick (11-18: the 1-on-1 treated
+    'Cursor 停了' / '停在登录页' as 今天不做, and 'agent monitor 额度满了' as the day's only project)."""
     raw = MENTION_RE.sub(" ", str(text or "")).lower()
     t = _norm(raw)
     words = set(re.findall(r"[a-z0-9]+", raw))
@@ -118,10 +139,13 @@ def parse(text: str, channels) -> tuple[str, list[str]]:
         if (len(toks) >= 2 and len(two) >= 6 and two in t and len(same_two) == 1) \
                 or (len(toks[0]) >= 3 and toks[0] in words and len(same_one) == 1):
             found.append(c)
-    if found:
+    cmd = is_command(text)
+    if found and cmd:
         return ("add" if _ADD_RE.search(raw) else "set"), [c for c in channels if c in found]
-    if re.search(r"别的|其他|其它|剩下", raw):
+    if cmd and re.search(r"别的|其他|其它|剩下", raw):
         return "keep", []          # "别的今天先不要做": that's already how it works; never wipes the choice
+    if found or not cmd:
+        return "", []              # named a project, or talked, without picking the day
     if _ALL_RE.search(raw):
         return "all", []
     if _NONE_RE.search(raw):
