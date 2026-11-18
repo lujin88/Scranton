@@ -328,7 +328,7 @@ SEEN_MODELS = ROOT / "data" / "models-seen.json"
 
 
 def _model_ids(pid: str) -> list[list[str]]:
-    return [[m[0], m[1]] for m in models_for(pid) if m and m[0]]
+    return [[m[0], m[1]] for m in models_for(pid, full=True) if m and m[0]]
 
 
 def new_models() -> dict:
@@ -475,11 +475,52 @@ def model_label(pid: str, model: str) -> str:
     return PROVIDERS.get(pid, {}).get("name", "").split(" (")[0]
 
 
-def models_for(pid: str) -> list[list[str]]:
+_EFFORT = r"(?:None|Minimal|Low|Medium|High|Extra High|Max)"
+
+
+def _cursor_plain(label: str) -> str:
+    """'Claude Opus 5.5 1M High Fast' -> 'Claude Opus 5.5': the model without its size, effort and speed."""
+    t = re.sub(r"[\u200b\u200c\u200d]", "", label or "")
+    t = re.sub(r"\(NO ZDR\)|\b1M\b|\bNo Thinking\b|\bThinking\b|\bFast\b", " ", t)
+    t = re.sub(rf"\b{_EFFORT}\b", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def cursor_short(models: list[list[str]]) -> list[list[str]]:
+    """`agent models` lists every size, effort and speed of every model (285 on Lu's plan, 11-18:
+    'Cursor 里面选的话不会出现那么多'). Cursor's own picker shows one line per model, so do the same:
+    the newest version of each model, at the effort Cursor itself uses for it."""
+    best: dict[str, tuple] = {}          # line ("Claude Opus") -> (version, plain name, id)
+    order: list[str] = []
+    for mid, label, *_ in models:
+        if mid == "auto":
+            continue
+        plain = _cursor_plain(label)
+        nums = re.findall(r"\d+(?:\.\d+)?", plain)
+        line = re.sub(r"\s+", " ", re.sub(r"[-\s]?\d+(?:\.\d+)?", " ", plain)).strip()
+        ver = tuple(float(n) for n in nums[:1])
+        # the variant Cursor shows under the bare name is its own default for that model
+        bare = re.sub(r"\s+", " ", re.sub(r"\(NO ZDR\)|\b1M\b|[\u200b\u200c\u200d]", " ", label)).strip() == plain
+        # no bare name (Grok 4.7 only comes as Low/Medium/High): medium, the middle of what is offered
+        rank = 3 if bare else 2 if re.search(r"-medium$", mid) else 1 if re.search(r"-high$", mid) else 0
+        cur = best.get(line)
+        if cur is None:
+            order.append(line)
+        if cur is None or ver > cur[0] or (ver == cur[0] and rank > cur[3]):
+            best[line] = (ver, plain, mid, rank)
+    out = [["auto", "Auto", "Cursor"]] if any(m[0] == "auto" for m in models) else []
+    return out + [[best[k][2], best[k][1], "Cursor"] for k in order]
+
+
+def models_for(pid: str, current: str = "", full: bool = False) -> list[list[str]]:
     base = [list(m) + [""] * (3 - len(m)) for m in PROVIDERS.get(pid, {}).get("models", [["", "Default", ""]])]
     if pid == "cursor":
+        every = cursor_models()
         seen = {m[0] for m in base}
-        base += [m for m in cursor_models() if m[0] not in seen]
+        base += [m for m in (every if full else cursor_short(every)) if m[0] not in seen]
+        if current and current not in {m[0] for m in base}:   # keep what this teammate runs on selectable
+            hit = next((m for m in every if m[0] == current), None)
+            base.append([current, hit[1] if hit else model_label(pid, current), "In use"])
     return base
 
 
@@ -538,7 +579,7 @@ def profile(name: str, config: dict, members: dict, recent: list[dict]) -> dict 
         "provider": pid,
         "provider_name": PROVIDERS.get(pid, {}).get("name", a.get("command", "")),
         "model": str(a.get("model", "") or ""),
-        "models": models_for(pid),
+        "models": models_for(pid, str(a.get("model", "") or "")),
         "permissions": str(a.get("permissions", team.get("permissions", "ask"))),
         "autostart": bool(a.get("autostart", True)),
         "folder": str(a.get("cwd", "")),
