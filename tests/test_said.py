@@ -64,3 +64,23 @@ def test_backfill_is_findable_but_never_chased(tmp_path):
     old = [_m(5, "@pm 信件要描边，亮起来之后不要那么亮", ago=86400), _m(6, "@Lu 收到", sender="pm", ago=86000)]
     assert s.backfill(old, "Lu") == 1
     assert s.open_items() == [] and s.find("slides", "描边")[0]["state"] == "old"
+
+
+def test_questions_are_settled_by_an_answer_changes_are_not():
+    assert S.is_question("@pm 为什么实习生又 stop 了？")
+    assert S.is_question("@pm 即梦连上了吗？")
+    assert not S.is_question("@pm 这页底下不是讲了四遍了吗？为什么还是没有改这个 wireframe？")   # asks for a change
+    assert not S.is_question("@pm 把第二页的卡片放过来")
+
+
+def test_an_assignment_that_cites_her_message_carries_her_words_and_pictures(tmp_path, monkeypatch):
+    import mcp_bridge as B
+    s = _s(tmp_path)
+    s.add(_m(17410, "@pm 卡片第一页和第二页要一样高，红色圈出来的还是 wireframe 的位置", atts=[{"url": "/uploads/red-box.png"}]))
+    monkeypatch.setattr(B, "SAID", s)
+    monkeypatch.setattr(B, "_owner_name", lambda: "Lu")
+    got = B._owner_words_for({"sender": "pm", "text": "@webdev 急件（Lu #17410）：第 1 步背景网格用第 2 步那一套。交 10:35"})
+    assert got[0]["id"] == 17410 and "一样高" in got[0]["said"]
+    assert got[0]["pictures"] and got[0]["pictures"][0].endswith("red-box.png")
+    assert B._owner_words_for({"sender": "Lu", "text": "@pm 见 #17410"}) == []          # her own messages: nothing to add
+    assert B._owner_words_for({"sender": "pm", "text": "@webdev 没有编号的派活"}) == []

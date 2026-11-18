@@ -506,6 +506,30 @@ def _resolve_attachments(attachments: list[dict]) -> list[dict]:
     return resolved
 
 
+def _owner_words_for(m: dict) -> list[dict]:
+    """Lu, 11-18: "我讲了好多遍，也画图了，但他还是没有参照着做". Her picture reached the project
+    manager, who described it in words to whoever built it: of 144 assignments that day 3 carried
+    a picture and 24 a file path, and the builder is woken with "read the channel", not with her
+    message. So an assignment that cites her message (#17410) is handed over with her words and
+    her pictures attached, whoever wrote the assignment."""
+    if SAID is None or str(m.get("sender") or "").lower() == _owner_name().lower():
+        return []
+    import scranton_said as _S
+    ids = _S.cited_ids(m.get("text"))
+    out, seen = [], set()
+    for i in ids:
+        it = SAID.get(i)
+        if not it or i in seen:
+            continue
+        seen.add(i)
+        pics = [a.get("file_path") for a in _resolve_attachments([{"url": u} for u in it.get("atts") or []]) if a.get("file_path")]
+        out.append({"id": i, "said": _S.body_of(it["text"])[:600], "pictures": pics,
+                    **({"she_was_replying_to": it["ctx"]} if it.get("ctx") else {})})
+        if len(out) >= 4:
+            break
+    return out
+
+
 def _serialize_messages(msgs: list[dict]) -> str:
     """Serialize store messages into MCP chat_read output shape."""
     out = []
@@ -520,6 +544,13 @@ def _serialize_messages(msgs: list[dict]) -> str:
         }
         if m.get("attachments"):
             entry["attachments"] = _resolve_attachments(m["attachments"])
+        said = _owner_words_for(m)
+        if said:
+            entry["owner_said"] = said
+            entry["owner_said_note"] = ("Her own words and pictures for what this message cites. Open every picture "
+                                        "(file_path) and look at it before you start. Where this message and her "
+                                        "words or pictures differ, hers win; if you can't tell what she means, ask "
+                                        "before building.")
         if m.get("reply_to") is not None:
             entry["reply_to"] = m["reply_to"]
         out.append(entry)

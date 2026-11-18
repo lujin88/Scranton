@@ -5167,7 +5167,11 @@ def _sc_said_note(msg: dict, sender: str, text: str, channel: str, msg_type: str
         # minutes before: her bursts are read together and answered once.
         if _re.sub(r"-\d+$", "", sender.lower()) == _mentions_from() and owner and _re.search(
                 r"@" + _re.escape(owner) + r"(?![\w-])", text or "", _re.I):
-            ids += [it["id"] for it in said.open_items(channel) if time.time() - it["ts"] <= 600]
+            # 11-18: this used to settle everything she had said in the last ten minutes, so 151
+            # of 156 showed "taken" while one page was sent back four times. An answer settles
+            # her questions only; a change is taken when its #number is cited where it's assigned.
+            ids += [it["id"] for it in said.open_items(channel)
+                    if time.time() - it["ts"] <= 600 and _sc_said_mod.is_question(it["text"])]
         if ids:
             said.take(ids, sender, msg.get("id") if isinstance(msg.get("id"), int) else 0)
 

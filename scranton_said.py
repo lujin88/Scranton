@@ -39,6 +39,16 @@ def is_instruction(text: str) -> bool:
     return len(b) >= MIN_CHARS and not _CLICK_RE.match(b)
 
 
+_DO_RE = re.compile(r"[把改换删加做移调放挪缩去留用写画补修重]|\b(?:make|change|move|remove|add|fix|use|delete)\b", re.I)
+
+
+def is_question(text: str) -> bool:
+    """「为什么实习生又 stop 了？」「这个做完了吗？」: she wants an answer, not a change. An answer
+    from the project manager settles it. Anything that asks for a change is an instruction."""
+    b = body_of(text)
+    return bool(re.search(r"[?？]|吗|为什么|怎么回事|什么情况", b)) and len(b) <= 60 and not _DO_RE.search(b)
+
+
 def cited_ids(text: str) -> list[int]:
     return [int(x) for x in _ID_RE.findall(str(text or ""))]
 
@@ -101,6 +111,11 @@ class Said:
             if n:
                 self._save()
         return n
+
+    def get(self, mid) -> dict | None:
+        with self.lock:
+            it = self.items.get(str(mid))
+            return dict(it) if it else None
 
     def take(self, ids, by: str, ref: int = 0) -> list[int]:
         """Someone picked these up (cited the number, or replied to it)."""
