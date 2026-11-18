@@ -251,6 +251,7 @@
             if (event && event.type === 'reaction') {
                 const m = byId.get(Number(event.id));
                 if (m) { m.reactions = event.reactions || {}; paintReactions(m); }
+                window.dispatchEvent(new CustomEvent('sc-reaction', { detail: event }));   // Activity: your 👍 = seen
                 return;
             }
             if (event && event.type === 'delete' && Array.isArray(event.ids)) {

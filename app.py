@@ -1397,6 +1397,23 @@ def _sc_board_follow(msg: dict, sender: str, text: str, channel: str, msg_type: 
                              note=f"{sender} 交给 Lu 了（#{msg['id']}）")
 
 
+def _sc_board_seen(target: dict, mid: int, emoji: str) -> int:
+    """Lu, 11-18: "不需要我回答的，我就 thumbs up 表明我看到过了，但是它并没有消失". Her reaction on a
+    message closes the 等你 rows that point at it: seen, nothing more wanted. Nobody is woken;
+    the note says what happened, and anyone who still needs an answer sets the row back."""
+    import mcp_bridge
+    board = mcp_bridge.BOARD
+    if board is None:
+        return 0
+    ch = target.get("channel") or "general"
+    n = 0
+    for r in board.rows(ch):
+        if r.get("state") == "waiting_lu" and (int(r.get("msg") or 0) == mid or _re.search(rf"#{mid}(?!\d)", str(r.get("note") or ""))):
+            board.upsert(ch, "Scranton", id=r["id"], state="live", note=f"Lu {emoji} 看过了（#{mid}），不用再等她")
+            n += 1
+    return n
+
+
 def _lu_ask_for_pm(sender: str, text: str, channel: str, msg: dict | None = None) -> bool:
     """True when a teammate other than [team] mentions_from opens a channel message with @owner.
     A delivery (see _is_delivery) is not routed to the project manager: it is hers to look at."""
@@ -1842,6 +1859,11 @@ async def websocket_endpoint(websocket: WebSocket):
                     continue
                 store.update_message(mid, {"reactions": reactions})
                 await _broadcast(json.dumps({"type": "reaction", "id": mid, "reactions": reactions}))
+                if who in users:
+                    try:
+                        _sc_board_seen(target, mid, emoji)
+                    except Exception:
+                        _log_rate_limited("board seen failed")
                 continue
 
             elif event.get("type") == "delete":

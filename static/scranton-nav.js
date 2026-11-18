@@ -96,7 +96,11 @@
     // You talked to them after it, in the same channel (e.g. "@pm B" typed in the channel instead of
     // clicking): counts as dealt with. The PM re-asks anything still open when you're back.
     const myLastToIn = new Map();   // "channel|handle" -> id of your latest message there @mentioning them
+    // Your reaction on it (a thumbs up) means "seen, nothing more from me" (Lu, 11-18). Not for a PR
+    // to merge: only GitHub can say that one is done.
+    const reactedByMe = (m) => Object.values((m && m.reactions) || {}).some((us) => (us || []).some((u) => String(u).toLowerCase() === me().toLowerCase()));
     const answered = (m) => !!(prDone(m) || (!isPrAsk(m) && ((m.type === 'decision' && (m.metadata || {}).resolved)
+        || reactedByMe(m)
         || repliedTo.has(Number(m.id))
         || (m.reply_to != null && (myLastInThread.get(Number(m.reply_to)) || 0) > Number(m.id))
         || (myLastToIn.get(`${m.channel || 'general'}|${String(m.sender || '').toLowerCase().replace(/-\d+$/, '')}`) || 0) > Number(m.id))));
@@ -181,6 +185,11 @@
         const name = me().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         return new RegExp(`(^|[^\\w])@(${name}|lu)(?![\\w-])`, 'i').test(String(text || ''));
     }
+
+    window.addEventListener('sc-reaction', (e) => {
+        const m = inbox.get(Number(e.detail && e.detail.id));
+        if (m) { m.reactions = e.detail.reactions || {}; scheduleRender(); if (window.scRefreshNeedCount) window.scRefreshNeedCount(); }
+    });
 
     function consider(msg) {
         if (!msg || msg.id == null) return;

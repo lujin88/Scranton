@@ -48,3 +48,13 @@ def test_her_answer_to_a_question_named_in_the_note_also_counts(monkeypatch, tmp
     app._sc_board_follow(reply, "Lu", reply["text"], "portfolio", "chat", True)
     states = {r["ask"]: r["state"] for r in b.rows("portfolio")}
     assert states == {"Gratula 视觉稿": "doing", "别的事": "waiting_lu"}
+
+
+def test_her_thumbs_up_closes_the_row_that_was_waiting_for_her(monkeypatch, tmp_path):
+    b = _setup(monkeypatch, tmp_path)
+    b.upsert("slides", "pm", ask="文案 review", state="waiting_lu", who="webdev", msg=18346, note="改前|改后图已发 Lu")
+    b.upsert("slides", "pm", ask="Hub 布局", state="waiting_lu", who="dev", note="等她选 #18334")
+    assert app._sc_board_seen({"channel": "slides"}, 18346, "👍") == 1
+    rows = {r["ask"]: r for r in b.rows("slides")}
+    assert rows["文案 review"]["state"] == "live" and "看过了" in rows["文案 review"]["note"]
+    assert rows["Hub 布局"]["state"] == "waiting_lu"          # a different message: still hers to answer
