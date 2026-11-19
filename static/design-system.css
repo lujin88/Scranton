@@ -1960,3 +1960,44 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-rules-head h4 { margin: 0 0 4px; font-size: var(--ds-fs-sm); font-weight: 600; color: var(--ds-text); }
 .sc-rules-head p { margin: 0; max-width: 70ch; color: var(--ds-text-2); font-size: var(--ds-fs-sm); line-height: 1.5; }
 .sc-lesson-you { margin: 6px 0 0; color: var(--ds-text-3); font-size: var(--ds-fs-xs); font-weight: 600; }
+
+/* ===== 11-19 sweep: everything added to Activity and the overview this week, back on the design
+   system (Lu: "这页字体和别人长得不一样"). Body text 14, weights 400/500/600, buttons are .sc-btn
+   (overlay fill, no border; primary = accent), and every place you type is the composer:
+   --ds-field, radius 14, no border until focus, Enter icon that turns blue. ===== */
+.sc-btn.sm { min-height: 32px; padding: 0 12px; font: inherit; font-size: var(--ds-fs-sm); font-weight: 500; cursor: pointer; }
+.sc-btn.sm:disabled { opacity: .45; cursor: default; }
+.sc-typebox { display: flex; align-items: flex-end; gap: 4px; padding: 4px 6px 4px 12px; border-radius: 14px; background: var(--ds-field); box-shadow: inset 0 0 0 1px transparent; }
+.sc-typebox:focus-within { box-shadow: inset 0 0 0 1px var(--ds-line-strong); }
+#sc-inbox .sc-typebox textarea, #sc-inbox .sc-typebox input, #sc-ch-board .sc-typebox input {
+    flex: 1; min-width: 0; min-height: 32px; margin: 0; padding: 6px 0 !important; border: 0 !important; outline: none !important; background: transparent !important;
+    color: var(--ds-text); font: inherit; font-size: var(--ds-fs-md) !important; font-weight: 400; line-height: 20px; resize: none; box-shadow: none !important; }
+.sc-typebox-send { flex: none; width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: var(--ds-r-control); background: transparent; color: var(--ds-accent); cursor: pointer; }
+.sc-typebox-send:hover { background: var(--ds-hover); }
+.sc-typebox-send:disabled { color: var(--ds-text-3); cursor: default; background: transparent; }
+.sc-inbox-answer { margin: 10px 0 4px 46px; }
+.sc-inbox-answer-foot { justify-content: flex-start; margin-top: 8px; }
+.sc-inbox-q { border: 0; background: var(--ds-raised); border-radius: var(--ds-r-card); }
+.sc-inbox-q-text, .sc-inbox-text, .sc-inbox-note { font-size: var(--ds-fs-md); }
+.sc-inbox-note { font-size: var(--ds-fs-sm); }
+.sc-inbox-link { font-size: var(--ds-fs-sm); margin: 0 0 8px; }
+/* rule card */
+.sc-lesson { border: 0; background: var(--ds-raised); }
+#sc-inbox .sc-lesson-text { font-size: var(--ds-fs-md) !important; font-weight: 600; line-height: 20px; }
+.sc-lesson-ask.sc-typebox { margin-top: 10px; }
+.sc-lesson-ask.sc-typebox[hidden] { display: none; }
+.sc-lesson-btns button.sc-btn.sm, .sc-lesson-btns button.sc-btn.sm.primary { min-height: 32px; }
+.sc-rules-head h4 { font-size: var(--ds-fs-md); }
+/* close card, preferences panel, closed projects */
+.sc-close-foot button.sc-btn.sm { border: 0 !important; }
+.sc-close-foot button.sc-btn.sm.danger { background: var(--ds-danger) !important; color: #fff !important; font-weight: 600; }
+.sc-lessons-item button.sc-btn.sm, .sc-lessons-add button.sc-btn.sm, .sc-closed-item button.sc-btn.sm { border: 0 !important; min-height: 28px; }
+.sc-lessons-add input { border: 0; background: var(--ds-field); border-radius: 14px; font-size: var(--ds-fs-md); }
+.sc-lessons-add input:focus { outline: none; box-shadow: inset 0 0 0 1px var(--ds-line-strong); }
+.sc-inbox-proj { border: 0; background: var(--ds-raised); font-size: var(--ds-fs-md); }
+@media (max-width: 760px) { #sc-inbox .sc-typebox textarea, #sc-inbox .sc-typebox input, .sc-lessons-add input { font-size: 16px !important; } .sc-inbox-answer { margin-left: 0; } }
+
+/* the field is one line high until you type more (older rules gave it 56px and its own border) */
+#sc-inbox .sc-typebox textarea { min-height: 32px !important; height: 32px; max-height: 160px; text-align: left; width: auto; display: block; overflow-y: auto; }
+#sc-inbox .sc-typebox { align-items: flex-end; min-height: 40px; box-sizing: border-box; }
+.sc-lesson-ask.sc-typebox { display: flex; gap: 4px; }

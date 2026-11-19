@@ -70,9 +70,9 @@
                 <li><b>Chat</b><span>${closing.messages} messages are saved to ${esc(closing.folder)}/chat.md, then this channel is removed.</span></li>
             </ol>
             <div class="sc-close-foot">
-                <button type="button" class="sc-close-cancel">Keep the project open</button>
-                ${cl.ok.length ? `<button type="button" class="sc-close-finish" data-clean="0">Close, leave files</button>` : ''}
-                <button type="button" class="sc-close-finish danger" data-clean="${cl.ok.length ? 1 : 0}" ${closing.handoff ? '' : 'data-nohandoff="1"'}>${armed ? 'Click again to remove the channel' : closing.handoff ? (cl.ok.length ? 'Close and set files aside' : 'Close project') : 'Close without a hand-over'}</button>
+                <button type="button" class="sc-btn sm sc-close-cancel">Keep the project open</button>
+                ${cl.ok.length ? `<button type="button" class="sc-btn sm sc-close-finish" data-clean="0">Close, leave files</button>` : ''}
+                <button type="button" class="sc-btn sm sc-close-finish danger" data-clean="${cl.ok.length ? 1 : 0}" ${closing.handoff ? '' : 'data-nohandoff="1"'}>${armed ? 'Click again to remove the channel' : closing.handoff ? (cl.ok.length ? 'Close and set files aside' : 'Close project') : 'Close without a hand-over'}</button>
             </div>
         </div>`;
     }
@@ -96,9 +96,9 @@
         if (!lessonsOpen) return `<div class="sc-lessons">${head}</div>`;
         return `<div class="sc-lessons">${head}<div class="sc-ch-card">
             <p class="sc-lessons-note">Handed to every teammate who works here. Up to 15; a new one past that pushes the oldest out.</p>
-            ${p.map((x) => `<div class="sc-lessons-item pending"><span>${esc(x.text)}</span><button type="button" data-lesson="drop" data-id="${x.id}">Drop</button><button type="button" class="primary" data-lesson="keep" data-id="${x.id}">Keep</button></div>`).join('')}
-            ${k.map((x, i) => `<div class="sc-lessons-item"><span>${i + 1}. ${esc(x.text)}</span><button type="button" data-lesson="remove" data-id="${x.id}">Remove</button></div>`).join('') || (p.length ? '' : '<p class="sc-lessons-note">None yet. They come from what you correct, once you confirm them; or add one yourself.</p>')}
-            <form class="sc-lessons-add"><input type="text" maxlength="140" placeholder="Add one yourself, for example: titles sit in the same place on every slide" aria-label="Add a preference"><button type="submit">Add</button></form>
+            ${p.map((x) => `<div class="sc-lessons-item pending"><span>${esc(x.text)}</span><button type="button" class="sc-btn sm" data-lesson="drop" data-id="${x.id}">Drop</button><button type="button" class="sc-btn sm primary" data-lesson="keep" data-id="${x.id}">Keep</button></div>`).join('')}
+            ${k.map((x, i) => `<div class="sc-lessons-item"><span>${i + 1}. ${esc(x.text)}</span><button type="button" class="sc-btn sm" data-lesson="remove" data-id="${x.id}">Remove</button></div>`).join('') || (p.length ? '' : '<p class="sc-lessons-note">None yet. They come from what you correct, once you confirm them; or add one yourself.</p>')}
+            <form class="sc-lessons-add"><input type="text" maxlength="140" placeholder="Add one yourself, for example: titles sit in the same place on every slide" aria-label="Add a preference"><button type="submit" class="sc-btn sm">Add</button></form>
         </div></div>`;
     }
     document.addEventListener('click', (e) => {
@@ -128,7 +128,7 @@
         if (!list.length) return;
         const day = (t) => new Date(Number(t) * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
         box.innerHTML = `<button type="button" class="sc-closed-toggle" aria-expanded="${closedOpen}">Closed projects · ${list.length}</button>`
-            + (closedOpen ? list.map((c) => `<div class="sc-closed-item"><span title="${esc(c.folder || '')}"># ${esc(c.channel)}<small>closed ${esc(day(c.at))}</small></span><button type="button" data-reopen="${esc(c.channel)}">Reopen</button></div>`).join('') : '');
+            + (closedOpen ? list.map((c) => `<div class="sc-closed-item"><span title="${esc(c.folder || '')}"># ${esc(c.channel)}<small>closed ${esc(day(c.at))}</small></span><button type="button" class="sc-btn sm" data-reopen="${esc(c.channel)}">Reopen</button></div>`).join('') : '');
     }
     document.addEventListener('click', (e) => {
         if (e.target.closest('.sc-closed-toggle')) { closedOpen = !closedOpen; loadClosed(); return; }

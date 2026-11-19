@@ -152,3 +152,12 @@ Lu's kept preferences live per project. In Activity a proposed one is an item un
 ### Proposed rule card (`.sc-lesson`, 11-19, replaces `.sc-inbox-lesson`)
 
 One card, three rows. Kicker (xs, text-3, sparkling icon): "Rule for <project>, from your corrections". The rule: 16px semibold, editable in place (no border until hover or focus) with a pencil button at the right. Her own words it came from: quiet lines in 「」, each opens the message; pictures as thumbnails. Foot: text links "Ask about it" (opens one input) and, when no source is recorded, "Where is it from?"; at the right Drop (outline) and Keep (primary, tooltip says what keeping does). No avatar, no per-card explanation line.
+
+## One field, one button (11-19 sweep)
+
+Everything added to Activity and the channel overview uses the existing components, nothing of its own:
+
+- **A place to type** is `.sc-typebox`: the composer (`--ds-field`, radius 14, no border until focus, body 14px, Enter icon at the right that is grey when empty and accent when there is something to send). Used for answering a board row, asking about a rule, adding a preference. On phones the text is 16px so iOS does not zoom.
+- **A button** is `.sc-btn` (overlay fill, no border) or `.sc-btn.primary` (accent); `.sm` is the 32px size. The only other colour is `.danger` on the last step of closing a project. No outlined buttons.
+- **A card** is `--ds-raised` with radius `--ds-r-card` and no border.
+- Text is 14 (body), 13 (secondary), 12 (meta); weight 400, 500 or 600.

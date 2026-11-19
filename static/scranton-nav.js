@@ -490,8 +490,9 @@
                     + (r.link ? `<div class="sc-inbox-link">${/^https?:\/\//.test(r.link)
                         ? `<a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(r.link)}</a>`
                         : `<a class="file-link" href="#" onclick="openPath('${esc(String(r.link).replace(/'/g, "\\'"))}'); return false;">${esc(r.link)}</a>`}</div>` : '')
-                    + `<textarea rows="2" placeholder="Answer ${esc(window.scLabelOf ? window.scLabelOf(to) : to)} here…" aria-label="Your answer"></textarea>`
-                    + `<div class="sc-inbox-answer-foot"><button type="button" class="sc-inbox-go">Open #${esc(r.channel)}</button><button type="button" class="sc-inbox-send" disabled>Send</button></div></div>` : '');
+                    + `<div class="sc-typebox"><textarea rows="1" placeholder="Answer ${esc(window.scLabelOf ? window.scLabelOf(to) : to)}…" aria-label="Your answer"></textarea>`
+                    + `<button type="button" class="sc-typebox-send sc-inbox-send" disabled data-tip="Send (Enter)" aria-label="Send">${ic('enter', 18)}</button></div>`
+                    + `<div class="sc-inbox-answer-foot"><button type="button" class="sc-btn sm sc-inbox-go">Open #${esc(r.channel)}</button></div></div>` : '');
             el.querySelector('.sc-read-toggle').addEventListener('click', (e) => {
                 e.stopPropagation(); e.preventDefault();
                 rowSeen.add(`${r.channel}|${r.id}|${r.at}`); LS.set('sc-row-seen', JSON.stringify([...rowSeen].slice(-300)));
@@ -504,7 +505,9 @@
                 const send = el.querySelector('.sc-inbox-send');
                 ta.value = rowDraft.get(key) || '';
                 send.disabled = !ta.value.trim();
-                ta.addEventListener('input', () => { rowDraft.set(key, ta.value); send.disabled = !ta.value.trim(); });
+                const grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; };
+                ta.addEventListener('input', () => { rowDraft.set(key, ta.value); send.disabled = !ta.value.trim(); grow(); });
+                setTimeout(grow, 0);
                 const go = () => {
                     const v = ta.value.trim();
                     if (!v || !window.ws || window.ws.readyState !== 1) { if (window.scToast) window.scToast('Not connected. Try again in a moment.'); return; }
@@ -595,12 +598,12 @@
                 + `<button type="button" class="sc-lesson-edit" data-tip="Reword it" aria-label="Reword it">${ic('pencil', 16)}</button></div>`
                 + (src.length ? `<div class="sc-lesson-you">You said</div><ul class="sc-lesson-src">${src.map((m) => `<li><button type="button" class="sc-lesson-jump" data-id="${m.id}" data-tip="Open your message">「${esc(String(m.text).replace(/^@\S+\s*/, '').slice(0, 160))}」</button>`
                     + (m.files || []).filter(pics).map((f) => `<button type="button" class="sc-inbox-q-pic" data-url="${esc(f.url)}"><img src="${esc(f.url)}?w=320" alt="" loading="lazy"></button>`).join('') + `</li>`).join('')}</ul>` : '')
-                + `<div class="sc-lesson-ask" hidden><input type="text" maxlength="300" placeholder="Ask ${asker} about it…" aria-label="Ask about this rule"><button type="button" class="sc-lesson-send" disabled>Send</button></div>`
+                + `<div class="sc-lesson-ask sc-typebox" hidden><textarea rows="1" maxlength="300" placeholder="Ask ${asker} about it…" aria-label="Ask about this rule"></textarea><button type="button" class="sc-typebox-send sc-lesson-send" disabled data-tip="Send (Enter)" aria-label="Send">${ic('enter', 18)}</button></div>`
                 + `<div class="sc-lesson-foot"><button type="button" class="sc-lesson-link" data-ask="open">Ask about it</button>`
 
-                + `<span class="sc-lesson-btns"><button type="button" data-a="drop">Drop</button><button type="button" class="primary" data-a="keep" data-tip="Teammates on this project get this line with every task">Keep</button></span></div>`;
+                + `<span class="sc-lesson-btns"><button type="button" class="sc-btn sm" data-a="drop">Drop</button><button type="button" class="sc-btn sm primary" data-a="keep" data-tip="Teammates on this project get this line with every task">Keep</button></span></div>`;
             // Talk about it before deciding: the question goes to whoever proposed it, in the project's channel.
-            const askBox = el.querySelector('.sc-lesson-ask'), askIn = askBox.querySelector('input'), askBtn = askBox.querySelector('.sc-lesson-send');
+            const askBox = el.querySelector('.sc-lesson-ask'), askIn = askBox.querySelector('textarea'), askBtn = askBox.querySelector('.sc-lesson-send');
             const who = who0 || 'pm';
             const ask = (q) => {
                 if (!q || !window.ws || window.ws.readyState !== 1) { if (window.scToast) window.scToast('Not connected. Try again in a moment.'); return; }
@@ -616,7 +619,7 @@
                 if (b.dataset.ask === 'where') { ask('这条是从我哪几句话里归纳出来的？'); return; }
                 askBox.hidden = !askBox.hidden; if (!askBox.hidden) askIn.focus();
             }));
-            const ta = el.querySelector('textarea');
+            const ta = el.querySelector('.sc-lesson-text');
             const fit = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
             ta.addEventListener('input', fit); setTimeout(fit, 0);
             el.querySelector('.sc-lesson-edit').addEventListener('click', () => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); });
