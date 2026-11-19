@@ -91,6 +91,8 @@ def main():
     mcp_bridge.BOARD = scranton_board.Board(data_dir / "board.json")
     import scranton_said
     mcp_bridge.SAID = scranton_said.Said(data_dir / "said.json")
+    import app as _app_mod
+    mcp_bridge.TEAM_MOVE = _app_mod.sc_lead_move
     import scranton_lessons
     mcp_bridge.LESSONS = scranton_lessons.Lessons(data_dir / "lessons.json")
     mcp_bridge.LESSONS.drop_unsourced()   # proposals from before her own words were required beside each rule

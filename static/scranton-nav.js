@@ -148,6 +148,7 @@
     function setRead(m, read) {
         const k = keyOf(m);
         if (read) { readKeys.add(k); forceUnread.delete(k); } else { readKeys.delete(k); forceUnread.add(k); }
+        if (read) for (const o of (m._same || [])) readKeys.add(keyOf(o));   // the same notice said several times is read once
         saveRead();
         renderInboxBadge();
         if (inboxOpen()) renderInbox();
@@ -198,7 +199,11 @@
     const STUCK_RE = /^\s*I (stopped|can't read this yet)\b/;
     const lastTalk = new Map();   // teammate -> id of its latest ordinary message
     const isStuck = (m) => !!(m && m._kinds && m._kinds.has('stuck'));
-    const stuckOver = (m) => (lastTalk.get(String(m.sender || '').toLowerCase().replace(/-\d+$/, '')) || 0) > Number(m.id) || reactedByMe(m);
+    // Over when the teammate has talked since, when she reacted, or when it was restarted or moved
+    // to another app or model after saying it (11-19: three "I stopped" stayed after the switch).
+    const whoOf = (m) => String(m.sender || '').toLowerCase().replace(/-\d+$/, '');
+    const freshAt = (m) => Number(((typeof attn !== 'undefined' && attn.fresh) || {})[whoOf(m)] || 0);
+    const stuckOver = (m) => (lastTalk.get(whoOf(m)) || 0) > Number(m.id) || reactedByMe(m) || freshAt(m) > tsOf(m);
 
     function consider(msg) {
         if (!msg || msg.id == null) return;
@@ -452,7 +457,17 @@
             return arr.slice().sort((x, y) => (first.get(ch(x)) - first.get(ch(y))));
         };
         const asks = byChannel(all.filter((m) => isUnread(m) && !isStuck(m)), (m) => m.channel || 'general');
-        const stuckMsgs = all.filter((m) => isUnread(m) && isStuck(m));
+        const stuckAll = all.filter((m) => isUnread(m) && isStuck(m));
+        // The same notice from the same teammate, said again every few minutes, is one thing to
+        // deal with: show the latest and how many times (11-19: three identical rows).
+        const stuckBy = new Map();
+        for (const m of stuckAll) {
+            const k = whoOf(m) + '|' + (m.channel || 'general') + '|' + String(m.text || '').slice(0, 80);
+            const cur = stuckBy.get(k);
+            if (!cur || Number(m.id) > Number(cur.m.id)) stuckBy.set(k, { m, n: (cur ? cur.n : 0) + 1, ids: [...(cur ? cur.ids : []), m] });
+            else { cur.n += 1; cur.ids.push(m); }
+        }
+        const stuckMsgs = [...stuckBy.values()].map((g) => { g.m._again = g.n; g.m._same = g.ids; return g.m; });
         const rest = all.filter((m) => !isUnread(m));
         const askIds = new Set(asks.map((m) => Number(m.id)));
         const rows = (attn.rows || []).filter((r) => !rowSeen.has(`${r.channel}|${r.id}|${r.at}`));
@@ -592,7 +607,7 @@
             const status = forMe && (isPrAsk(m) || (prs.length && prDone(m))) ? (prDone(m)
                     ? `<span class="sc-inbox-status done">${window.scIcon ? window.scIcon('check', 14) : ''}${prClosed ? 'Closed on GitHub' : 'Merged on GitHub'}</span>`
                     : `<span class="sc-inbox-status todo">Merge on GitHub</span>`)
-                : isStuck(m) ? (stuckOver(m) ? `<span class="sc-inbox-status done">${window.scIcon ? window.scIcon('check', 14) : ''}Going again</span>` : '<span class="sc-inbox-status todo stuck">Stuck: needs you</span>')
+                : isStuck(m) ? (stuckOver(m) ? `<span class="sc-inbox-status done">${window.scIcon ? window.scIcon('check', 14) : ''}Going again</span>` : `<span class="sc-inbox-status todo stuck">Stuck: needs you${m._again > 1 ? ` · said ${m._again} times` : ''}</span>`)
                 : !q ? ''
                 : done ? `<span class="sc-inbox-status done">${window.scIcon ? window.scIcon('check', 14) : ''}Answered${chosen ? ': ' + esc(chosen.length > 40 ? chosen.slice(0, 40) + '…' : chosen) : ''}</span>`
                 : `<span class="sc-inbox-status todo">Needs your answer</span>`;

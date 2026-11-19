@@ -321,7 +321,11 @@ _PROBLEMS = [
     # Only this model's quota is out, the plan still has room elsewhere (Lu, 11-11: Cursor's
     # "Other models" full while its own models had 25% left; Gemini Argon out while Flash wasn't).
     ("model_limit", re.compile(r"switch to a different model|otherModelsLimitSwitchTarget|Individual quota reached|"
-                               r"exhausted your capacity on this model", re.I),
+                               r"exhausted your capacity on this model|"
+                               # Cursor, 11-19 (webdev on Grok 4.7): "You're out of usage. Switch to Auto, or ask your
+                               # admin to increase your limit to continue." Matched nothing here, so webdev sat on it
+                               # and told Lu three times in ten minutes that it "stopped without replying".
+                               r"You.?re out of usage|Switch\s+to\s+Auto,?\s+or\s+ask", re.I),
      "I stopped: my model's quota on {app} is used up. Pick another model for me: Settings → Agents → me → Model."),
     # On the backup API key with no money on it (Lu, 11-11: pm sat on "Credit balance too low").
     ("api_credit", re.compile(r"credit balance (?:is )?too low|insufficient_quota|exceeded your current quota|billing (?:hard )?limit", re.I),

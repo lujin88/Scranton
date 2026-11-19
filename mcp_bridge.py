@@ -1294,6 +1294,24 @@ def chat_said(sender: str, action: str = "open", channel: str = "", q: str = "",
     return "Error: action must be find, open, skip or shown."
 
 
+TEAM_MOVE = None   # set by run.py: app.sc_lead_move
+
+
+def chat_team(sender: str, action: str = "runs_on", who: str = "", app: str = "", said: int = 0, ctx: Context | None = None) -> str:
+    """Project manager only, and only to carry out what the owner said.
+
+    action runs_on: run teammate `who` on another app (claude, chatgpt, cursor, gemini) because the
+    owner said so, e.g. "Cursor 用完了，用 Claude 做". `said` = the id of HER message that names the app.
+    The teammate restarts on that app and goes back by itself later. Do not pass this on to anyone
+    else and do not ask her to do it in Settings: call this."""
+    sender, err = _resolve_tool_identity(sender, ctx, field_name="sender", required=False)
+    if err:
+        return err
+    if (action or "").strip().lower() != "runs_on" or TEAM_MOVE is None:
+        return "Error: action must be runs_on."
+    return TEAM_MOVE(sender, who, app, said)
+
+
 LESSONS = None   # set by run.py: scranton_lessons.Lessons
 
 
@@ -1343,7 +1361,7 @@ def _last_channel_of(sender: str) -> str:
 
 _ALL_TOOLS = [
     chat_send, chat_read, chat_resync, chat_join, chat_who, chat_rules, chat_decision,
-    chat_channels, chat_set_hat, chat_claim, chat_summary, chat_propose_job, chat_handoff, chat_board, chat_said, chat_lessons,
+    chat_channels, chat_set_hat, chat_claim, chat_summary, chat_propose_job, chat_handoff, chat_board, chat_said, chat_lessons, chat_team,
 ]
 
 

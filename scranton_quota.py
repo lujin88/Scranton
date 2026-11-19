@@ -192,7 +192,9 @@ def model_fallback(provider: str, model: str, usage_file: str = DEFAULTS["usage_
     m = str(model or "").lower()
     if provider == "cursor" and not is_cursor_own(m):
         own = provider_usage("cursor", "composer-2.5", usage_file)
-        return "composer-2.5" if own is None or own["pct"] < 99 else None
+        return "composer-2.5" if own is None or own["pct"] < 99 else "auto"
+    if provider == "cursor" and not m.startswith("auto"):
+        return "auto"   # one of Cursor's own models is out (Grok 4.7, Composer): Cursor itself says "Switch to Auto"
     if provider == "gemini" and m and "flash" not in m:
         return "gemini-3.8-flash"   # Argon / Pro have their own quota; Flash is a separate pool
     return None

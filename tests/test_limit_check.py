@@ -30,7 +30,9 @@ def test_cursor_pools(tmp_path):
     assert q.provider_usage("cursor", "gemini-4-carbon-low", f)["pct"] == 100
     assert q.provider_usage("cursor", "composer-2.5", f)["pct"] == 75
     assert q.model_fallback("cursor", "gemini-4-carbon-low", f) == "composer-2.5"
-    assert q.model_fallback("cursor", "composer-2.5", f) is None
+    assert q.model_fallback("cursor", "composer-2.5", f) == "auto"   # Cursor itself says "Switch to Auto"
+    assert q.model_fallback("cursor", "grok-4.7-low", f) == "auto"
+    assert q.model_fallback("cursor", "auto", f) is None
 
 
 def test_codex_at_93_is_not_out(tmp_path):
@@ -91,3 +93,10 @@ def test_failed_check_is_not_a_stop(monkeypatch):
         raise OSError("server busy")
     monkeypatch.setattr("urllib.request.urlopen", boom)
     assert wrapper._ask_limit_check(1, "t", {"channel": "x", "thread": None}, "limit") == "ignore"
+
+
+def test_cursor_out_of_usage_is_a_model_limit():
+    import wrapper_unix as w
+    screen = "Error: Increase limits for faster responses\n  You're out of usage. Switch to Auto, or ask your admin to increase your \n  limit to continue."
+    hit = next((name for name, rx, _ in w._PROBLEMS if rx.search(screen)), None)
+    assert hit == "model_limit"

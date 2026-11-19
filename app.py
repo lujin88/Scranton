@@ -3899,6 +3899,7 @@ async def scranton_teammate_update(name: str, request: Request):
                     mcp_bridge.purge_identity(inst)
                     registry.clean_renames_for(inst)
         if action in ("start", "restart"):
+            _sc_mark_fresh(name)
             res = await asyncio.to_thread(_scranton_ops.ensure_running, [name], config)
             if name in res.get("failed", {}):
                 return JSONResponse({"ok": False, "error": res["failed"][name]})
@@ -4798,7 +4799,19 @@ async def scranton_api_keys_set(request: Request):
     return JSONResponse({"ok": True, "keys": _sc_keys.summary()})
 
 
+def _sc_mark_fresh(name: str) -> None:
+    """A teammate was restarted, or moved to another app or model. Whatever it said it was stuck on
+    before this moment is over (Lu, 11-19: she had webdev switched and its three "I stopped"
+    notices stayed in Activity)."""
+    d = room_settings.setdefault("fresh", {})
+    d[name] = time.time()
+    for k in [k for k, v in d.items() if time.time() - float(v or 0) > 3 * 86400]:
+        d.pop(k, None)
+    _save_settings()
+
+
 async def _sc_restart_quiet(name: str) -> None:
+    _sc_mark_fresh(name)
     await asyncio.to_thread(_sc_team.stop, name, config, _scranton_ops.RUN_DIR)
     _scranton_ops._starting.pop(name, None)
     import mcp_bridge
@@ -5104,6 +5117,50 @@ async def _sc_qa_move(base: str, to: str, until: float, channel: str, why: str) 
     await broadcast_team_changed()
     asyncio.create_task(_sc_restart_quiet(base))
     return True
+
+
+_APP_WORDS = {"claude": r"claude", "codex": r"chatgpt|codex|gpt", "cursor": r"cursor", "gemini": r"gemini"}
+
+
+def sc_lead_move(sender: str, who: str, app_key: str, said_id: int) -> str:
+    """The project manager carries out the owner's "run webdev on Claude" (11-19: she said it to the
+    PM at 13:05; the PM had no way to do it, asked harness, then told her to do it herself in
+    Settings; 20 minutes and four messages later nothing had changed). Allowed only as her
+    instruction: `said_id` must be her own message from the last 24 hours that names the app."""
+    base = _re.sub(r"-\d+$", "", str(sender or "").lower())
+    lead = _mentions_from() or "pm"
+    owner = str(room_settings.get("username") or "").lower()
+    who = str(who or "").strip().lstrip("@").lower()
+    app_key = {"chatgpt": "codex", "gpt": "codex"}.get(str(app_key or "").strip().lower(), str(app_key or "").strip().lower())
+    if base != lead:
+        return f"Error: only {lead} can do this, and only on the owner's say-so."
+    if who not in (config or {}).get("agents", {}) or app_key not in _APP_WORDS:
+        return "Error: who must be a teammate's handle, app one of claude, chatgpt, cursor, gemini."
+    m = store.get_by_id(int(said_id or 0)) if said_id else None
+    if (not m or str(m.get("sender") or "").lower() != owner or time.time() - float(m.get("timestamp") or 0) > 86400
+            or not _re.search(_APP_WORDS[app_key], str(m.get("text") or ""), _re.I)):
+        return ("Error: said must be the id of the owner's own message from the last 24 hours that names this app "
+                "(e.g. \"用 Claude 做\"). Without it, ask her with a card; she can also change it in Settings → Agents.")
+    if _current_model(who)[0] == app_key:
+        return f"{who} already runs on {_sc_qask.APP_NAMES.get(app_key, app_key)}."
+    frm = _current_model(who)[0]
+    u = _sc_quota.provider_usage(frm, _current_model(who)[1])
+    until = float((u or {}).get("resets") or 0)
+    if until <= time.time():
+        until = time.time() + 7 * 86400
+    st = _sc_qa()
+    st.moved.pop(who, None)
+    if not _event_loop:
+        return "Error: not ready, try again in a moment."
+    fut = asyncio.run_coroutine_threadsafe(
+        _sc_qa_move(who, app_key, until, str(m.get("channel") or "general"), f"Lu #{m['id']} 说的"), _event_loop)
+    try:
+        ok = fut.result(timeout=20)
+    except Exception:
+        ok = False
+    return (f"Done: {who} now runs on {_sc_qask.APP_NAMES.get(app_key, app_key)} and is restarting; it goes back on "
+            f"{time.strftime('%m-%d %H:%M', time.localtime(until))} unless she changes it. Give it its task again.") if ok else \
+        "Error: could not switch. Tell the owner; she can change it in Settings → Agents."
 
 
 async def _sc_qa_tick(now: float | None = None) -> None:
@@ -6024,7 +6081,7 @@ async def scranton_attention():
         return out2
     lessons = [{"channel": ch, "items": [{**it, "sources": _sources(it)} for it in L.get(ch)["pending"]]}
                for ch in _project_channels() if L is not None and L.get(ch)["pending"]]
-    return JSONResponse({"rows": out, "lessons": lessons, "checks": _sc_checks()})
+    return JSONResponse({"rows": out, "lessons": lessons, "checks": _sc_checks(), "fresh": dict(room_settings.get("fresh") or {})})
 
 
 @app.get("/api/scranton/said")
