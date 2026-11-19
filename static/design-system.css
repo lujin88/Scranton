@@ -2002,3 +2002,10 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-ov-tile { min-width: 0; }
 .sc-inbox-tiles { display: flex; flex-wrap: nowrap; }
 .sc-inbox-tiles .sc-ov-tile { flex: 1 1 0; max-width: 220px; min-width: 0; }
+
+/* several board rows answered by one message */
+.sc-inbox-asks { display: block; }
+.sc-inbox-asks .sc-inbox-text { display: block; }
+.sc-inbox-asks small { color: var(--ds-text-3); font-size: var(--ds-fs-xs); margin-right: 4px; }
+.sc-inbox-answer-foot { gap: 8px; flex-wrap: wrap; }
+.sc-inbox-q-text ol, .sc-inbox-q-text ul { margin: 4px 0 4px 20px; padding: 0; list-style: revert; }

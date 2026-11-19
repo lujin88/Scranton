@@ -72,3 +72,14 @@ def test_a_row_she_was_doing_herself_leaves_her_list_once_she_answers_it(monkeyp
     after = mcp_bridge.board_view("p")[0]
     assert after["state"] == "doing" and after["who"] == "pm" and not after.get("yours")
     assert after["note"].startswith("Lu 回了（#90）")
+
+
+def test_one_answer_can_name_several_rows(monkeypatch, tmp_path):
+    b = _setup(monkeypatch, tmp_path)
+    monkeypatch.setattr(mcp_bridge, "store", None)
+    for ask in ("手机版菜单", "ETF 页开头", "四季"):
+        b.upsert("p", "pm", ask=ask, state="waiting_lu", who="pm", msg=50)
+    assert app._row_ids("@pm 行 1、2 和 3：都用 A") == {1, 2, 3} and app._row_ids("行 12") == {12}
+    said = {"id": 91, "sender": "Lu", "type": "chat", "text": "@pm 行 1、2、3：第一题 A，第二题 B，四季就按现在的"}
+    app._sc_board_follow(said, "Lu", said["text"], "p", "chat", True)
+    assert [r["state"] for r in b.rows("p")] == ["doing", "doing", "doing"]

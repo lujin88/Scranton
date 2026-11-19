@@ -283,7 +283,21 @@
             setTimeout(() => { renderPending = false; scheduleRender(); }, 400);
             return;
         }
-        const run = () => { renderPending = false; renderInboxBadge(); if (inboxOpen()) renderInbox(); };
+        const run = () => {
+            renderPending = false;
+            renderInboxBadge();
+            if (!inboxOpen()) return;
+            // Never redraw the list under her cursor: while she is typing an answer, rewording a rule
+            // or asking about one, a message arriving elsewhere used to rebuild the list and drop
+            // both the focus and what she had typed. Redraw when she leaves the field.
+            const el = document.activeElement;
+            const typing = el && el.closest && el.closest('#sc-inbox-list') && /^(TEXTAREA|INPUT)$/.test(el.tagName);
+            if (typing) {
+                if (!el.dataset.scDefer) { el.dataset.scDefer = '1'; el.addEventListener('blur', () => setTimeout(scheduleRender, 150), { once: true }); }
+                return;
+            }
+            renderInbox();
+        };
         // A hidden page (the Mac app's window in the back, a background tab) gets no animation frames,
         // so the count, and the Dock badge read from it, would stay stale until you looked.
         if (document.hidden) setTimeout(run, 50); else requestAnimationFrame(run);
@@ -296,7 +310,11 @@
         // board rows that wait for you or got stuck in the last day, unless already counted as an ask
         for (const r of ((typeof attn !== 'undefined' && attn.rows) || [])) {
             if (rowSeen.has(`${r.channel}|${r.id}|${r.at}`)) continue;
-            if (r.state === 'waiting_lu' ? !ids.has(Number(r.msg)) : Date.now() / 1000 - Number(r.at || 0) <= 86400) n++;
+            if (r.state === 'waiting_lu') {
+                if (ids.has(Number(r.msg))) continue;
+                if (Number(r.msg)) ids.add(Number(r.msg));      // further rows on the same message are the same item
+                n++;
+            } else if (Date.now() / 1000 - Number(r.at || 0) <= 86400) n++;
         }
         for (const g of ((typeof attn !== 'undefined' && attn.lessons) || [])) n += g.items.filter((l) => (l.sources || []).length).length;
         return n;
@@ -436,7 +454,14 @@
         const rest = all.filter((m) => !isUnread(m));
         const askIds = new Set(asks.map((m) => Number(m.id)));
         const rows = (attn.rows || []).filter((r) => !rowSeen.has(`${r.channel}|${r.id}|${r.at}`));
-        const waitRows = byChannel(rows.filter((r) => r.state === 'waiting_lu' && !askIds.has(Number(r.msg))), (r) => r.channel);
+        // Rows that point at the same message are one thing to answer (Lu, 11-19: the project manager
+        // put three questions in one message and Activity listed that message three times).
+        const grouped = [];
+        for (const r of rows.filter((x) => x.state === 'waiting_lu' && !askIds.has(Number(x.msg)))) {
+            const g = Number(r.msg) ? grouped.find((x) => x.channel === r.channel && Number(x.msg) === Number(r.msg)) : null;
+            if (g) (g.also = g.also || []).push(r); else grouped.push({ ...r });
+        }
+        const waitRows = byChannel(grouped, (r) => r.channel);
         const DAY = 86400;
         const isStuckRow = (r) => r.state === 'blocked' || r.state === 'stalled';
         const stuckRows = rows.filter((r) => isStuckRow(r) && Date.now() / 1000 - Number(r.at || 0) <= DAY);
@@ -474,6 +499,8 @@
                 + `</div>`;
         };
         const addRow = (r, status) => {
+            const all = [r, ...(r.also || [])];
+            const ids = all.map((x) => x.id).join('、');
             const key = `${r.channel}|${r.id}`;
             const meName = String(window.username || 'lu').toLowerCase();
             const names = [r.who, r.by].map((x) => String(x || '').toLowerCase()).filter((x) => x && x !== meName && x !== 'lu' && team[x.split('-')[0]]);
@@ -485,9 +512,10 @@
             const ago = hours < 1 ? 'under an hour' : hours < 24 ? hours + ' hour' + (hours > 1 ? 's' : '') : Math.floor(hours / 24) + ' day' + (hours >= 48 ? 's' : '');
             el.innerHTML = `<button type="button" class="sc-inbox-row-head" aria-expanded="${openRow === key}">`
                 + `<span class="sc-inbox-avatar">${window.scAvatarHtml ? window.scAvatarHtml(to) : ''}</span>`
-                + `<span class="sc-inbox-body"><span class="sc-inbox-meta"><b>${esc(window.scLabelOf ? window.scLabelOf(to) : to)}</b> <span>${esc(r.channel)} · row ${esc(r.id)}</span></span>`
-                + `<span class="sc-inbox-text">${esc(r.ask || '')}</span>`
-                + (r.note ? `<span class="sc-inbox-note">${esc(String(r.note).slice(0, 220))}</span>` : '')
+                + `<span class="sc-inbox-body"><span class="sc-inbox-meta"><b>${esc(window.scLabelOf ? window.scLabelOf(to) : to)}</b> <span>${esc(r.channel)} · ${all.length > 1 ? all.length + ' rows, one message' : 'row ' + esc(r.id)}</span></span>`
+                + (all.length > 1
+                    ? `<span class="sc-inbox-asks">${all.map((x) => `<span class="sc-inbox-text"><small>row ${esc(x.id)}</small> ${esc(x.ask || '')}</span>`).join('')}</span>`
+                    : `<span class="sc-inbox-text">${esc(r.ask || '')}</span>` + (r.note ? `<span class="sc-inbox-note">${esc(String(r.note).slice(0, 220))}</span>` : ''))
                 + `<span class="sc-inbox-status todo${r.state === 'blocked' ? ' stuck' : r.state === 'stalled' ? ' quiet' : ''}">${status} · ${ago}</span></span></button>`
                 + `<span class="sc-inbox-side"><span class="sc-read-toggle" role="button" tabindex="0" data-tip="Seen: take it off this list" aria-label="Seen: take it off this list">${ic('check', 16)}</span></span>`
                 + (openRow === key ? `<div class="sc-inbox-answer">`
@@ -503,7 +531,7 @@
                     + `<button type="button" class="sc-btn sm sc-inbox-go">Open #${esc(r.channel)}</button></div></div>` : '');
             el.querySelector('.sc-read-toggle').addEventListener('click', (e) => {
                 e.stopPropagation(); e.preventDefault();
-                rowSeen.add(`${r.channel}|${r.id}|${r.at}`); LS.set('sc-row-seen', JSON.stringify([...rowSeen].slice(-300)));
+                all.forEach((x) => rowSeen.add(`${x.channel}|${x.id}|${x.at}`)); LS.set('sc-row-seen', JSON.stringify([...rowSeen].slice(-300)));
                 renderInboxBadge(); renderInbox();
             });
             el.querySelector('.sc-inbox-row-head').addEventListener('click', () => { openRow = openRow === key ? '' : key; focusRow = openRow; renderInbox(); });
@@ -519,9 +547,9 @@
                 const go = () => {
                     const v = ta.value.trim();
                     if (!v || !window.ws || window.ws.readyState !== 1) { if (window.scToast) window.scToast('Not connected. Try again in a moment.'); return; }
-                    window.ws.send(JSON.stringify({ type: 'message', text: `@${to} 行 ${r.id}：${v}`, sender: window.username, channel: r.channel, attachments: [] }));
+                    window.ws.send(JSON.stringify({ type: 'message', text: `@${to} 行 ${ids}：${v}`, sender: window.username, channel: r.channel, attachments: [] }));
                     rowDraft.delete(key); openRow = '';
-                    rowSeen.add(`${r.channel}|${r.id}|${r.at}`); LS.set('sc-row-seen', JSON.stringify([...rowSeen].slice(-300)));
+                    all.forEach((x) => rowSeen.add(`${x.channel}|${x.id}|${x.at}`)); LS.set('sc-row-seen', JSON.stringify([...rowSeen].slice(-300)));
                     if (window.scToast) window.scToast(`Sent to #${r.channel}`);
                     renderInboxBadge(); renderInbox(); setTimeout(loadAttention, 1500);
                 };

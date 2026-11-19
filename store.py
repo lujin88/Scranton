@@ -136,7 +136,19 @@ class MessageStore:
 
     def get_by_id(self, msg_id: int) -> dict | None:
         with self._lock:
-            for m in self._messages:
+            # Ids only ever grow, so the list is in id order: look it up by halving instead of
+            # walking 19,000 messages (this runs for every row and every cited message).
+            msgs = self._messages
+            lo, hi = 0, len(msgs)
+            while lo < hi:
+                mid = (lo + hi) // 2
+                if msgs[mid]["id"] < msg_id:
+                    lo = mid + 1
+                else:
+                    hi = mid
+            if lo < len(msgs) and msgs[lo]["id"] == msg_id:
+                return msgs[lo]
+            for m in msgs:          # should the order ever be off, still find it
                 if m["id"] == msg_id:
                     return m
             return None

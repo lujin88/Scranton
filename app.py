@@ -1378,6 +1378,12 @@ def _is_delivery(msg: dict | None) -> bool:
 
 
 _ROW_RE = _re.compile(r"(?:\brow|行)\s*#?\s*(\d{1,3})(?!\d)", _re.I)
+_ROW_LIST_RE = _re.compile(r"(?:\brow|行)\s*#?\s*(\d{1,3}(?:\s*[、,，/和&]\s*#?\d{1,3})*)(?!\d)", _re.I)
+
+
+def _row_ids(text: str) -> set[int]:
+    """Row numbers a message names, also as a list: "行 61、48、67"."""
+    return {int(n) for grp in _ROW_LIST_RE.findall(text or "") for n in _re.findall(r"\d{1,3}", grp)}
 
 
 def _sc_board_follow(msg: dict, sender: str, text: str, channel: str, msg_type: str, is_owner: bool) -> None:
@@ -1392,7 +1398,7 @@ def _sc_board_follow(msg: dict, sender: str, text: str, channel: str, msg_type: 
     if is_owner:
         rid = msg.get("reply_to")
         # answered from Activity: her message opens with the row ("@pm 行 45：…")
-        named = {int(x) for x in _ROW_RE.findall((text or "")[:40])}
+        named = _row_ids((text or "")[:60])
         if not isinstance(rid, int) and not named:
             return
         said = _sc_said_mod.body_of(text)[:60]
@@ -1417,7 +1423,7 @@ def _sc_board_follow(msg: dict, sender: str, text: str, channel: str, msg_type: 
             return
         if mcp_bridge.STILL_GOING_RE.search(text or ""):
             return   # a picture with "接着做，15:00 交" is progress: the row stays where it is
-        ids = {int(x) for x in _ROW_RE.findall(text or "")}
+        ids = _row_ids(text or "")
         for r in board.rows(channel):
             if int(r.get("id") or 0) in ids and r.get("state") not in ("live", "waiting_lu"):
                 board.upsert(channel, "Scranton", id=r["id"], state="waiting_lu", msg=msg["id"],
@@ -5691,12 +5697,24 @@ async def scranton_close_post(request: Request):
     if not state["handoff"] and not body.get("without_handoff"):
         return JSONResponse({"error": "no hand-over note yet", **state}, status_code=409)
     labels = (config or {}).get("agents", {})
-    msgs = [m for m in store.get_since(-1) if (m.get("channel") or "general") == ch]
-    md, n = scranton_close.export_chat(msgs, folder, lambda s: str((labels.get(s.lower()) or {}).get("label") or s))
-    # the chat is removed only once its copy is really on disk
-    if not md.is_file() or (n and md.stat().st_size < 20) or sum(1 for _ in open(folder / "chat.jsonl", encoding="utf-8")) != n:
+    label = lambda s: str((labels.get(s.lower()) or {}).get("label") or s)   # noqa: E731
+
+    def _export() -> tuple[int, bool]:
+        msgs = [m for m in store.get_since(-1) if (m.get("channel") or "general") == ch]
+        md, n = scranton_close.export_chat(msgs, folder, label)
+        with open(folder / "chat.jsonl", encoding="utf-8") as f:
+            on_disk = sum(1 for _ in f)
+        return n, md.is_file() and (not n or md.stat().st_size >= 20) and on_disk == n
+
+    # Writing the files can take a while on a long channel: keep it off the event loop. The chat is
+    # removed only once its copy is really on disk, and only if nothing was said in the meantime.
+    n, ok = await asyncio.to_thread(_export)
+    if ok and sum(1 for m in store.get_since(-1) if (m.get("channel") or "general") == ch) != n:
+        n, ok = await asyncio.to_thread(_export)
+    if not ok:
         return JSONResponse({"error": "the chat could not be saved, so nothing was removed"}, status_code=500)
-    moved = scranton_close.move_aside(state["cleanup"]["ok"], folder) if body.get("clean") else {"moved": [], "failed": [], "dest": str(folder / "_to_delete")}
+    moved = (await asyncio.to_thread(scranton_close.move_aside, state["cleanup"]["ok"], folder) if body.get("clean")
+             else {"moved": [], "failed": [], "dest": str(folder / "_to_delete")})
     import mcp_bridge
     if mcp_bridge.BOARD is not None:
         with mcp_bridge.BOARD.lock:
@@ -5828,9 +5846,9 @@ async def scranton_preview_port(key: str, port: int, path: str, request: Request
     url = f"http://127.0.0.1:{port}/{path}" + (f"?{request.url.query}" if request.url.query else "")
     heads = {k: v for k, v in request.headers.items() if k.lower() in _PREVIEW_PASS}
     heads["accept-encoding"] = "identity"
+    client = _preview_client()
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=4.0), follow_redirects=False) as client:
-            r = await client.request(request.method, url, headers=heads)
+        r = await client.send(client.build_request(request.method, url, headers=heads), stream=True)
     except httpx.ConnectError:
         return _preview_refused(f"nothing is running on port {port} of the Scranton computer right now. Ask the teammate who sent the link to start it again.", 502)
     except httpx.HTTPError as e:
@@ -5845,14 +5863,44 @@ async def scranton_preview_port(key: str, port: int, path: str, request: Request
         elif loc.startswith("/") and not loc.startswith("//"):
             loc = prefix + loc
         elif _re.match(r"^[a-z][a-z0-9+.-]*:", loc, _re.I):
+            await r.aclose()
             return _preview_refused("the page sent you to another site; previews stay on the Scranton computer.", 502)
         out["Location"] = loc
     ctype = r.headers.get("content-type", "")
-    body = r.content
-    if any(t in ctype.lower() for t in ("html", "css", "javascript")):
-        body = scranton_preview.rewrite(body, ctype, prefix)
-    return Response(content=b"" if request.method == "HEAD" else body, status_code=r.status_code, headers=out,
-                    media_type=ctype or None)
+    textual = any(t in ctype.lower() for t in ("html", "css", "javascript"))
+    if request.method == "HEAD":
+        await r.aclose()
+        return Response(content=b"", status_code=r.status_code, headers=out, media_type=ctype or None)
+    if textual:
+        # pages, styles and scripts are read whole so their root-relative addresses can be rewritten
+        body = await r.aread()
+        await r.aclose()
+        return Response(content=scranton_preview.rewrite(body, ctype, prefix), status_code=r.status_code, headers=out, media_type=ctype or None)
+    # everything else (pictures, video, fonts) is passed on as it arrives, never held in memory whole
+    for k in ("content-length", "content-range", "accept-ranges"):
+        if r.headers.get(k):
+            out[k] = r.headers[k]
+
+    async def _pass():
+        try:
+            async for chunk in r.aiter_raw():
+                yield chunk
+        finally:
+            await r.aclose()
+    from starlette.responses import StreamingResponse
+    return StreamingResponse(_pass(), status_code=r.status_code, headers=out, media_type=ctype or None)
+
+
+_PREVIEW_CLIENT: list = []
+
+
+def _preview_client():
+    """One client for all previews: a page with fifty assets reuses its connections."""
+    import httpx
+    if not _PREVIEW_CLIENT:
+        _PREVIEW_CLIENT.append(httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=4.0), follow_redirects=False,
+                                                 limits=httpx.Limits(max_connections=32, max_keepalive_connections=16)))
+    return _PREVIEW_CLIENT[0]
 
 
 def _row_question(r: dict) -> dict | None:
