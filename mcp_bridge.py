@@ -1197,7 +1197,8 @@ def board_view(channel: str) -> list[dict]:
             r["state"], r["not_asked"] = "doing", True
         elif scranton_board.is_parked(r):
             r["state"], r["parked"] = "later", True     # 卡住 in name only: put aside, or waiting for other work
-        elif r.get("state") == "doing" and str(r.get("who") or "").lower() in (_owner_name().lower(), "lu"):
+        elif (r.get("state") == "doing" and str(r.get("who") or "").lower() in (_owner_name().lower(), "lu")
+              and not str(r.get("note") or "").startswith("Lu 回了")):
             r["yours"] = True                             # the owner said she would do this one herself
     return rows
 

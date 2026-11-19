@@ -1392,8 +1392,16 @@ def _sc_board_follow(msg: dict, sender: str, text: str, channel: str, msg_type: 
         for r in board.rows(channel):
             hit = int(r.get("id") or 0) in named or (isinstance(rid, int) and (
                 int(r.get("msg") or 0) == rid or _re.search(rf"#{rid}(?!\d)", str(r.get("note") or ""))))
-            if r.get("state") in (("waiting_lu", "blocked") if int(r.get("id") or 0) in named else ("waiting_lu",)) and hit:
-                board.upsert(channel, "Scranton", id=r["id"], state="doing", msg=msg["id"],
+            by_name = int(r.get("id") or 0) in named
+            hers = str(r.get("who") or "").lower() in (str(room_settings.get("username") or "Lu").lower(), "lu")
+            # naming the row answers it whatever it said before, also a row she was doing herself
+            if hit and (r.get("state") in (("waiting_lu", "blocked") if by_name else ("waiting_lu",))
+                        or (by_name and hers and r.get("state") != "live")):
+                # Once she has answered, the row is the team's again: its owner is whoever keeps the
+                # row (11-19: a row with who = Lu came straight back as "yours" after she had said
+                # "这个可以删掉了"). The row keeps pointing at the team's question, not at her answer.
+                board.upsert(channel, "Scranton", id=r["id"], state="doing",
+                             who=(str(r.get("by") or "") if str(r.get("by") or "").lower() not in ("", "scranton", "lu") else "pm") if hers else "",
                              note=f"Lu 回了（#{msg['id']}）：{said}")
     elif _is_delivery(msg):
         lead = _LEAD_RE.match(text or "")

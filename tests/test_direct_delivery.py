@@ -58,3 +58,17 @@ def test_her_thumbs_up_closes_the_row_that_was_waiting_for_her(monkeypatch, tmp_
     rows = {r["ask"]: r for r in b.rows("slides")}
     assert rows["文案 review"]["state"] == "live" and "看过了" in rows["文案 review"]["note"]
     assert rows["Hub 布局"]["state"] == "waiting_lu"          # a different message: still hers to answer
+
+
+def test_a_row_she_was_doing_herself_leaves_her_list_once_she_answers_it(monkeypatch, tmp_path):
+    """11-19: row 69 (who = Lu) came back as "yours" right after she wrote 行 69：这个可以删掉了."""
+    b = _setup(monkeypatch, tmp_path)
+    monkeypatch.setattr(mcp_bridge, "_owner_name", lambda: "Lu")
+    monkeypatch.setattr(mcp_bridge, "store", None)
+    row = b.upsert("p", "pm", ask="Concept 组新布局", state="doing", who="Lu", note="Lu 自己用 ChatGPT 出模型")
+    assert mcp_bridge.board_view("p")[0].get("yours")
+    said = {"id": 90, "sender": "Lu", "type": "chat", "text": f"@pm 行 {row['id']}：这个你可以删掉了，我们的 research 已经做完了"}
+    app._sc_board_follow(said, "Lu", said["text"], "p", "chat", True)
+    after = mcp_bridge.board_view("p")[0]
+    assert after["state"] == "doing" and after["who"] == "pm" and not after.get("yours")
+    assert after["note"].startswith("Lu 回了（#90）")
