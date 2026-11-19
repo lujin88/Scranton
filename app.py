@@ -1361,6 +1361,19 @@ def _mentions_from() -> str:
     return str((config or {}).get("team", {}).get("mentions_from", "") or "").strip().lower()
 
 
+def _asks_direct() -> set[str]:
+    """[team] asks_owner: teammates whose own decision cards reach the owner without the project
+    manager in between (Lu, 11-19: "可以让视觉直接 @我，不需要 PM 再转交"). Only a card with
+    options counts ("需要我完整做决策了再 @我，否则就不要 @"); their plain @owner still goes to
+    the project manager, as everyone's does."""
+    v = (config or {}).get("team", {}).get("asks_owner") or []
+    return {str(x).strip().lower() for x in (v if isinstance(v, list) else [v]) if str(x).strip()}
+
+
+def _is_card(msg: dict | None) -> bool:
+    return bool(msg and (msg.get("type") == "decision" or ((msg.get("metadata") or {}).get("choices") or [])))
+
+
 _LEAD_RE = _re.compile(r"^\s*(?:@[\w-]+[\s,，、]*)+")
 
 
@@ -1456,6 +1469,8 @@ def _lu_ask_for_pm(sender: str, text: str, channel: str, msg: dict | None = None
     if _is_delivery(msg):
         return False
     who = str(sender or "").lower()
+    if _is_card(msg) and _re.sub(r"-\d+$", "", who) in _asks_direct():
+        return False        # their question, with options, is hers to answer
     owner = str(room_settings.get("username", "") or "").lower()
     via = _mentions_from()
     if (not owner or not via or who in ("", "system", owner) or _re.sub(r"-\d+$", "", who) == via
@@ -3026,6 +3041,7 @@ def _scranton_team() -> dict:
             "model_name": _sc_team.model_label(_sc_team.provider_of(command), str(cfg.get("model", "") or "")),
             "effort": str(cfg.get("effort", "") or ""),
             "mentions_owner": name.lower() == _mentions_from(),
+            "asks_owner": name.lower() in _asks_direct(),
         }
     return out
 
@@ -5466,9 +5482,16 @@ async def scranton_said_verdict(request: Request):
         who = _re.sub(r"-\d+$", "", who.lower()) or "pm"
         quotes = "\n".join(f"· #{it['id']}「{_sc_said_mod.body_of(it['text'])[:160]}」" + (f"（第 {it['rounds'] + 1} 次）" if it.get("rounds", 0) > 1 else "") for it in items)
         store.add("Scranton", f"@{who} Lu 看了 #{result_id}，说不对" + (f"：{note}" if note else "。") +
-                  f"\n她的原话：\n{quotes}\n照原话改；同一个项目里同类的地方（别的页、别的同类组件）有一样的问题就一起改，并列出改了哪几处。改完再交一次，带改前｜改后的图，并写上这几个编号。", channel=ch,
+                  f"\n她的原话：\n{quotes}\n" + (_REDO_TEXT if any(int(it.get("rounds") or 0) >= 2 for it in items) else
+                  "照原话改；同一个项目里同类的地方（别的页、别的同类组件）有一样的问题就一起改，并列出改了哪几处。改完再交一次，带改前｜改后的图，并写上这几个编号。"), channel=ch,
                   reply_to=result_id if store.get_by_id(result_id) else None)
     return JSONResponse({"ok": True, "done": done})
+
+
+# Sent back a second time: patching the old version is what made it worse (11-19, BMW hero v2 → v3,
+# a 13-item fix list: "我做了那么久的 hero，越改越难看了").
+_REDO_TEXT = ("这是第二次以上退回：不要在旧稿上再改，也不要列修改清单逐条修。把这一块重做：只看两样东西，她的原话（上面）和项目 bar.md 里她选中的参考，"
+              "旧稿不当参考。只做这一块，做完按「参考｜新稿」并排交一次，写上这几个编号。")
 
 
 SC_DM = "dm-scranton"   # Lu's 1-on-1 with Scranton: no @ needed there, no teammate is woken

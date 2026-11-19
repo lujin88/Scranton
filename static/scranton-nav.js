@@ -179,6 +179,9 @@
         const team = (window.scGetTeam && window.scGetTeam()) || {};
         const via = Object.keys(team).find((k) => team[k] && team[k].mentions_owner);
         if (!via || String(m.sender || '').toLowerCase().replace(/-\d+$/, '') === via) return true;
+        // [team] asks_owner (Lu's: visual): their card with options is put to you directly; nothing else of theirs is.
+        const who = String(m.sender || '').toLowerCase().replace(/-\d+$/, '');
+        if (team[who] && team[who].asks_owner && (m.type === 'decision' || (m.metadata && (m.metadata.choices || []).length))) return true;
         // A teammate handing over finished work with a picture, asking nothing, reaches you too (11-18).
         if (!(m.attachments || []).length || m.type === 'decision' || (m.metadata && (m.metadata.choices || []).length)) return false;
         const last = String(m.text || '').trim().split('\n').filter((l) => l.trim()).pop() || '';

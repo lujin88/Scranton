@@ -221,6 +221,7 @@
         if (who === me().toLowerCase() || String(msg.channel || '').startsWith('dm-')) return true;
         const team = (window.scGetTeam && window.scGetTeam()) || {};
         const via = Object.keys(team).find((k) => team[k] && team[k].mentions_owner);
+        if (team[who] && team[who].asks_owner && (msg.type === 'decision' || (msg.metadata && (msg.metadata.choices || []).length))) return true;
         return !via || who === via || !(team[who]) || isDelivery(msg);   // system and people keep their @
     }
     // Finished work handed over with a picture, asking nothing: any teammate's reaches you (11-18).

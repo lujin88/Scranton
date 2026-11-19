@@ -83,3 +83,31 @@ def test_one_answer_can_name_several_rows(monkeypatch, tmp_path):
     said = {"id": 91, "sender": "Lu", "type": "chat", "text": "@pm 行 1、2、3：第一题 A，第二题 B，四季就按现在的"}
     app._sc_board_follow(said, "Lu", said["text"], "p", "chat", True)
     assert [r["state"] for r in b.rows("p")] == ["doing", "doing", "doing"]
+
+
+def test_the_visual_designers_card_reaches_her_directly(monkeypatch):
+    import app
+    monkeypatch.setattr(app, "config", {"team": {"mentions_from": "pm", "asks_owner": ["visual"]},
+                                        "agents": {"pm": {}, "dev": {}, "visual": {}}})
+    monkeypatch.setattr(app, "room_settings", {**app.room_settings, "username": "Lu"})
+    card = {"id": 1, "sender": "visual", "type": "decision", "text": "@Lu 首屏两版选哪个", "attachments": [{"url": "/u/a.png"}],
+            "metadata": {"choices": ["A（推荐）", "B"]}}
+    assert app._lu_ask_for_pm("visual", card["text"], "p", card) is False         # hers to answer, the PM is not woken
+    plain = {"id": 2, "sender": "visual", "type": "chat", "text": "@Lu 我先做 A 了", "attachments": []}
+    assert app._lu_ask_for_pm("visual", plain["text"], "p", plain) is True        # no options: not hers
+    same = {**card, "sender": "dev"}
+    assert app._lu_ask_for_pm("dev", same["text"], "p", same) is True             # only who she named
+
+
+def test_one_row_at_a_time_for_the_visual_designer(tmp_path, monkeypatch):
+    import app, mcp_bridge, scranton_board as B
+    b = B.Board(tmp_path / "board.json")
+    monkeypatch.setattr(mcp_bridge, "BOARD", b)
+    monkeypatch.setattr(app, "config", {"team": {"one_at_a_time": ["visual"]}, "agents": {"visual": {}, "dev": {}}})
+    r1 = b.upsert("p", "pm", ask="BMW 首屏", who="visual", state="doing")
+    r2 = b.upsert("q", "pm", ask="Concept 卡片", who="visual", state="todo")
+    assert "already doing row" in mcp_bridge._one_at_a_time("q", r2["id"], "doing", "")       # second one waits
+    assert mcp_bridge._one_at_a_time("p", r1["id"], "doing", "visual") == ""                   # the same row may be updated
+    assert mcp_bridge._one_at_a_time("q", 0, "doing", "dev") == ""                              # only who she named
+    b.upsert("p", "pm", id=r1["id"], state="later", note="等 Lu 选参考")
+    assert mcp_bridge._one_at_a_time("q", r2["id"], "doing", "") == ""

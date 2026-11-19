@@ -405,7 +405,7 @@ def chat_send(
     _update_cursor(sender, [msg], channel)
     with _presence_lock:
         _presence[sender] = time.time()
-    return f"Sent (id={msg['id']})" + moved + _length_note(message, clean_choices) + _shown_hint(msg)
+    return f"Sent (id={msg['id']})" + moved + _length_note(message, clean_choices) + _shown_hint(msg) + _direct_hint(sender, msg, clean_choices)
 
 
 def _picture_check(sender: str, message: str, choices, image_path: str, channel: str):
@@ -1177,6 +1177,9 @@ def chat_board(sender: str, action: str = "read", channel: str = "", id: int = 0
                 return ("Error: 等你 (waiting_lu) means the owner has a question or finished work in front of her right now. "
                         "Send it to her first (chat_send, with the picture), then set the row with msg = that message's id. "
                         "If you will ask her later (\"08:00 问\"), the row is not 等你 yet: keep it doing or todo and put the time in due.")
+            busy = _one_at_a_time(channel, id, state, who)
+            if busy:
+                return busy
             row = BOARD.upsert(channel, sender, id=id, ask=ask, state=state, who=who, due=due, link=link, note=note, msg=msg, check=check)
             out = {"ok": True, "row": row}
             if not row.get("check") and row.get("who") and row.get("state") in ("todo", "doing"):
@@ -1233,6 +1236,50 @@ def board_view(channel: str) -> list[dict]:
 
 
 SAID = None   # set by run.py: scranton_said.Said
+
+
+def _one_at_a_time(channel: str, row_id, state: str, who: str) -> str:
+    """[team] one_at_a_time (Lu's: visual): one row in 在做 at a time, across projects. 11-19: the
+    visual designer had Concept, BMW and row 74 open the same afternoon and was told twice to stop
+    one for another; each came back worse."""
+    try:
+        import app
+        only = app.config.get("team", {}).get("one_at_a_time") or []
+    except Exception:
+        return ""
+    if (state or "").strip().lower() != "doing" or BOARD is None:
+        return ""
+    with BOARD.lock:
+        mine = next((r for r in BOARD.data.get(channel, []) if str(r.get("id")) == str(row_id)), None) if row_id else None
+        target = _re_mod.sub(r"-\d+$", "", str(who or (mine or {}).get("who") or "").strip().lstrip("@").lower())
+        if not target or target not in {str(x).lower() for x in only}:
+            return ""
+        other = next(((ch, r) for ch, rows in BOARD.data.items() for r in rows
+                      if r.get("state") == "doing" and _re_mod.sub(r"-\d+$", "", str(r.get("who") or "").lower()) == target
+                      and not (ch == channel and str(r.get("id")) == str(row_id))), None)
+    if not other:
+        return ""
+    ch, r = other
+    return (f"Error: {target} does one thing at a time and is already doing row {r.get('id')} in #{ch}（{str(r.get('ask') or '')[:40]}）. "
+            f"Let that finish, or put it aside first (set it to todo or later, with why), then set this one to doing. "
+            f"Until then this row stays todo.")
+
+
+def _direct_hint(sender: str, msg: dict, choices) -> str:
+    """A teammate who may ask the owner directly, opening with @owner but giving no options: say in
+    the tool result that it did not reach her list, and what does."""
+    try:
+        import app
+        base = _re_mod.sub(r"-\d+$", "", str(sender or "").lower())
+        if base not in app._asks_direct() or choices or msg.get("attachments"):
+            return ""
+        if not app._lu_ask_for_pm(sender, msg.get("text") or "", msg.get("channel") or "general", msg):
+            return ""
+    except Exception:
+        return ""
+    return (f"\nThis @{_owner_name()} has no options, so it is not on her list; the project manager got it instead. "
+            f"She is asked only when she has to decide: send ONE card with choices=[…] (2 to 4 complete options, "
+            f"your pick first and marked （推荐）, the pictures attached). Progress, plans and things you can decide yourself: no @{_owner_name()}.")
 
 
 def _shown_hint(msg: dict) -> str:
