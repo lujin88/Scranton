@@ -45,3 +45,12 @@ def test_claude_reads_last_main_usage(tmp_path):
     (d / "s.jsonl").write_text("\n".join(json.dumps(x) for x in lines) + "\n")
     assert sc.current_context("claude", cwd, time.time() - 60, home=tmp_path) == 92_003
     assert sc.current_context("agy", cwd, 0, home=tmp_path) is None
+
+
+def test_known_size_alone_decides():
+    import time, wrapper
+    on = {"enabled": True, "hours": 4, "wakes": 40, "context_k": 150}
+    long_ago = time.time() - 9 * 3600
+    assert wrapper._handover_due(on, long_ago, 300, 60_000) is False      # many messages, small session: keep it
+    assert wrapper._handover_due(on, time.time(), 1, 160_000) is True
+    assert wrapper._handover_due(on, long_ago, 300, None) is True         # size unknown: hours and messages still apply

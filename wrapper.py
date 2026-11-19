@@ -816,8 +816,11 @@ def _handover_due(settings: dict | None, started: float, wakes: int, context: in
     # Context size (Lu, 11-10): every call re-sends the whole session, so a big one is what costs.
     # Only for apps whose log we can read (Claude Code, Codex); None means unknown → hours/messages.
     k = int(settings.get("context_k", 0) or 0)
-    if k and context and context >= k * 1000:
-        return True
+    if k and context:
+        # The size is known: it alone decides. Hours and message counts are a guess at size; on
+        # 11-19 they gave the visual designer a new session every 40 messages, three or four times
+        # a day, each one starting with "no record of the last round".
+        return context >= k * 1000
     return (time.time() - started >= float(settings.get("hours", 4)) * 3600
             or wakes >= int(settings.get("wakes", 40)))
 
