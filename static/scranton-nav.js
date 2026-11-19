@@ -408,6 +408,7 @@
     const openProj = new Map();   // project -> open or closed, as you left it (this visit)
     let openRow = '', focusRow = '';   // the board row being answered in Activity
     const rowDraft = new Map();
+    let actKind = '';             // '' | 'wait' | 'stuck': the tile that is pressed
     const FEW = 6;                // this many items or fewer: every project starts open
     const rowSeen = new Set((() => { try { return JSON.parse(LS.get('sc-row-seen', '[]')); } catch (_) { return []; } })());
     function renderInbox() {
@@ -451,6 +452,21 @@
         // project's channel as "@pm 行 45：…" and the row leaves 等你 (Lu, 11-18: "我点进去，就完全
         // 找不到，不知道哪里要回复").
         const team = (window.scGetTeam && window.scGetTeam()) || {};
+        // What is being asked: the teammate's own message with its pictures, right above the answer
+        // box (Lu, 11-19: "让我直接回复，我咋知道是啥东西呢？").
+        const question = (r) => {
+            const q = r.q;
+            if (!q) return '<div class="sc-inbox-q sc-inbox-q-none">No message is attached to this row. Open the channel to see the work.</div>';
+            const who = String(q.sender || '').toLowerCase();
+            const body = typeof renderMarkdown === 'function' ? renderMarkdown(String(q.text || '')) : esc(String(q.text || ''));
+            const pics = (q.files || []).filter((f) => /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(f.url || ''));
+            const rest = (q.files || []).filter((f) => !pics.includes(f));
+            return `<div class="sc-inbox-q"><div class="sc-inbox-q-who">${esc(window.scLabelOf && who ? window.scLabelOf(who) : (q.sender || ''))} asked</div>`
+                + `<div class="sc-inbox-q-text">${body}</div>`
+                + (pics.length ? `<div class="sc-inbox-q-pics">${pics.map((f) => `<button type="button" class="sc-inbox-q-pic" data-url="${esc(f.url)}" aria-label="Open ${esc(f.name)}"><img src="${esc(f.url)}?w=640" alt="${esc(f.name)}" loading="lazy"></button>`).join('')}</div>` : '')
+                + (rest.length ? `<div class="sc-inbox-q-files">${rest.map((f) => `<a href="${esc(f.url)}?token=${encodeURIComponent(window.SESSION_TOKEN)}" target="_blank" rel="noopener">${esc(f.name)}</a>`).join('')}</div>` : '')
+                + `</div>`;
+        };
         const addRow = (r, status) => {
             const key = `${r.channel}|${r.id}`;
             const meName = String(window.username || 'lu').toLowerCase();
@@ -469,7 +485,10 @@
                 + `<span class="sc-inbox-status todo">${status} · ${ago}</span></span></button>`
                 + `<span class="sc-inbox-side"><span class="sc-read-toggle" role="button" tabindex="0" data-tip="Seen: take it off this list" aria-label="Seen: take it off this list">${ic('check', 16)}</span></span>`
                 + (openRow === key ? `<div class="sc-inbox-answer">`
-                    + (r.link ? `<div class="sc-inbox-link">File: ${esc(r.link)}</div>` : '')
+                    + question(r)
+                    + (r.link ? `<div class="sc-inbox-link">${/^https?:\/\//.test(r.link)
+                        ? `<a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(r.link)}</a>`
+                        : `<a class="file-link" href="#" onclick="openPath('${esc(String(r.link).replace(/'/g, "\\'"))}'); return false;">${esc(r.link)}</a>`}</div>` : '')
                     + `<textarea rows="2" placeholder="Answer ${esc(window.scLabelOf ? window.scLabelOf(to) : to)} here…" aria-label="Your answer"></textarea>`
                     + `<div class="sc-inbox-answer-foot"><button type="button" class="sc-inbox-go">Open #${esc(r.channel)}</button><button type="button" class="sc-inbox-send" disabled>Send</button></div></div>` : '');
             el.querySelector('.sc-read-toggle').addEventListener('click', (e) => {
@@ -478,6 +497,7 @@
                 renderInboxBadge(); renderInbox();
             });
             el.querySelector('.sc-inbox-row-head').addEventListener('click', () => { openRow = openRow === key ? '' : key; focusRow = openRow; renderInbox(); });
+            el.querySelectorAll('.sc-inbox-q-pic').forEach((b) => b.addEventListener('click', () => { if (typeof openImageModal === 'function') openImageModal(b.dataset.url); }));
             const ta = el.querySelector('textarea');
             if (ta) {
                 const send = el.querySelector('.sc-inbox-send');
@@ -556,22 +576,32 @@
         const nWait = asks.length + waitRows.length, nStuck = stuckMsgs.length + stuckRows.length;
         if (!nothing) {
             const few = nWait + nStuck <= FEW;
-            list.insertAdjacentHTML('beforeend', `<div class="sc-inbox-sum"><b>${nWait}</b> waiting for your answer<span class="sc-inbox-sum-dot">·</span><b>${nStuck}</b> stuck<span class="sc-inbox-sum-dot">·</span>${proj.size} project${proj.size > 1 ? 's' : ''}</div>`);
+            // Two tiles like the board overview (Lu, 11-19: "我喜欢 Activity 上面有一个这样子的 overview，
+            // 而不是文字版的。点一下直接 expand，然后可以直接 deal"). A tile opens every project and
+            // shows only that kind; click it again to go back to the list by project.
+            const tiles = document.createElement('div');
+            tiles.className = 'sc-ov-tiles sc-inbox-tiles';
+            tiles.innerHTML = `<button type="button" class="sc-ov-tile${actKind === 'wait' ? ' on' : ''}" data-state="waiting_lu" data-kind="wait" aria-pressed="${actKind === 'wait'}"><b>${nWait}</b><span>Needs your answer</span></button>`
+                + `<button type="button" class="sc-ov-tile${actKind === 'stuck' ? ' on' : ''}" data-state="blocked" data-kind="stuck" aria-pressed="${actKind === 'stuck'}"><b>${nStuck}</b><span>Stuck</span></button>`;
+            tiles.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { actKind = actKind === b.dataset.kind ? '' : b.dataset.kind; renderInbox(); }));
+            list.appendChild(tiles);
             for (const [ch, g] of proj) {
-                const open = openProj.has(ch) ? openProj.get(ch) : few;
+                const wait = actKind === 'stuck' ? [] : g.wait, stuck = actKind === 'wait' ? [] : g.stuck;
+                if (!wait.length && !stuck.length) continue;
+                const open = actKind ? true : (openProj.has(ch) ? openProj.get(ch) : few);
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'sc-inbox-proj' + (open ? ' open' : '');
                 btn.setAttribute('aria-expanded', String(open));
                 btn.innerHTML = `<span class="sc-inbox-proj-chev">${ic('chevron-down', 16)}</span>`
                     + `<span class="sc-inbox-proj-name">${esc(isDm(ch) ? 'Direct message' : '# ' + ch)}</span>`
-                    + (g.wait.length ? `<span class="sc-inbox-proj-n wait">${g.wait.length} waiting for you</span>` : '')
-                    + (g.stuck.length ? `<span class="sc-inbox-proj-n">${g.stuck.length} stuck</span>` : '');
-                btn.addEventListener('click', () => { openProj.set(ch, !open); renderInbox(); });
+                    + (wait.length ? `<span class="sc-inbox-proj-n wait">${wait.length} for you</span>` : '')
+                    + (stuck.length ? `<span class="sc-inbox-proj-n">${stuck.length} stuck</span>` : '');
+                btn.addEventListener('click', () => { if (actKind) return; openProj.set(ch, !open); renderInbox(); });
                 list.appendChild(btn);
                 if (!open) continue;
-                g.wait.forEach((x) => (x.m ? addMsg(x.m) : addRow(x.r, 'Needs your answer')));
-                g.stuck.forEach((x) => (x.m ? addMsg(x.m) : addRow(x.r, x.r.state === 'stalled' ? 'No update' : 'Stuck')));
+                wait.forEach((x) => (x.m ? addMsg(x.m) : addRow(x.r, 'Needs your answer')));
+                stuck.forEach((x) => (x.m ? addMsg(x.m) : addRow(x.r, x.r.state === 'stalled' ? 'No update' : 'Stuck')));
             }
         }
         if (oldRows.length) {

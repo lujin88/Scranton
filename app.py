@@ -2283,13 +2283,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     continue
                 if name not in room_settings["channels"]:
                     continue
-                room_settings["channels"].remove(name)
-                (room_settings.get("channel_members") or {}).pop(name, None)
-                (room_settings.get("channel_meta") or {}).pop(name, None)
-                store.delete_channel(name)
-                import mcp_bridge
-                mcp_bridge.migrate_cursors_delete(name)
-                _save_settings()
+                _remove_channel(name)
                 await broadcast_settings()
 
     except WebSocketDisconnect:
@@ -2297,6 +2291,19 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception:
         ws_clients.discard(websocket)
         log.exception("WebSocket error")
+
+
+def _remove_channel(name: str) -> None:
+    """Take a channel out: its messages, members, details, pause flag and read positions."""
+    if name in room_settings["channels"]:
+        room_settings["channels"].remove(name)
+    (room_settings.get("channel_members") or {}).pop(name, None)
+    (room_settings.get("channel_meta") or {}).pop(name, None)
+    room_settings["paused_channels"] = [c for c in room_settings.get("paused_channels") or [] if c != name]
+    store.delete_channel(name)
+    import mcp_bridge
+    mcp_bridge.migrate_cursors_delete(name)
+    _save_settings()
 
 
 # --- REST endpoints ---
@@ -5541,6 +5548,114 @@ async def scranton_board_get(channel: str = "general"):
                          "states": scranton_board.STATE_ZH, "paused": channel in _paused_channels()})
 
 
+# ---- Close project (scranton_close.py) ----
+
+def _close_state(ch: str) -> dict:
+    import scranton_close, scranton_preview
+    folder = scranton_close.archive_dir(ch)
+    closing = (room_settings.get("closing") or {}).get(ch)
+    uploads = Path((config or {}).get("images", {}).get("upload_dir", "./uploads")).resolve()
+    roots = [r for r in scranton_preview.roots(config or {}) if r != uploads]
+    handoff = folder / "HANDOFF.md"
+    return {"channel": ch, "closing": bool(closing), "started": (closing or {}).get("started", 0),
+            "folder": str(folder), "handoff": handoff.is_file() and handoff.stat().st_size > 40,
+            "cleanup": scranton_close.read_cleanup(folder, roots) if closing else {"exists": False, "ok": [], "refused": [], "bytes": 0},
+            "messages": sum(1 for m in store.get_since(-1) if (m.get("channel") or "general") == ch)}
+
+
+def _closable(ch: str) -> bool:
+    return bool(ch) and ch != "general" and not ch.startswith("dm-") and ch in room_settings.get("channels", [])
+
+
+@app.get("/api/scranton/project/close")
+async def scranton_close_get(channel: str = ""):
+    if not _closable(channel):
+        return JSONResponse({"error": "no such project channel"}, status_code=404)
+    return JSONResponse(_close_state(channel))
+
+
+@app.post("/api/scranton/project/close")
+async def scranton_close_post(request: Request):
+    """step start: pause the project and ask the project manager for the hand-over.
+    step cancel: back to normal. step finish: save the chat, set the listed files aside, remove the channel."""
+    import scranton_close
+    body = await request.json()
+    ch, step = str(body.get("channel") or ""), str(body.get("step") or "start")
+    if not _closable(ch):
+        return JSONResponse({"error": "no such project channel"}, status_code=404)
+    closing = room_settings.setdefault("closing", {})
+    owner = str((config or {}).get("team", {}).get("owner", "") or "the owner")
+    folder = scranton_close.archive_dir(ch)
+    if step == "start":
+        if ch not in closing:
+            folder.mkdir(parents=True, exist_ok=True)
+            closing[ch] = {"started": time.time()}
+            room_settings["paused_channels"] = sorted(_paused_channels() | {ch})
+            _save_settings()
+            store.add("Scranton", scranton_close.start_text(ch, folder, owner), channel=ch)
+        return JSONResponse({"ok": True, **_close_state(ch)})
+    if ch not in closing:
+        return JSONResponse({"error": "this project is not being closed"}, status_code=409)
+    if step == "cancel":
+        closing.pop(ch, None)
+        room_settings["paused_channels"] = [c for c in _paused_channels() if c != ch]
+        _save_settings()
+        store.add("Scranton", "@pm 关闭取消了，项目照常继续。", channel=ch)
+        return JSONResponse({"ok": True, **_close_state(ch)})
+    if step != "finish":
+        return JSONResponse({"error": "step is start, cancel or finish"}, status_code=400)
+    state = _close_state(ch)
+    if not state["handoff"] and not body.get("without_handoff"):
+        return JSONResponse({"error": "no hand-over note yet", **state}, status_code=409)
+    labels = (config or {}).get("agents", {})
+    msgs = [m for m in store.get_since(-1) if (m.get("channel") or "general") == ch]
+    md, n = scranton_close.export_chat(msgs, folder, lambda s: str((labels.get(s.lower()) or {}).get("label") or s))
+    # the chat is removed only once its copy is really on disk
+    if not md.is_file() or (n and md.stat().st_size < 20) or sum(1 for _ in open(folder / "chat.jsonl", encoding="utf-8")) != n:
+        return JSONResponse({"error": "the chat could not be saved, so nothing was removed"}, status_code=500)
+    moved = scranton_close.move_aside(state["cleanup"]["ok"], folder) if body.get("clean") else {"moved": [], "failed": [], "dest": str(folder / "_to_delete")}
+    import mcp_bridge
+    if mcp_bridge.BOARD is not None:
+        with mcp_bridge.BOARD.lock:
+            if mcp_bridge.BOARD.data.pop(ch, None) is not None:
+                mcp_bridge.BOARD._save()
+    said = _sc_said()
+    with said.lock:
+        for k in [k for k, v in said.items.items() if v.get("ch") == ch]:
+            del said.items[k]
+    said._save()
+    closing.pop(ch, None)
+    room_settings.setdefault("closed", {})[ch] = {"at": time.time(), "folder": str(folder), "messages": n,
+                                                   "handoff": state["handoff"], "moved": len(moved["moved"])}
+    _remove_channel(ch)
+    await broadcast_settings()
+    return JSONResponse({"ok": True, "closed": ch, "folder": str(folder), "messages": n, **moved})
+
+
+@app.get("/api/scranton/projects/closed")
+async def scranton_closed_list():
+    out = [{"channel": k, **v} for k, v in (room_settings.get("closed") or {}).items()]
+    return JSONResponse({"closed": sorted(out, key=lambda x: -float(x.get("at") or 0))})
+
+
+@app.post("/api/scranton/project/reopen")
+async def scranton_reopen(request: Request):
+    """Bring a closed project back as an empty channel; the project manager starts from the hand-over."""
+    body = await request.json()
+    ch = str(body.get("channel") or "")
+    rec = (room_settings.get("closed") or {}).get(ch)
+    if not rec:
+        return JSONResponse({"error": "not a closed project"}, status_code=404)
+    if ch not in room_settings["channels"]:
+        room_settings["channels"].append(ch)
+    room_settings["closed"].pop(ch, None)
+    _save_settings()
+    await broadcast_settings()
+    store.add("Scranton", f"@pm 这个项目重新打开了。先读交接文档 {rec.get('folder')}/HANDOFF.md（之前的聊天在同一个文件夹的 chat.md），"
+                          f"再用三行告诉 Lu：上次停在哪、还没做完什么、你建议先做哪件。", channel=ch)
+    return JSONResponse({"ok": True, "channel": ch})
+
+
 def _preview_key(scope: str) -> str:
     import scranton_preview
     return scranton_preview.key_for((config or {}).get("server", {}).get("data_dir", "./data"), scope)
@@ -5657,6 +5772,21 @@ async def scranton_preview_port(key: str, port: int, path: str, request: Request
                     media_type=ctype or None)
 
 
+def _row_question(r: dict) -> dict | None:
+    """The message a board row points at, so Activity can show what is being asked (Lu, 11-19:
+    "让我直接回复，我咋知道是啥东西呢？")."""
+    try:
+        m = store.get_by_id(int(r.get("msg") or 0))
+    except (TypeError, ValueError):
+        m = None
+    if not m:
+        return None
+    files = [{"name": str(a.get("name") or "file")[:120], "url": a.get("url")} for a in (m.get("attachments") or [])
+             if isinstance(a, dict) and str(a.get("url", "")).startswith("/uploads/")]
+    return {"id": m.get("id"), "sender": m.get("sender"), "text": str(m.get("text") or "")[:2400],
+            "time": m.get("timestamp"), "files": files[:8]}
+
+
 @app.get("/api/scranton/attention")
 async def scranton_attention():
     """Board rows that wait for Lu or are stuck, from every project that is not paused (Activity)."""
@@ -5677,7 +5807,7 @@ async def scranton_attention():
                                 "ask": r.get("ask", ""), "who": r.get("who", ""), "note": r.get("note", ""),
                                 "msg": r.get("msg") or 0, "at": r.get("updated") or r.get("at") or 0,
                                 "since": r.get("since") or r.get("at") or 0, "by": r.get("by", ""),
-                                "link": r.get("link", ""), "due": r.get("due", "")})
+                                "link": r.get("link", ""), "due": r.get("due", ""), "q": _row_question(r)})
     out.sort(key=lambda r: -float(r["at"] or 0))
     return JSONResponse({"rows": out})
 

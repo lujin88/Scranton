@@ -1833,3 +1833,46 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-inbox-send { border: 0; background: var(--ds-accent-fill); color: var(--ds-on-accent); font-weight: 600; }
 .sc-inbox-send:disabled { opacity: .45; cursor: default; }
 .sc-inbox-link { margin-bottom: 8px; color: var(--ds-text-3); font-size: var(--ds-fs-xs); word-break: break-all; }
+
+/* Close project (11-19): the three things that happen, then the buttons. */
+.sc-close h4 { margin: 0 0 12px; font-size: var(--ds-fs-sm); font-weight: 600; }
+.sc-close-steps { margin: 0; padding: 0; list-style: none; counter-reset: cs; }
+.sc-close-steps > li { counter-increment: cs; position: relative; padding: 0 0 14px 32px; }
+.sc-close-steps > li::before { content: counter(cs); position: absolute; left: 0; top: 0; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: var(--ds-fs-xs); font-weight: 600; background: var(--ds-hover); color: var(--ds-text-2); }
+.sc-close-steps > li.done::before { content: "✓"; background: var(--ds-accent-soft); color: var(--ds-accent); }
+.sc-close-steps b { display: block; font-size: var(--ds-fs-sm); font-weight: 600; }
+.sc-close-steps span { display: block; color: var(--ds-text-2); font-size: var(--ds-fs-sm); word-break: break-word; }
+.sc-close-steps details { margin-top: 6px; font-size: var(--ds-fs-xs); color: var(--ds-text-2); }
+.sc-close-steps summary { cursor: pointer; color: var(--ds-accent); }
+.sc-close-steps details ul { margin: 6px 0 0; padding: 0; list-style: none; max-height: 220px; overflow: auto; }
+.sc-close-steps details li { padding: 2px 0; word-break: break-all; }
+.sc-close-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.sc-close-foot button { min-height: 36px; padding: 0 14px; border-radius: var(--ds-r-control); border: 1px solid var(--ds-line-strong); background: transparent; color: var(--ds-text); font: inherit; font-size: var(--ds-fs-sm); cursor: pointer; }
+.sc-close-foot button:hover { background: var(--ds-hover); }
+.sc-close-foot button.danger { border-color: transparent; background: var(--ds-danger); color: #fff; font-weight: 600; }
+.sc-close-foot button:disabled { opacity: .5; cursor: default; }
+.sc-close-foot .sc-close-cancel { margin-right: auto; }
+
+/* Activity tiles and the question shown with a board row (11-19). */
+.sc-inbox-tiles { margin: 0 0 12px; }
+.sc-inbox-tiles .sc-ov-tile { flex: 0 1 220px; }
+.sc-inbox-q { margin: 0 0 10px; padding: 12px 14px; border: 1px solid var(--ds-line); border-radius: var(--ds-r-card); background: var(--ds-surface); }
+.sc-inbox-q-none { color: var(--ds-text-3); font-size: var(--ds-fs-sm); }
+.sc-inbox-q-who { margin-bottom: 4px; color: var(--ds-text-3); font-size: var(--ds-fs-xs); font-weight: 600; }
+.sc-inbox-q-text { color: var(--ds-text); font-size: var(--ds-fs-sm); line-height: 1.55; max-height: 320px; overflow: auto; word-break: break-word; }
+.sc-inbox-q-text p { margin: 0 0 6px; }
+.sc-inbox-q-pics { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.sc-inbox-q-pic { padding: 0; border: 1px solid var(--ds-line); border-radius: var(--ds-r-control); background: none; overflow: hidden; cursor: zoom-in; max-width: 100%; }
+.sc-inbox-q-pic img { display: block; max-width: min(100%, 520px); max-height: 320px; }
+.sc-inbox-q-files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; font-size: var(--ds-fs-xs); }
+.sc-inbox-link a { color: var(--ds-accent); word-break: break-all; }
+
+/* Closed projects under the channel list (11-19). */
+.sc-closed { margin: 2px 8px 8px; }
+.sc-closed-toggle { width: 100%; min-height: 32px; padding: 0 10px; border: 0; border-radius: var(--ds-r-row); background: none; color: var(--ds-text-3); font: inherit; font-size: var(--ds-fs-xs); text-align: left; cursor: pointer; }
+.sc-closed-toggle:hover { background: var(--ds-hover); color: var(--ds-text-2); }
+.sc-closed-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; padding: 0 10px; color: var(--ds-text-2); font-size: var(--ds-fs-sm); }
+.sc-closed-item span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-closed-item small { margin-left: 8px; color: var(--ds-text-3); font-size: var(--ds-fs-xs); }
+.sc-closed-item button { flex: none; min-height: 28px; padding: 0 10px; border: 1px solid var(--ds-line); border-radius: var(--ds-r-control); background: none; color: var(--ds-accent); font: inherit; font-size: var(--ds-fs-xs); cursor: pointer; }
+.sc-closed-item button:hover { background: var(--ds-hover); }

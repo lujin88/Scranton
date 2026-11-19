@@ -124,3 +124,15 @@ Coming from Activity, the asked message gets a 2px accent frame, accent-soft fil
 ### Board row answered in Activity (11-18)
 
 A board row (`.sc-inbox-row`) does not navigate. Click it: it opens in place with the file path, a text box and two buttons, "Open #channel" (secondary, left) and "Send" (primary, right). Send posts "@teammate 行 N：answer" to the project's channel; the server moves the row back to 在做. Enter sends, Shift+Enter is a new line. The time shown is how long the row has been waiting (`since`), not when it was last nudged.
+
+## Close project (11-19)
+
+In a project channel's overview, next to Pause: "Close project". It opens a card (`.sc-close`) with three numbered steps (hand-over note, old files to set aside, chat) that tick themselves as the project manager finishes, and the buttons: "Keep the project open" (left), "Close, leave files", and the red primary, which must be clicked twice. Files are moved to the archive's `_to_delete`, never deleted. Closed projects sit under the channel list as one quiet line, "Closed projects · N" (`.sc-closed`), each with Reopen.
+
+## Activity tiles and the question (11-19)
+
+Activity opens with two tiles in the board's style (`.sc-inbox-tiles`, reusing `.sc-ov-tile`): "Needs your answer" (blue) and "Stuck" (red). Pressing one opens every project and shows only that kind; pressing it again returns to the list by project. A board row opened in Activity shows the teammate's own message with its pictures (`.sc-inbox-q`) above the answer box; pictures open in the viewer; the row's link is clickable.
+
+## Preview (11-19)
+
+On a device other than the Scranton computer, a localhost link or a path in a message opens in a new tab through `/preview/…` (sandboxed). No new visual element.

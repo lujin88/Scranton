@@ -24,6 +24,7 @@
                 data.said = s.ok ? await s.json() : null;
             } catch (_) { data.said = null; }
             if (ch() !== c) return;
+            await loadClosing();
             paint();
         } catch (_) { /* offline */ }
     }
@@ -40,6 +41,66 @@
 
     // Under the channel setup: who's on what (Lu, 11-11: "底下就是谁在干活、谁没在干活").
     // One block per person with their open asks; free people are named so work can go to them.
+    // ---- Close project (scranton_close.py): hand-over, chat saved, old files set aside, channel removed.
+    let closing = null, armed = false;
+    const closeable = () => !isDm(ch()) && ch() !== 'general';
+    const post = (url, body) => fetch(url, { method: 'POST', headers: { 'X-Session-Token': window.SESSION_TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json().catch(() => ({})));
+    async function loadClosing() {
+        const c = ch();
+        closing = null; armed = false;
+        if (!closeable()) return;
+        try {
+            const r = await fetch(`/api/scranton/project/close?channel=${encodeURIComponent(c)}`, { headers: { 'X-Session-Token': window.SESSION_TOKEN } });
+            if (r.ok && ch() === c) closing = await r.json();
+        } catch (_) { /* offline */ }
+    }
+    const mb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
+    function closeCard() {
+        if (!closing || !closing.closing) return '';
+        const cl = closing.cleanup || { ok: [], refused: [] };
+        const files = cl.ok.map((f) => `<li>${esc(f)}</li>`).join('');
+        const refused = cl.refused.map((f) => `<li>${esc(f.path)} <small>· kept: ${esc(f.why)}</small></li>`).join('');
+        return `<div class="sc-ch-card sc-close">
+            <h4>Closing this project</h4>
+            <ol class="sc-close-steps">
+                <li class="${closing.handoff ? 'done' : ''}"><b>Hand-over note</b><span>${closing.handoff ? 'Written: ' + esc(closing.folder) + '/HANDOFF.md' : 'The project manager is writing it. This fills in by itself.'}</span></li>
+                <li class="${cl.exists ? 'done' : ''}"><b>Old files to set aside</b><span>${cl.exists ? `${cl.ok.length} file${cl.ok.length === 1 ? '' : 's'} or folder${cl.ok.length === 1 ? '' : 's'}, ${mb(cl.bytes || 0)}. They are moved to ${esc(closing.folder)}/_to_delete, not deleted.` : 'The project manager is listing them.'}</span>
+                    ${files ? `<details><summary>See the ${cl.ok.length}</summary><ul>${files}</ul></details>` : ''}
+                    ${refused ? `<details><summary>${cl.refused.length} on the list will be left where they are</summary><ul>${refused}</ul></details>` : ''}</li>
+                <li><b>Chat</b><span>${closing.messages} messages are saved to ${esc(closing.folder)}/chat.md, then this channel is removed.</span></li>
+            </ol>
+            <div class="sc-close-foot">
+                <button type="button" class="sc-close-cancel">Keep the project open</button>
+                ${cl.ok.length ? `<button type="button" class="sc-close-finish" data-clean="0">Close, leave files</button>` : ''}
+                <button type="button" class="sc-close-finish danger" data-clean="${cl.ok.length ? 1 : 0}" ${closing.handoff ? '' : 'data-nohandoff="1"'}>${armed ? 'Click again to remove the channel' : closing.handoff ? (cl.ok.length ? 'Close and set files aside' : 'Close project') : 'Close without a hand-over'}</button>
+            </div>
+        </div>`;
+    }
+    setInterval(() => { if (closing && closing.closing && !armed) loadClosing().then(fill); }, 15000);
+
+    // Closed projects: one quiet line under the channel list; open it to bring one back.
+    let closedOpen = false;
+    async function loadClosed() {
+        const box = document.getElementById('sc-closed');
+        if (!box || !window.SESSION_TOKEN) return;
+        let list = [];
+        try {
+            const r = await fetch('/api/scranton/projects/closed', { headers: { 'X-Session-Token': window.SESSION_TOKEN } });
+            if (r.ok) list = (await r.json()).closed || [];
+        } catch (_) { return; }
+        box.hidden = !list.length;
+        if (!list.length) return;
+        const day = (t) => new Date(Number(t) * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        box.innerHTML = `<button type="button" class="sc-closed-toggle" aria-expanded="${closedOpen}">Closed projects · ${list.length}</button>`
+            + (closedOpen ? list.map((c) => `<div class="sc-closed-item"><span title="${esc(c.folder || '')}"># ${esc(c.channel)}<small>closed ${esc(day(c.at))}</small></span><button type="button" data-reopen="${esc(c.channel)}">Reopen</button></div>`).join('') : '');
+    }
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('.sc-closed-toggle')) { closedOpen = !closedOpen; loadClosed(); return; }
+        const b = e.target.closest('[data-reopen]');
+        if (b) { b.disabled = true; post('/api/scranton/project/reopen', { channel: b.dataset.reopen }).then(() => { loadClosed(); if (typeof switchChannel === 'function') setTimeout(() => switchChannel(b.dataset.reopen), 600); }); }
+    });
+    setTimeout(loadClosed, 2500);
+
     function fill() {
         const box = document.getElementById('sc-ch-board');
         if (!box) return;
@@ -96,7 +157,9 @@
         const tiles = STATE_ORDER.filter((k) => k !== 'live' && (counts[k] || k === 'waiting_lu'))
             .map((k) => `<button type="button" class="sc-ov-tile${filter === k ? ' on' : ''}" data-state="${k}" aria-pressed="${filter === k}"><b>${counts[k] || 0}</b><span>${esc((data.states || {})[k] || k)}</span></button>`).join('');
         const html = `<div class="sc-board-head"><h3>Who's on what</h3><span>${data.paused ? 'Paused: no reminders, nobody woken' : open.length ? open.length + ' open' : 'Nothing open'}</span>
-                <button type="button" class="sc-ch-edit sc-board-pause" data-paused="${data.paused ? 1 : 0}">${data.paused ? 'Resume project' : 'Pause project'}</button></div>
+                <button type="button" class="sc-ch-edit sc-board-pause" data-paused="${data.paused ? 1 : 0}">${data.paused ? 'Resume project' : 'Pause project'}</button>
+                ${closeable() && !(closing && closing.closing) ? '<button type="button" class="sc-ch-edit sc-board-close">Close project</button>' : ''}</div>
+            ${closeCard()}
             ${open.length ? `<div class="sc-ch-card sc-ov">
                 <div class="sc-ov-tiles">${tiles}</div>
                 <div class="sc-ov-foot"><span>${busy.length} busy</span><span>${free.length} free${free.length ? ': ' + names(free) : ''}</span>${live.length ? `<span>${live.length} live today</span>` : ''}</div>
@@ -155,6 +218,28 @@
             filter = filter === k ? '' : k; fill(); return;
         }
         if (e.target.closest('#sc-ch-board .sc-ov-clear')) { filter = ''; fill(); return; }
+        if (e.target.closest('#sc-ch-board .sc-board-close')) {
+            post('/api/scranton/project/close', { channel: ch(), step: 'start' }).then((d) => { closing = d; load(); });
+            return;
+        }
+        if (e.target.closest('#sc-ch-board .sc-close-cancel')) {
+            post('/api/scranton/project/close', { channel: ch(), step: 'cancel' }).then((d) => { closing = d; armed = false; load(); });
+            return;
+        }
+        const fin = e.target.closest('#sc-ch-board .sc-close-finish');
+        if (fin) {
+            if (fin.classList.contains('danger') && !armed) { armed = true; fill(); setTimeout(() => { if (armed) { armed = false; fill(); } }, 6000); return; }
+            fin.disabled = true;
+            post('/api/scranton/project/close', { channel: ch(), step: 'finish', clean: fin.dataset.clean === '1', without_handoff: fin.dataset.nohandoff === '1' }).then((d) => {
+                armed = false;
+                if (d && d.ok) {
+                    if (window.scToast) window.scToast(`Closed. Saved in ${d.folder}`);
+                    loadClosed();
+                    if (typeof switchChannel === 'function') switchChannel('general');
+                } else { if (window.scToast) window.scToast((d && d.error) || 'Could not close the project.'); loadClosing().then(fill); }
+            });
+            return;
+        }
         const pb = e.target.closest('#sc-ch-board .sc-board-pause');
         if (pb) {
             fetch('/api/scranton/channel/pause', { method: 'POST', headers: { 'X-Session-Token': window.SESSION_TOKEN, 'Content-Type': 'application/json' },
