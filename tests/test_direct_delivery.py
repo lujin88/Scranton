@@ -1,4 +1,5 @@
 """Lu, 11-18: finished work reaches her from whoever did it; the board follows what happens."""
+from pathlib import Path
 import app
 import mcp_bridge
 import scranton_board
@@ -58,3 +59,13 @@ def test_her_thumbs_up_closes_the_row_that_was_waiting_for_her(monkeypatch, tmp_
     rows = {r["ask"]: r for r in b.rows("slides")}
     assert rows["文案 review"]["state"] == "live" and "看过了" in rows["文案 review"]["note"]
     assert rows["Hub 布局"]["state"] == "waiting_lu"          # a different message: still hers to answer
+
+
+def test_activity_counts_a_delivery_as_waiting_for_her():
+    """The server no longer wakes the PM for a delivery, so Activity must count it as an ask.
+    isAsk used to be questions and merge-PRs only: a @Lu + picture handover then vanished from
+    the channel pill, the need strip, and the notification sound."""
+    nav = (Path(__file__).resolve().parent.parent / "static/scranton-nav.js").read_text()
+    assert "function isDelivery(" in nav
+    assert "isQuestion(m) || isPrAsk(m) || isDelivery(m)" in nav
+

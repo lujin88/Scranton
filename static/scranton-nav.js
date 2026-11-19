@@ -38,6 +38,16 @@
         || (String(m.text || '').match(OPT_LINE) || []).length >= 2
         // a message that ends on a question (11-18: "@Lu 这行小字删不删？" wasn't counted as waiting for her)
         || /[?？]\s*$|吗[。 ]?$/.test((String(m.text || '').trim().split('\n').filter((l) => l.trim()).pop() || '').trim());
+    // Finished work handed over with a picture, asking nothing (same rule as the server). The PM
+    // is not woken for these (11-18), so Activity has to count them itself: otherwise the channel
+    // pill, the "Waiting for your answer" strip, and the sound all skip them, and she never sees
+    // the handover unless she opens Activity and happens to expand a board row.
+    function isDelivery(m) {
+        if (!m || !(m.attachments || []).length || m.type === 'decision') return false;
+        if (m.metadata && (m.metadata.choices || []).length) return false;
+        const last = String(m.text || '').trim().split('\n').filter((l) => l.trim()).pop() || '';
+        return !/[?？]\s*$|吗[。 ]?$/.test(last.trim());
+    }
     // "Please merge #93": done once GitHub says merged (or closed). Lu doesn't report back.
     const PR_RE = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
     const prUrls = (m) => [...new Set(String(m.text || '').match(PR_RE) || [])];
@@ -54,7 +64,7 @@
     // only GitHub can say it's done. Replying in the chat doesn't merge it (Lu, 11-09: #117 and #94
     // showed "Answered" while still open).
     const isPrAsk = (m) => prUrls(m).length > 0 && MERGE_RE.test(String(m.text || '')) && !isQuestion(m);
-    const isAsk = (m) => isQuestion(m) || isPrAsk(m);
+    const isAsk = (m) => isQuestion(m) || isPrAsk(m) || isDelivery(m);
     // The PM often asks again about the same PR: only the latest ask counts and is listed.
     const prNewest = new Map();   // PR url -> id of the latest ask to merge it
     const prRepeat = (m) => isPrAsk(m) && prUrls(m).every((u) => (prNewest.get(u) || 0) > Number(m.id));
@@ -178,9 +188,7 @@
         const via = Object.keys(team).find((k) => team[k] && team[k].mentions_owner);
         if (!via || String(m.sender || '').toLowerCase().replace(/-\d+$/, '') === via) return true;
         // A teammate handing over finished work with a picture, asking nothing, reaches you too (11-18).
-        if (!(m.attachments || []).length || m.type === 'decision' || (m.metadata && (m.metadata.choices || []).length)) return false;
-        const last = String(m.text || '').trim().split('\n').filter((l) => l.trim()).pop() || '';
-        return !/[?？]\s*$|吗[。 ]?$/.test(last.trim());
+        return isDelivery(m);
     };
     const leadOf = (text) => (/^\s*(?:@[\w-]+[\s,，、]*)+/.exec(String(text || '')) || [''])[0];
 
@@ -519,7 +527,7 @@
             const pic = window.scAvatarHtml ? window.scAvatarHtml(sender) : '';
             const text = String(m.text || '').replace(/\s+/g, ' ').trim();
             const forMe = addressedToMe(m);
-            const q = forMe && isQuestion(m);
+            const q = forMe && (isQuestion(m) || isDelivery(m));
             const done = answered(m);
             const chosen = m.type === 'decision' && (m.metadata || {}).resolved ? String(m.metadata.chosen || '') : '';
             const prs = prUrls(m);
