@@ -5341,6 +5341,7 @@ def _sc_said_note(msg: dict, sender: str, text: str, channel: str, msg_type: str
     if sender.lower() == owner:
         if _sc_lu_today["day"] == _sc_today_mod.day_of():
             _sc_lu_today["n"][channel] = _sc_lu_today["n"].get(channel, 0) + 1
+        _sc_said_chat_answer(said, msg, text, channel)
         if _sc_today_mod.MENTION_RE.search(text or ""):
             return
         rid = msg.get("reply_to")
@@ -5364,9 +5365,52 @@ def _sc_said_note(msg: dict, sender: str, text: str, channel: str, msg_type: str
             # A result she can look at (a picture, and not a question or a plan) for something she
             # said: it now waits for her verdict in Activity. Words alone ("改好了") are not a result.
             import mcp_bridge
+            # Only what is handed to HER: a picture one teammate passes to another ("@visualqa 请验",
+            # a QA report to the PM) is their work in progress, not hers to judge (11-19: 9 of the
+            # 12 cards on her list were these).
             if (isinstance(msg.get("id"), int) and msg.get("attachments") and _is_delivery(msg)
-                    and not mcp_bridge.STILL_GOING_RE.search(text or "")):
+                    and not mcp_bridge.STILL_GOING_RE.search(text or "") and _for_owner(text)):
                 said.mark_done(ids, msg["id"], sender)
+
+
+def _for_owner(text: str) -> bool:
+    owner = str(room_settings.get("username") or "").lower()
+    return bool(owner and _re.search(r"@" + _re.escape(owner) + r"(?![\w-])", text or "", _re.I))
+
+
+_CHAT_NO_RE = _re.compile(r"不对|不行|不是|不满意|不好|不像|不要|还是|没有|没看到|看不到|太丑|难看|丑|重做|重新|错了|乱|no way|not right|wrong|ugly", _re.I)
+_CHAT_OK_RE = _re.compile(r"^\W*(ok(ay)?|好的?|可以|行|对的?|不错|很好|挺好|没问题|就这样|通过|合(并|了)?|放上去|looks good|lgtm|good|yes|right)(?![\w])", _re.I)
+
+
+def _sc_said_chat_answer(said, msg: dict, text: str, channel: str) -> list[int]:
+    """Her message in the chat that answers a result waiting on her "Done, to check" list takes it
+    off the list: a reply to it, a quote of it, its #number, or a message to whoever made it."""
+    waiting = said.waiting_results(channel)
+    if not waiting:
+        return []
+    body = _re.sub(r"(?m)^>.*$", "", text or "").strip()      # her own words, without what she quoted
+    quoted = " ".join(_re.findall(r"(?m)^>\s?(.*)$", text or ""))
+    direct, loose = [], []
+    for rid, by in waiting.items():
+        base = _re.sub(r"-\d+$", "", by.lower())
+        res = store.get_by_id(rid) or {}
+        probe = _re.sub(r"\s+", " ", _re.sub(r"@\S+", "", str(res.get("text") or ""))).strip()[:24]
+        if (msg.get("reply_to") == rid or _re.search(rf"#{rid}(?!\d)", text or "")
+                or (probe and len(probe) >= 12 and probe in _re.sub(r"\s+", " ", quoted.replace("\u200b", "")))):
+            direct.append(rid)
+        elif base and _re.search(r"@" + _re.escape(base) + r"(?![\w-])", body, _re.I):
+            loose.append(rid)
+    mid = msg.get("id") if isinstance(msg.get("id"), int) else 0
+    if direct:
+        # She pointed at the result itself: her words are the verdict.
+        kind = "no" if _CHAT_NO_RE.search(body) else "ok" if _CHAT_OK_RE.search(body) else "seen"
+        said.answered_in_chat(direct, kind, mid, body)
+    if loose:
+        # She wrote to whoever made it, after it: she has seen it and is dealing with it in the
+        # chat. Off her list, but not counted as right or wrong: the message may be about
+        # something else.
+        said.answered_in_chat(loose, "seen", mid)
+    return direct + loose
 
 
 def _msg_card(mid) -> dict | None:
@@ -5395,7 +5439,8 @@ def _sc_checks() -> list[dict]:
                                                         "at": it.get("done_ts", 0), "asks": []})
         g["asks"].append({"id": it["id"], "text": str(it.get("text") or "")[:600], "rounds": int(it.get("rounds") or 0),
                           "files": (_msg_card(it["id"]) or {}).get("files", [])})
-    return sorted((g for g in by_result.values() if g["result"]), key=lambda g: -float(g["at"] or 0))
+    return sorted((g for g in by_result.values() if g["result"] and _for_owner(g["result"].get("text") or "")),
+                  key=lambda g: -float(g["at"] or 0))
 
 
 @app.post("/api/scranton/said/verdict")

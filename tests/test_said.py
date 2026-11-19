@@ -124,3 +124,20 @@ def test_board_row_keeps_checks(tmp_path):
     row = b.upsert("p", "pm", ask="首页气球", who="visual", check="390 宽不横向滚动\n· 气球不被裁；标题同字号")
     assert row["check"] == ["390 宽不横向滚动", "气球不被裁", "标题同字号"]
     assert b.upsert("p", "pm", id=row["id"], state="doing")["check"] == row["check"]
+
+
+def test_answer_in_chat_takes_a_result_off_her_list(tmp_path):
+    import scranton_said as S
+    said = S.Said(tmp_path / "said.json")
+    for i in (1, 2, 3):
+        said.add({"id": i, "sender": "Lu", "text": f"@pm 第 {i} 页的标题往左移一点对齐", "channel": "p", "timestamp": 1795000000})
+    said.mark_done([1], 20, "visual"); said.mark_done([2], 21, "visual"); said.mark_done([3], 22, "pm")
+    assert said.waiting_results("p") == {20: "visual", 21: "visual", 22: "pm"}
+    assert said.answered_in_chat([20], "no", 30, "还是没对齐") == [1]
+    assert said.get(1)["rounds"] == 1 and said.get(1)["last_no"]["in_chat"] == 30
+    assert said.answered_in_chat([21], "ok", 31) == [2] and said.get(2)["verdict"] == "ok"
+    assert said.answered_in_chat([22], "seen", 32) == [3]
+    assert said.to_check(now=1795000100) == [] and said.waiting_results("p") == {}
+    assert said.first_time(7)["judged"] == 2                      # "seen" is not a judgement
+    assert said.mark_done([3], 40, "pm") == [3]                    # a later result is checked again
+    assert [c["id"] for c in said.to_check()] == [3]

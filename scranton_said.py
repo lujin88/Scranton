@@ -170,6 +170,37 @@ class Said:
             self._save()
             return dict(it)
 
+    def waiting_results(self, channel: str) -> dict[int, str]:
+        """Result message id -> who showed it, for results in this channel she has not judged."""
+        with self.lock:
+            return {int(v["done_msg"]): str(v.get("done_by") or "") for v in self.items.values()
+                    if v["ch"] == channel and v.get("done_msg") and not v.get("verdict")}
+
+    def answered_in_chat(self, result_ids, kind: str, msg_id: int, note: str = "") -> list[int]:
+        """She answered a result in the chat instead of with the buttons (11-19: "我已经在 chat
+        里面回复了，但是 activity 还在"). kind: "ok" finishes it, "no" counts a round (her words
+        are already in the chat, so nothing is posted), "seen" only takes it off her list."""
+        want = {int(i) for i in result_ids}
+        hit = []
+        with self.lock:
+            for k, it in self.items.items():
+                if it.get("done_msg") not in want or it.get("verdict"):
+                    continue
+                hit.append(int(k))
+                if kind == "ok":
+                    it["verdict"] = "ok"
+                    it.setdefault("judged_ts", time.time())
+                elif kind == "no":
+                    it.setdefault("judged_ts", time.time())
+                    it["rounds"] = int(it.get("rounds") or 0) + 1
+                    it["last_no"] = {"msg": it.pop("done_msg"), "by": it.pop("done_by", ""), "note": str(note or "")[:300], "in_chat": int(msg_id or 0)}
+                    it.pop("done_ts", None)
+                else:
+                    it["verdict"] = "seen"
+            if hit:
+                self._save()
+        return hit
+
     def accept_result(self, msg_id: int) -> list[int]:
         """Her thumbs-up on the result itself accepts everything it was shown for."""
         with self.lock:

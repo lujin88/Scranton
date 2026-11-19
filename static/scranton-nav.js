@@ -205,8 +205,16 @@
     const freshAt = (m) => Number(((typeof attn !== 'undefined' && attn.fresh) || {})[whoOf(m)] || 0);
     const stuckOver = (m) => (lastTalk.get(whoOf(m)) || 0) > Number(m.id) || reactedByMe(m) || freshAt(m) > tsOf(m);
 
+    let attnSoon = 0;
     function consider(msg) {
         if (!msg || msg.id == null) return;
+        // Her own message may have answered a board row or a result waiting to be checked: ask the
+        // server again right away, not at the next two-minute tick (11-19: "我已经在 chat 里面
+        // 回复了，但是 activity 还在").
+        if (String(msg.sender || '').toLowerCase() === String(window.username || '').toLowerCase() && Date.now() / 1000 - Number(msg.timestamp || 0) < 60) {
+            clearTimeout(attnSoon);
+            attnSoon = setTimeout(() => { if (window.scLoadAttention) window.scLoadAttention(); }, 1500);
+        }
         // Work stopped because teammates handed off too many times in a row: Lu must see that.
         if (String(msg.sender || '').toLowerCase() === 'system' && /^Loop guard:/.test(String(msg.text || ''))) {
             inbox.set(Number(msg.id), { ...msg, _kinds: new Set(['mention']) });
