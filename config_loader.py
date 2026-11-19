@@ -173,6 +173,13 @@ def load_config(root: Path | None = None) -> dict:
             if name.startswith("_"):
                 continue
             if name in config.get("agents", {}) and isinstance(vals, dict):
+                # Moved to another app in Settings: how the chat tools are handed over (mcp_*) was
+                # written in config.toml for the old app. 11-19: webdev went from Cursor to Claude,
+                # kept Cursor's "write .cursor/mcp.json", so Claude started with no chat tools,
+                # did the work and could not say so ("I stopped without replying", five times).
+                if vals.get("command") and vals["command"] != config["agents"][name].get("command"):
+                    for k in [k for k in config["agents"][name] if k.startswith("mcp_")]:
+                        del config["agents"][name][k]
                 for key in ("model", "permissions", "autostart", "label", "role", "avatar", "command", "effort"):
                     if key in vals:
                         config["agents"][name][key] = vals[key]

@@ -100,3 +100,16 @@ def test_cursor_out_of_usage_is_a_model_limit():
     screen = "Error: Increase limits for faster responses\n  You're out of usage. Switch to Auto, or ask your admin to increase your \n  limit to continue."
     hit = next((name for name, rx, _ in w._PROBLEMS if rx.search(screen)), None)
     assert hit == "model_limit"
+
+
+def test_moved_to_another_app_drops_the_old_apps_tool_setup(tmp_path):
+    import json, config_loader, wrapper
+    (tmp_path / "data").mkdir()
+    (tmp_path / "config.toml").write_text('[agents.webdev]\ncommand = "agent"\nmcp_inject = "settings_file"\nmcp_settings_path = ".cursor/mcp.json"\nmcp_http_key = "url"\n')
+    cfg = config_loader.load_config(tmp_path)
+    assert wrapper._resolve_mcp_inject("webdev", cfg["agents"]["webdev"])["mcp_settings_path"] == ".cursor/mcp.json"
+    (tmp_path / "data" / "teammates.json").write_text(json.dumps({"webdev": {"command": "claude"}}))
+    cfg = config_loader.load_config(tmp_path)
+    r = wrapper._resolve_mcp_inject("webdev", cfg["agents"]["webdev"])
+    assert r["mcp_inject"] == "flag" and r["mcp_flag"] == "--mcp-config"
+    assert wrapper._resolve_mcp_inject("x", {"command": "agent"})["mcp_settings_path"] == ".cursor/mcp.json"

@@ -190,6 +190,10 @@ _BUILTIN_DEFAULTS: dict[str, dict] = {
         "mcp_transport": "http",
         "mcp_server_per_instance": True,
     },
+    # Cursor's CLI. Built in (11-19) so a teammate moved to Cursor from another app gets its chat
+    # tools without a hand-written block in config.toml.
+    "agent": {"mcp_inject": "settings_file", "mcp_settings_path": ".cursor/mcp.json", "mcp_http_key": "url", "mcp_transport": "http"},
+    "cursor-agent": {"mcp_inject": "settings_file", "mcp_settings_path": ".cursor/mcp.json", "mcp_http_key": "url", "mcp_transport": "http"},
     "kimi": {
         "mcp_inject": "flag",
         "mcp_flag": "--mcp-config-file",
