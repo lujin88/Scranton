@@ -130,6 +130,64 @@ class Said:
                 self._save()
         return done
 
+    # ---- acceptance (Lu, 2026-11-19): "taken" says someone picked it up, not that it was done,
+    # and not that it was done the way she said. A result shown for one of her instructions
+    # waits for her verdict; nothing is finished until she says it is right.
+    CHECK_DAYS = 4
+
+    def mark_done(self, ids, msg_id: int, by: str, now: float | None = None) -> list[int]:
+        """A teammate showed a result (a message with a picture) for these instructions."""
+        now = time.time() if now is None else now
+        hit = []
+        with self.lock:
+            for i in ids:
+                it = self.items.get(str(i))
+                if not it or it["state"] in ("skipped", "old") or it.get("verdict") == "ok" or not is_instruction(it["text"]):
+                    continue
+                if it["state"] == "open":
+                    it.update(state="taken", by=by, ref=int(msg_id or 0))
+                it.update(done_msg=int(msg_id), done_by=by, done_ts=now)
+                it.pop("verdict", None)
+                hit.append(int(i))
+            if hit:
+                self._save()
+        return hit
+
+    def verdict(self, mid, ok: bool, note: str = "") -> dict | None:
+        """Her answer to a result. Right: finished. Not right: back to work, one more round counted."""
+        with self.lock:
+            it = self.items.get(str(mid))
+            if not it or not it.get("done_msg"):
+                return None
+            if ok:
+                it["verdict"] = "ok"
+            else:
+                it["rounds"] = int(it.get("rounds") or 0) + 1
+                it["last_no"] = {"msg": it.pop("done_msg"), "by": it.pop("done_by", ""), "note": str(note or "")[:300]}
+                it.pop("done_ts", None)
+                it.pop("verdict", None)
+            self._save()
+            return dict(it)
+
+    def accept_result(self, msg_id: int) -> list[int]:
+        """Her thumbs-up on the result itself accepts everything it was shown for."""
+        with self.lock:
+            hit = [int(k) for k, it in self.items.items() if it.get("done_msg") == int(msg_id) and it.get("verdict") != "ok"]
+            for k in hit:
+                self.items[str(k)]["verdict"] = "ok"
+            if hit:
+                self._save()
+        return hit
+
+    def to_check(self, channel: str = "", now: float | None = None) -> list[dict]:
+        """Results waiting for her verdict, oldest first."""
+        now = time.time() if now is None else now
+        with self.lock:
+            out = [dict(v) for v in self.items.values()
+                   if v.get("done_msg") and not v.get("verdict") and (not channel or v["ch"] == channel)
+                   and now - float(v.get("done_ts") or 0) < self.CHECK_DAYS * 86400]
+        return sorted(out, key=lambda v: v.get("done_ts") or 0)
+
     def skip(self, ids, by: str, note: str) -> list[int]:
         done = []
         with self.lock:

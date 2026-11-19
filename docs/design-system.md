@@ -95,10 +95,11 @@ Then: look at the result next to an existing screen at 1440 and 390 wide, in the
 **Sidebar.** A channel row shows one number, and only when something there is the owner's to act on (`.sc-need-pill`): questions and finished work addressed to her. How much the team said among themselves is not shown. Direct messages keep their unread count. Closed projects are one quiet line under the channel list, "Closed projects · N", each with Reopen.
 
 **Activity.** Only what needs her. From the top:
-1. Tiles: "Needs your answer", "Stuck", and "Rules to confirm" when there are any.
+1. Tiles: "Needs your answer", "Stuck", then "Done, to check" and "Rules to confirm" when there are any.
 2. One row per project (`.sc-inbox-proj`: chevron, name, count pills). Six items or fewer: every project starts open. Under it, the questions put to her and the board rows that wait for her.
 3. A board row opens in place: the teammate's own message with its pictures (click to enlarge), the row's link, and a type box to answer. The answer goes to the project's channel as "@teammate 行 N：…" and the row leaves 等你.
-4. "Rules to confirm": its own section with two sentences saying what it is, then one card per rule (`.sc-lesson`): project, the rule (edit in place), "You said" with her own words and pictures (each opens the message), then "Ask about it" at the left and Drop / Keep at the right. A rule without her words beside it is never shown.
+4. "Done, to check": one card per result (`.sc-check`), two columns (her words 2 : the result 3; stacked under 760px). Left: every instruction the result answers, in her words, with "sent back N times" when it has been. Right: who made it, their message, the pictures (click to enlarge). Foot: "Open in #channel" at the left, Not right / Right at the right. Not right opens one `.sc-typebox` for what is wrong; sending it posts her words back to the maker. Only Right finishes an instruction.
+5. "Rules to confirm": its own section with two sentences saying what it is, then one card per rule (`.sc-lesson`): project, the rule (edit in place), "You said" with her own words and pictures (each opens the message), then "Ask about it" at the left and Drop / Keep at the right. A rule without her words beside it is never shown.
 5. Stuck: teammates that stopped, board rows in 卡住, and rows with no update for four hours. Older than a day: behind one line.
 6. One folded line: "Everything else that mentions you · N".
 

@@ -1435,6 +1435,9 @@ def _sc_board_seen(target: dict, mid: int, emoji: str) -> int:
     message closes the 等你 rows that point at it: seen, nothing more wanted. Nobody is woken;
     the note says what happened, and anyone who still needs an answer sets the row back."""
     import mcp_bridge
+    said = _sc_said()
+    if said is not None and emoji not in ("👎", "❌"):
+        said.accept_result(int(mid))     # her reaction on a result accepts what it was shown for
     board = mcp_bridge.BOARD
     if board is None:
         return 0
@@ -5297,6 +5300,69 @@ def _sc_said_note(msg: dict, sender: str, text: str, channel: str, msg_type: str
                     if time.time() - it["ts"] <= 600 and _sc_said_mod.is_question(it["text"])]
         if ids:
             said.take(ids, sender, msg.get("id") if isinstance(msg.get("id"), int) else 0)
+            # A result she can look at (a picture, and not a question or a plan) for something she
+            # said: it now waits for her verdict in Activity. Words alone ("改好了") are not a result.
+            import mcp_bridge
+            if (isinstance(msg.get("id"), int) and msg.get("attachments") and _is_delivery(msg)
+                    and not mcp_bridge.STILL_GOING_RE.search(text or "")):
+                said.mark_done(ids, msg["id"], sender)
+
+
+def _msg_card(mid) -> dict | None:
+    """A message as Activity shows it: who, the words, the pictures."""
+    try:
+        m = store.get_by_id(int(mid or 0))
+    except (TypeError, ValueError):
+        m = None
+    if not m:
+        return None
+    return {"id": m.get("id"), "sender": m.get("sender"), "text": str(m.get("text") or "")[:1200], "time": m.get("timestamp"),
+            "files": [{"name": str(a.get("name") or "file")[:80], "url": a.get("url")} for a in (m.get("attachments") or [])
+                      if isinstance(a, dict) and str(a.get("url", "")).startswith("/uploads/")][:6]}
+
+
+def _sc_checks() -> list[dict]:
+    """Results waiting for her verdict, one entry per result message with every instruction it answers."""
+    said = _sc_said()
+    if said is None:
+        return []
+    by_result: dict[int, dict] = {}
+    for it in said.to_check():
+        if it["ch"] in _paused_channels() or it["ch"] not in room_settings.get("channels", []):
+            continue
+        g = by_result.setdefault(int(it["done_msg"]), {"channel": it["ch"], "result": _msg_card(it["done_msg"]), "by": it.get("done_by", ""),
+                                                        "at": it.get("done_ts", 0), "asks": []})
+        g["asks"].append({"id": it["id"], "text": str(it.get("text") or "")[:600], "rounds": int(it.get("rounds") or 0),
+                          "files": (_msg_card(it["id"]) or {}).get("files", [])})
+    return sorted((g for g in by_result.values() if g["result"]), key=lambda g: -float(g["at"] or 0))
+
+
+@app.post("/api/scranton/said/verdict")
+async def scranton_said_verdict(request: Request):
+    """Right: finished. Not right: the teammate who showed it gets her words back, with what is wrong."""
+    said = _sc_said()
+    body = await request.json()
+    ok, note = bool(body.get("ok")), str(body.get("note") or "").strip()
+    ids = [int(i) for i in (body.get("ids") or []) if str(i).isdigit()]
+    if said is None or not ids:
+        return JSONResponse({"error": "ids needed"}, status_code=400)
+    back: dict[tuple, list[dict]] = {}
+    done = []
+    for i in ids:
+        before = said.get(i)
+        it = said.verdict(i, ok, note)
+        if not it:
+            continue
+        done.append(i)
+        if not ok and before:
+            back.setdefault((it["ch"], int(before.get("done_msg") or 0), str(before.get("done_by") or "")), []).append(it)
+    for (ch, result_id, who), items in back.items():
+        who = _re.sub(r"-\d+$", "", who.lower()) or "pm"
+        quotes = "\n".join(f"· #{it['id']}「{_sc_said_mod.body_of(it['text'])[:160]}」" + (f"（第 {it['rounds'] + 1} 次）" if it.get("rounds", 0) > 1 else "") for it in items)
+        store.add("Scranton", f"@{who} Lu 看了 #{result_id}，说不对" + (f"：{note}" if note else "。") +
+                  f"\n她的原话：\n{quotes}\n照原话改；改完再交一次，带改前｜改后的图，并写上这几个编号。", channel=ch,
+                  reply_to=result_id if store.get_by_id(result_id) else None)
+    return JSONResponse({"ok": True, "done": done})
 
 
 SC_DM = "dm-scranton"   # Lu's 1-on-1 with Scranton: no @ needed there, no teammate is woken
@@ -5954,7 +6020,7 @@ async def scranton_attention():
         return out2
     lessons = [{"channel": ch, "items": [{**it, "sources": _sources(it)} for it in L.get(ch)["pending"]]}
                for ch in _project_channels() if L is not None and L.get(ch)["pending"]]
-    return JSONResponse({"rows": out, "lessons": lessons})
+    return JSONResponse({"rows": out, "lessons": lessons, "checks": _sc_checks()})
 
 
 @app.get("/api/scranton/said")

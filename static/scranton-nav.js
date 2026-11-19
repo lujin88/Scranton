@@ -317,6 +317,7 @@
             } else if (Date.now() / 1000 - Number(r.at || 0) <= 86400) n++;
         }
         for (const g of ((typeof attn !== 'undefined' && attn.lessons) || [])) n += g.items.filter((l) => (l.sources || []).length).length;
+        n += ((typeof attn !== 'undefined' && attn.checks) || []).filter((c) => !checkGone.has(c.result.id)).length;
         return n;
     }
 
@@ -432,6 +433,7 @@
     const openProj = new Map();   // project -> open or closed, as you left it (this visit)
     let openRow = '', focusRow = '';   // the board row being answered in Activity
     const rowDraft = new Map();
+    const checkGone = new Set();  // results she has just judged, until the server's list catches up
     let actKind = '';             // '' | 'wait' | 'stuck': the tile that is pressed
     const FEW = 6;                // this many items or fewer: every project starts open
     const rowSeen = new Set((() => { try { return JSON.parse(LS.get('sc-row-seen', '[]')); } catch (_) { return []; } })());
@@ -566,7 +568,8 @@
             list.appendChild(el);
         };
         const rules = (attn.lessons || []).flatMap((g) => g.items.filter((l) => (l.sources || []).length).map((l) => ({ l, ch: g.channel })));
-        const nothing = !asks.length && !waitRows.length && !stuckMsgs.length && !stuckRows.length && !rules.length;
+        const checks = (attn.checks || []).filter((c) => !checkGone.has(c.result.id));
+        const nothing = !asks.length && !waitRows.length && !stuckMsgs.length && !stuckRows.length && !rules.length && !checks.length;
         if (nothing) {
             list.insertAdjacentHTML('beforeend', `<div class="sc-empty">${ic('check-double', 28)}<h3>Nothing is waiting for you</h3><p>No question to answer and nobody stuck.</p></div>`);
         }
@@ -618,6 +621,44 @@
         stuckMsgs.forEach((m) => at(m.channel || 'general').stuck.push({ m }));
         stuckRows.forEach((r) => at(r.channel).stuck.push({ r }));
         const nWait = asks.length + waitRows.length, nStuck = stuckMsgs.length + stuckRows.length;
+        const picsOf = (files) => (files || []).filter((f) => /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(f.url || ''))
+            .map((f) => `<button type="button" class="sc-inbox-q-pic" data-url="${esc(f.url)}" aria-label="Open ${esc(f.name)}"><img src="${esc(f.url)}?w=640" alt="${esc(f.name)}" loading="lazy"></button>`).join('');
+        const addCheck = (c) => {
+            const el = document.createElement('div');
+            el.className = 'sc-check';
+            const who = String(c.result.sender || '').toLowerCase().replace(/-\d+$/, '');
+            const body = typeof renderMarkdown === 'function' ? renderMarkdown(String(c.result.text || '')) : esc(String(c.result.text || ''));
+            el.innerHTML = `<div class="sc-check-cols">`
+                + `<div class="sc-check-said"><div class="sc-lesson-kicker">You said · ${esc(c.channel)}</div>`
+                + c.asks.map((a) => `<div class="sc-check-ask"><button type="button" class="sc-lesson-jump" data-id="${a.id}" data-tip="Open your message">「${esc(String(a.text).replace(/^@\S+\s*/, '').slice(0, 400))}」</button>`
+                    + (a.rounds ? `<span class="sc-check-round">sent back ${a.rounds === 1 ? 'once' : a.rounds + ' times'}</span>` : '') + picsOf(a.files) + `</div>`).join('')
+                + `</div>`
+                + `<div class="sc-check-made"><div class="sc-lesson-kicker">${esc(window.scLabelOf && who ? window.scLabelOf(who) : c.result.sender)} made</div>`
+                + `<div class="sc-inbox-q-text">${body}</div><div class="sc-inbox-q-pics">${picsOf(c.result.files)}</div></div></div>`
+                + `<div class="sc-typebox sc-check-why" hidden><textarea rows="1" maxlength="400" placeholder="What is not right…" aria-label="What is not right"></textarea>`
+                + `<button type="button" class="sc-typebox-send" disabled data-tip="Send back (Enter)" aria-label="Send back">${ic('enter', 18)}</button></div>`
+                + `<div class="sc-lesson-foot"><button type="button" class="sc-lesson-link" data-open="${c.result.id}">Open in #${esc(c.channel)}</button>`
+                + `<span class="sc-lesson-btns"><button type="button" class="sc-btn sm" data-v="no">Not right</button><button type="button" class="sc-btn sm primary" data-v="ok">Right</button></span></div>`;
+            const send = async (ok, note) => {
+                checkGone.add(c.result.id);
+                renderInboxBadge(); renderInbox();
+                try {
+                    await fetch('/api/scranton/said/verdict', { method: 'POST', headers: { 'X-Session-Token': window.SESSION_TOKEN, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ids: c.asks.map((a) => a.id), ok, note: note || '' }) });
+                } catch (_) { checkGone.delete(c.result.id); renderInbox(); if (window.scToast) window.scToast('Not saved. Try again in a moment.'); }
+            };
+            const why = el.querySelector('.sc-check-why'), ta = why.querySelector('textarea'), go = why.querySelector('button');
+            ta.addEventListener('input', () => { go.disabled = !ta.value.trim(); ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; });
+            ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && ta.value.trim()) { e.preventDefault(); send(false, ta.value.trim()); } });
+            go.addEventListener('click', () => send(false, ta.value.trim()));
+            el.querySelector('[data-v=ok]').addEventListener('click', () => send(true));
+            el.querySelector('[data-v=no]').addEventListener('click', () => { why.hidden = false; ta.focus(); });
+            el.querySelectorAll('.sc-inbox-q-pic').forEach((b) => b.addEventListener('click', () => { if (typeof openImageModal === 'function') openImageModal(b.dataset.url); }));
+            const jump = (id) => { window.scCloseInbox(); if (window.channelList.includes(c.channel) && c.channel !== window.activeChannel && typeof switchChannel === 'function') switchChannel(c.channel); if (window.scFocusMessage) window.scFocusMessage({ id: Number(id), channel: c.channel }, {}); };
+            el.querySelectorAll('.sc-lesson-jump').forEach((b) => b.addEventListener('click', () => jump(b.dataset.id)));
+            el.querySelector('[data-open]').addEventListener('click', () => jump(c.result.id));
+            list.appendChild(el);
+        };
         const addLesson = (l, ch) => {
             const el = document.createElement('div');
             el.className = 'sc-inbox-item sc-inbox-lesson unread';
@@ -686,11 +727,13 @@
             tiles.className = 'sc-ov-tiles sc-inbox-tiles';
             tiles.innerHTML = `<button type="button" class="sc-ov-tile${actKind === 'wait' ? ' on' : ''}" data-state="waiting_lu" data-kind="wait" aria-pressed="${actKind === 'wait'}"><b>${nWait}</b><span>Needs your answer</span></button>`
                 + `<button type="button" class="sc-ov-tile${actKind === 'stuck' ? ' on' : ''}" data-state="blocked" data-kind="stuck" aria-pressed="${actKind === 'stuck'}"><b>${nStuck}</b><span>Stuck</span></button>`
+                + (checks.length ? `<button type="button" class="sc-ov-tile${actKind === 'check' ? ' on' : ''}" data-kind="check" aria-pressed="${actKind === 'check'}"><b>${checks.length}</b><span>Done, to check</span></button>` : '')
                 + (rules.length ? `<button type="button" class="sc-ov-tile${actKind === 'rules' ? ' on' : ''}" data-kind="rules" aria-pressed="${actKind === 'rules'}"><b>${rules.length}</b><span>Rules to confirm</span></button>` : '');
             tiles.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { actKind = actKind === b.dataset.kind ? '' : b.dataset.kind; renderInbox(); }));
             list.appendChild(tiles);
             for (const [ch, g] of proj) {
-                const wait = actKind === 'stuck' || actKind === 'rules' ? [] : g.wait, stuck = actKind === 'wait' || actKind === 'rules' ? [] : g.stuck;
+                const only = actKind === 'rules' || actKind === 'check';
+                const wait = actKind === 'stuck' || only ? [] : g.wait, stuck = actKind === 'wait' || only ? [] : g.stuck;
                 if (!wait.length && !stuck.length) continue;
                 const open = actKind ? true : (openProj.has(ch) ? openProj.get(ch) : few);
                 const btn = document.createElement('button');
@@ -709,6 +752,14 @@
             }
             // A category of its own, after the questions: not something a teammate asks, something
             // the team wrote down from her corrections (Lu, 11-19: "需不需要一个 category？… 和上面的区别是什么？").
+            // What she said, next to what was made of it (Lu, 11-19: "我讲了好多遍，但东西还是没做，或者
+            // 不按要求做" — "taken" only ever meant someone had picked it up). Right finishes it;
+            // Not right sends her own words back to whoever made it.
+            if (checks.length && (!actKind || actKind === 'check')) {
+                list.insertAdjacentHTML('beforeend', `<div class="sc-rules-head"><h4>Done, to check · ${checks.length}</h4>`
+                    + `<p>Your words at the left, what was made of them at the right. Nothing counts as finished until you say it is right.</p></div>`);
+                checks.forEach(addCheck);
+            }
             if (rules.length && (!actKind || actKind === 'rules')) {
                 list.insertAdjacentHTML('beforeend', `<div class="sc-rules-head"><h4>Rules to confirm · ${rules.length}</h4>`
                     + `<p>Not questions: things you corrected, written as one line each so you don't say them twice. Keep one and the team follows it on that project from now on; drop it and nothing changes.</p></div>`);

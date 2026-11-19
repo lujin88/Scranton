@@ -84,3 +84,18 @@ def test_an_assignment_that_cites_her_message_carries_her_words_and_pictures(tmp
     assert got[0]["pictures"] and got[0]["pictures"][0].endswith("red-box.png")
     assert B._owner_words_for({"sender": "Lu", "text": "@pm 见 #17410"}) == []          # her own messages: nothing to add
     assert B._owner_words_for({"sender": "pm", "text": "@webdev 没有编号的派活"}) == []
+
+
+def test_a_result_waits_for_her_verdict(tmp_path):
+    import scranton_said as S
+    said = S.Said(tmp_path / "said.json")
+    said.add({"id": 10, "sender": "Lu", "text": "@pm 首页的气球放大一点，别被裁掉", "channel": "p", "timestamp": 1795000000})
+    said.add({"id": 11, "sender": "Lu", "text": "@pm 好的", "channel": "p", "timestamp": 1795000001})
+    assert said.mark_done([10, 11, 99], 20, "visual", now=1795000100) == [10]       # "好的" is not an instruction
+    assert [c["id"] for c in said.to_check(now=1795000200)] == [10] and said.get(10)["state"] == "taken"
+    back = said.verdict(10, False, "还是被裁了")
+    assert back["rounds"] == 1 and back["last_no"] == {"msg": 20, "by": "visual", "note": "还是被裁了"} and said.to_check(now=1795000300) == []
+    assert said.mark_done([10], 21, "visual", now=1795000400) == [10]               # shown again
+    assert said.accept_result(21) == [10] and said.get(10)["verdict"] == "ok" and said.to_check(now=1795000500) == []
+    assert said.mark_done([10], 22, "visual") == []                                  # finished stays finished
+    assert said.verdict(11, True) is None

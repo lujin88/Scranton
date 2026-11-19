@@ -2009,3 +2009,17 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-inbox-asks small { color: var(--ds-text-3); font-size: var(--ds-fs-xs); margin-right: 4px; }
 .sc-inbox-answer-foot { gap: 8px; flex-wrap: wrap; }
 .sc-inbox-q-text ol, .sc-inbox-q-text ul { margin: 4px 0 4px 20px; padding: 0; list-style: revert; }
+
+/* Done, to check (11-19): her words at the left, the result at the right, one verdict. */
+.sc-check { margin: 8px 0; padding: 14px 16px 12px; border-radius: var(--ds-r-card); background: var(--ds-raised); }
+.sc-check-cols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 20px; }
+.sc-check-ask { margin-top: 6px; }
+.sc-check-ask .sc-lesson-jump { color: var(--ds-text); font-size: var(--ds-fs-md); }
+.sc-check-round { display: inline-block; margin: 2px 0 0; padding: 1px 8px; border-radius: var(--ds-r-pill); background: var(--ds-hover); color: var(--ds-danger); font-size: var(--ds-fs-xs); font-weight: 600; }
+.sc-check-ask .sc-inbox-q-pic { display: block; margin: 6px 0; }
+.sc-check-ask .sc-inbox-q-pic img { max-height: 120px; }
+.sc-check-made .sc-inbox-q-text { margin-top: 6px; color: var(--ds-text-2); font-size: var(--ds-fs-sm); max-height: 120px; }
+.sc-check-made .sc-inbox-q-pic img { max-height: 360px; max-width: 100%; }
+.sc-check-why { margin-top: 10px; }
+.sc-check-why[hidden] { display: none; }
+@media (max-width: 760px) { .sc-check-cols { grid-template-columns: minmax(0, 1fr); gap: 12px; } }
