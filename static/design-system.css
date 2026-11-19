@@ -1903,3 +1903,14 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-inbox-lesson { display: flex; align-items: flex-start; cursor: default; }
 .sc-inbox-lesson .sc-inbox-avatar { display: grid; place-items: center; color: var(--ds-accent); }
 .sc-inbox-lesson-btns { display: flex; gap: 8px; align-self: center; flex: none; margin-left: 12px; }
+
+/* A proposed rule shows her own words it came from, and can be reworded before keeping (11-19). */
+.sc-inbox-lesson-text { display: block; width: 100%; box-sizing: border-box; margin: 4px 0 6px; padding: 8px 10px; border: 1px solid var(--ds-line-strong); border-radius: var(--ds-r-control); background: var(--ds-surface); color: var(--ds-text); font: inherit; font-size: 16px; font-weight: 600; line-height: 1.4; resize: none; overflow: hidden; }
+.sc-inbox-lesson-text:focus { outline: 2px solid var(--ds-accent-fill); outline-offset: 1px; }
+.sc-inbox-lesson-src { display: block; margin: 0 0 6px; padding-left: 10px; border-left: 2px solid var(--ds-line-strong); font-size: var(--ds-fs-sm); color: var(--ds-text-2); }
+.sc-inbox-lesson-src > b { display: block; font-size: var(--ds-fs-xs); color: var(--ds-text-3); font-weight: 600; }
+.sc-inbox-lesson-said { display: block; padding: 3px 0; word-break: break-word; }
+.sc-inbox-lesson-said .sc-inbox-q-pic { display: block; margin: 6px 0; }
+.sc-inbox-lesson-said .sc-inbox-q-pic img { max-height: 160px; }
+.sc-inbox-lesson-jump { margin-left: 6px; padding: 0 6px; border: 0; background: none; color: var(--ds-accent); font: inherit; font-size: var(--ds-fs-xs); cursor: pointer; }
+.sc-inbox-lesson-btns { align-self: flex-start; margin-top: 22px; }

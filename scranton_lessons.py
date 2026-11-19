@@ -69,11 +69,15 @@ class Lessons:
             c = self._ch(ch)
             have = {_norm(x["text"]) for x in c["kept"] + c["pending"]}
             for t in texts:
-                t = re.sub(r"^\s*(?:[-*•]|\d+[.、)])\s*", "", str(t or "")).strip()[:MAX_LEN]
+                t = re.sub(r"^\s*(?:[-*•]|\d+[.、)])\s*", "", str(t or "")).strip()
+                # the messages it was drawn from ("…（#18127 #18136）"): kept apart, so she can see them
+                src = [int(x) for x in re.findall(r"#(\d{3,7})", t)][:6]
+                t = re.sub(r"[（(]?\s*(?:#\d{3,7}[\s,，、]*)+[)）]?\s*$", "", t).strip()[:MAX_LEN]
+                src = src or list(c.get("batch") or [])[-6:]
                 if len(t) < 4 or _norm(t) in have or len(c["pending"]) >= MAX_PENDING:
                     continue
                 c["seq"] += 1
-                item = {"id": c["seq"], "text": t, "by": by, "at": now}
+                item = {"id": c["seq"], "text": t, "by": by, "at": now, "from": src}
                 c["pending"].append(item)
                 have.add(_norm(t))
                 added.append(item)
@@ -81,7 +85,13 @@ class Lessons:
                 self._save()
         return added
 
-    def decide(self, ch: str, lid: int, keep: bool, now: float | None = None) -> bool:
+    def set_batch(self, ch: str, ids: list[int]) -> None:
+        """The corrections a request was made from: the source of proposals that name none."""
+        with self.lock:
+            self._ch(ch)["batch"] = [int(i) for i in ids][-25:]
+            self._save()
+
+    def decide(self, ch: str, lid: int, keep: bool, now: float | None = None, text: str = "") -> bool:
         now = time.time() if now is None else now
         with self.lock:
             c = self._ch(ch)
@@ -90,6 +100,8 @@ class Lessons:
                 return False
             c["pending"].remove(item)
             if keep:
+                if str(text or "").strip():          # she reworded it before keeping
+                    item = {**item, "text": str(text).strip()[:MAX_LEN]}
                 c["kept"].append({**item, "kept_at": now})
                 c["kept"] = c["kept"][-MAX_KEPT:]
                 c["ver"] += 1
@@ -147,5 +159,5 @@ def request_text(ch: str, items: list[dict], kept: list[dict], handle: str) -> s
     return (f"@{handle} 学习任务，只做这一件，不要改任何文件。下面是 Lu 昨天在这个项目里纠正团队的原话。"
             f"把其中会再次发生的归纳成最多 3 条「偏好」：每条一句话、30 字以内、写成做事的人能直接照做的样子"
             f"（例：主视觉不用缩小的界面截图；每页标题的位置和字号一致）。只针对某一页某一次的不要写，已有的不要重复。"
-            f"没有值得归纳的就回「没有」。用 chat_lessons(action=\"propose\", channel=\"{ch}\", lessons=\"一行一条\") 提交，"
+            f"每条末尾写上它出自哪几条原话的编号，例如「（#18127 #18136）」，Lu 要对照着看。没有值得归纳的就回「没有」。用 chat_lessons(action=\"propose\", channel=\"{ch}\", lessons=\"一行一条\") 提交，"
             f"Lu 确认后才生效。\n已有的偏好：\n{have}\nLu 的原话：\n{said}")

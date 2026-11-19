@@ -50,3 +50,13 @@ def test_daily_request_only_when_she_corrected_enough(tmp_path, monkeypatch):
     got = app._sc_lessons_tick(now)
     assert [ch for ch, _ in got] == ["deck"] and got[0][1].startswith("@harness ") and "#101" in got[0][1] and "好的，就这样" not in got[0][1]
     assert app._sc_lessons_tick(now + 600) == []               # once a day
+
+
+def test_a_proposal_carries_the_messages_it_came_from_and_can_be_reworded(tmp_path):
+    L = sl.Lessons(tmp_path / "l.json")
+    L.set_batch("p", [11, 12, 13])
+    got = L.propose("p", ["每页标题的位置和字号一致（#18127 #18136）", "主视觉不用缩小的界面截图"])
+    assert got[0]["text"] == "每页标题的位置和字号一致" and got[0]["from"] == [18127, 18136]
+    assert got[1]["from"] == [11, 12, 13]                       # none named: the day's corrections
+    assert L.decide("p", got[0]["id"], True, text="标题位置每页一致，字号按 design system")
+    assert L.get("p")["kept"][0]["text"] == "标题位置每页一致，字号按 design system"

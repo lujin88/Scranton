@@ -11,7 +11,9 @@
 //       difference with the slide number; --shots saves a picture of each slide that fails,
 //       the wrong elements outlined in red.
 //
-// Options: --slide "<css>" (default: found by itself), --width 1440 --height 810, --json.
+// Options: --slide "<css>" (default: found by itself), --width 1440 --height 810, --json,
+//   --ignore "<css>" (parts that are not the deck's own type, e.g. an app mock-up; kept in tokens.json as "ignore"),
+//   --title "<css>" (what the slide title is, when the biggest heading is the wrong guess; kept as title.selector).
 // Needs the `playwright` package from any project on this computer (found by itself;
 // or set DS_CHECK_MODULES=/path/to/project).
 import { createRequire } from 'node:module';
@@ -48,7 +50,10 @@ const url = /^https?:\/\//.test(target) ? target : pathToFileURL(path.resolve(ta
 const W = Number(opt('width', 1440)), H = Number(opt('height', 810));
 
 // ---- runs inside the page ----
-async function measure(slideSel) {
+async function measure({ slideSel, ignoreSel, titleSel }) {
+    // What is not the deck's own type: drawings, code, and anything the project lists under "ignore" in
+    // tokens.json (an app mock-up inside a slide has its own fonts: 68 of the first 79 differences).
+    const SKIP = 'svg,script,style,noscript,[data-ds-ignore]' + (ignoreSel ? ',' + ignoreSel : '');
     const pick = (sel) => [...document.querySelectorAll(sel)];
     let sel = slideSel;
     if (!sel) sel = ['[data-slide]', 'section.slide', '.slide', '.reveal .slides > section', 'main > section', 'body > section'].find((s) => pick(s).length >= 2) || '';
@@ -97,7 +102,7 @@ async function measure(slideSel) {
             const seen = new Set();
             for (let n = walker.nextNode(); n; n = walker.nextNode()) {
                 const el = n.parentElement;
-                if (!n.nodeValue.trim() || !el || seen.has(el) || el.closest('svg,script,style,noscript,[data-ds-ignore]')) continue;
+                if (!n.nodeValue.trim() || !el || seen.has(el) || el.closest(SKIP)) continue;
                 seen.add(el);
                 const cs = win.getComputedStyle(el);
                 const r = el.getBoundingClientRect();
@@ -107,7 +112,7 @@ async function measure(slideSel) {
                 texts.push({ tag: el.tagName.toLowerCase(), cls: typeof el.className === 'string' ? el.className.trim().split(/\s+/).filter(Boolean) : [],
                     text: (el.innerText || el.textContent).trim().replace(/\s+/g, ' ').slice(0, 40), font: fam, size: Math.round(parseFloat(cs.fontSize) * 10) / 10,
                     weight: Number(cs.fontWeight) || 400, color: cs.color, left: Math.round((r.left - ox) / kk), top: Math.round((r.top - oy) / kk),
-                    idx: texts.length });
+                    named: !!(titleSel && el.closest(titleSel)), idx: texts.length });
                 el.setAttribute('data-ds-i', `${i}-${texts.length - 1}`);
             }
         };
@@ -126,7 +131,9 @@ async function measure(slideSel) {
         }
         // the title: a heading if there is one, else the biggest text in the upper half
         // the biggest h1/h2 (a mock-up of an app inside the slide can have its own small h2)
-        let title = texts.filter((t) => /^h[12]$/.test(t.tag)).sort((a, b) => b.size - a.size || a.top - b.top)[0];
+        // the project's own title selector when tokens.json names one; else the biggest h1/h2
+        let title = texts.find((t) => t.named);
+        if (!title) title = texts.filter((t) => /^h[12]$/.test(t.tag)).sort((a, b) => b.size - a.size || a.top - b.top)[0];
         if (!title) title = texts.filter((t) => t.top < (s.offsetHeight || box.height) * 0.5).sort((a, b) => b.size - a.size || a.top - b.top)[0];
         out.push({ n: i + 1, name: s.getAttribute('data-title') || (title && title.text) || '', kind: [...s.classList].filter((c) => !stateCls.includes(c) && c !== 'slide').join('.'),
             free: s.hasAttribute('data-ds-free'), w: s.offsetWidth || Math.round(box.width), h: s.offsetHeight || Math.round(box.height), title: title ? title.idx : -1, texts, unread });
@@ -197,10 +204,20 @@ try {
     await page.goto(url, { waitUntil: 'load', timeout: 45000 });
     await page.evaluate(() => document.fonts && document.fonts.ready).catch(() => {});
     await page.waitForTimeout(600);
-    const m = await page.evaluate(measure, opt('slide', ''));
+    // tokens.json may name what to leave out and what the title is: read it before measuring
+    const tokenFile = path.resolve(opt('tokens', mode === 'init' ? opt('out', 'design-system/tokens.json') : 'design-system/tokens.json'));
+    let known = {};
+    try { known = JSON.parse(fs.readFileSync(tokenFile, 'utf8')); } catch (_) { /* first run */ }
+    const ignoreSel = opt('ignore', '') || (known.ignore || []).join(',');
+    const titleSel = opt('title', '') || (known.title && known.title.selector) || '';
+    const m = await page.evaluate(measure, { slideSel: opt('slide', '') || known.slide || '', ignoreSel, titleSel });
     if (mode === 'init') {
         const out = path.resolve(opt('out', 'design-system/tokens.json'));
         const tk = tokensFrom(m);
+        // what the project already decided survives a new init
+        tk.ignore = ignoreSel ? ignoreSel.split(',').map((x) => x.trim()).filter(Boolean) : [];
+        if (tk.title && titleSel) tk.title.selector = titleSel;
+        if (Array.isArray(known.free_slides)) tk.free_slides = known.free_slides;
         const odd = compare(m, tk);
         fs.mkdirSync(path.dirname(out), { recursive: true });
         fs.writeFileSync(out, JSON.stringify(tk, null, 2) + '\n');

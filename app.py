@@ -5587,6 +5587,7 @@ def _sc_lessons_tick(now: float | None = None) -> list[tuple[str, str]]:
         if len(items) < scranton_lessons.MIN_CORRECTIONS:
             continue
         items.sort(key=lambda v: v["ts"])
+        L.set_batch(ch, [int(v["id"]) for v in items])
         out.append((ch, scranton_lessons.request_text(ch, items, L.get(ch)["kept"], handle)))
     return out
 
@@ -5611,7 +5612,7 @@ async def scranton_lessons_post(request: Request):
     if L is None or ch not in room_settings.get("channels", []):
         return JSONResponse({"error": "no such channel"}, status_code=404)
     if action in ("keep", "drop"):
-        ok = L.decide(ch, int(body.get("id") or 0), action == "keep")
+        ok = L.decide(ch, int(body.get("id") or 0), action == "keep", text=str(body.get("text") or ""))
     elif action == "add":
         ok = bool(str(body.get("text") or "").strip()) and L.add(ch, str(body.get("text"))) is not None
     elif action == "remove":
@@ -5885,7 +5886,17 @@ async def scranton_attention():
                                 "link": r.get("link", ""), "due": r.get("due", ""), "q": _row_question(r)})
     out.sort(key=lambda r: -float(r["at"] or 0))
     L = _sc_lessons()
-    lessons = [{"channel": ch, "items": L.get(ch)["pending"]} for ch in _project_channels() if L is not None and L.get(ch)["pending"]]
+    def _sources(item: dict) -> list[dict]:
+        out2 = []
+        for i in (item.get("from") or [])[:6]:
+            m = store.get_by_id(int(i))
+            if m:
+                out2.append({"id": m.get("id"), "text": str(m.get("text") or "")[:400], "time": m.get("timestamp"),
+                             "files": [{"name": str(a.get("name") or "file")[:80], "url": a.get("url")} for a in (m.get("attachments") or [])
+                                       if isinstance(a, dict) and str(a.get("url", "")).startswith("/uploads/")][:4]})
+        return out2
+    lessons = [{"channel": ch, "items": [{**it, "sources": _sources(it)} for it in L.get(ch)["pending"]]}
+               for ch in _project_channels() if L is not None and L.get(ch)["pending"]]
     return JSONResponse({"rows": out, "lessons": lessons})
 
 

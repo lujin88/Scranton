@@ -581,16 +581,33 @@
         const addLesson = (l, ch) => {
             const el = document.createElement('div');
             el.className = 'sc-inbox-item sc-inbox-lesson unread';
+            // Her own words it was drawn from, so she can judge it; the line itself can be reworded
+            // before keeping (Lu, 11-19: "我怎么知道它长什么样？我到底怎么决定我要不要 drop 呢？").
+            const src = l.sources || [];
+            const pics = (f) => /\.(png|jpe?g|gif|webp|avif)$/i.test(f.url || '');
             el.innerHTML = `<span class="sc-inbox-avatar">${ic('sparkling', 20)}</span>`
-                + `<span class="sc-inbox-body"><span class="sc-inbox-meta"><b>Learned from your corrections</b> <span>${esc(ch)}</span></span>`
-                + `<span class="sc-inbox-text">${esc(l.text)}</span>`
-                + `<span class="sc-inbox-status todo">Keep it as a rule for this project?</span></span>`
+                + `<span class="sc-inbox-body"><span class="sc-inbox-meta"><b>A rule drawn from your corrections</b> <span>${esc(ch)}</span></span>`
+                + `<textarea class="sc-inbox-lesson-text" rows="1" maxlength="140" aria-label="The rule, in your words">${esc(l.text)}</textarea>`
+                + (src.length ? `<span class="sc-inbox-lesson-src"><b>You said</b>${src.map((m) => `<span class="sc-inbox-lesson-said" data-id="${m.id}">「${esc(String(m.text).replace(/^@\S+\s*/, '').slice(0, 220))}」`
+                    + (m.files || []).filter(pics).map((f) => `<button type="button" class="sc-inbox-q-pic" data-url="${esc(f.url)}"><img src="${esc(f.url)}?w=320" alt="" loading="lazy"></button>`).join('')
+                    + `<button type="button" class="sc-inbox-lesson-jump" data-id="${m.id}">Open</button></span>`).join('')}</span>`
+                    : `<span class="sc-inbox-lesson-src"><b>You said</b><span class="sc-inbox-lesson-said">The teammate did not name which of your messages this comes from.</span></span>`)
+                + `<span class="sc-inbox-status todo">Keep = every teammate on this project gets this line with each task. Edit the wording first if it is off.</span></span>`
                 + `<span class="sc-inbox-lesson-btns"><button type="button" data-a="drop">Drop</button><button type="button" class="primary" data-a="keep">Keep</button></span>`;
-            el.querySelectorAll('button').forEach((b) => b.addEventListener('click', async () => {
+            const ta = el.querySelector('textarea');
+            const fit = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
+            ta.addEventListener('input', fit); setTimeout(fit, 0);
+            el.querySelectorAll('.sc-inbox-q-pic').forEach((b) => b.addEventListener('click', () => { if (typeof openImageModal === 'function') openImageModal(b.dataset.url); }));
+            el.querySelectorAll('.sc-inbox-lesson-jump').forEach((b) => b.addEventListener('click', () => {
+                window.scCloseInbox();
+                if (window.channelList.includes(ch) && ch !== window.activeChannel && typeof switchChannel === 'function') switchChannel(ch);
+                if (window.scFocusMessage) window.scFocusMessage({ id: Number(b.dataset.id), channel: ch }, {});
+            }));
+            el.querySelectorAll('.sc-inbox-lesson-btns button').forEach((b) => b.addEventListener('click', async () => {
                 b.disabled = true;
                 try {
                     await fetch('/api/scranton/lessons', { method: 'POST', headers: { 'X-Session-Token': window.SESSION_TOKEN, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ channel: ch, action: b.dataset.a, id: l.id }) });
+                        body: JSON.stringify({ channel: ch, action: b.dataset.a, id: l.id, text: b.dataset.a === 'keep' ? ta.value.trim() : '' }) });
                 } catch (_) { /* shown again on the next load */ }
                 (attn.lessons || []).forEach((g) => { if (g.channel === ch) g.items = g.items.filter((x) => x.id !== l.id); });
                 renderInboxBadge(); renderInbox();
