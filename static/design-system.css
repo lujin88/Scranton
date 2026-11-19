@@ -1876,3 +1876,8 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-closed-item small { margin-left: 8px; color: var(--ds-text-3); font-size: var(--ds-fs-xs); }
 .sc-closed-item button { flex: none; min-height: 28px; padding: 0 10px; border: 1px solid var(--ds-line); border-radius: var(--ds-r-control); background: none; color: var(--ds-accent); font: inherit; font-size: var(--ds-fs-xs); cursor: pointer; }
 .sc-closed-item button:hover { background: var(--ds-hover); }
+
+/* The count in a channel row is white on the accent fill in every state (11-19: on the hovered or
+   current row in the light theme the row's own text colour won, and the number went dark). */
+.channel-sidebar-row .sc-need-pill, .channel-sidebar-row.active .sc-need-pill, .channel-sidebar-row:hover .sc-need-pill,
+.channel-sidebar-row .channel-sidebar-row-unread, .channel-sidebar-row.active .channel-sidebar-row-unread, .channel-sidebar-row:hover .channel-sidebar-row-unread { color: #fff !important; -webkit-text-fill-color: #fff; }
