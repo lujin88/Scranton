@@ -148,3 +148,7 @@ A channel row shows one number, and only when something there needs Lu: question
 ## Preferences for a project (11-19)
 
 Lu's kept preferences live per project. In Activity a proposed one is an item under "Needs your answer" (`.sc-inbox-lesson`: sparkling icon, the line, "Keep it as a rule for this project?", Drop and Keep). In the channel overview, "Your preferences for this project · N" (`.sc-lessons`) opens the list: proposed ones on top in bold with Drop / Keep, kept ones numbered with Remove, and one field to add her own.
+
+### Proposed rule card (`.sc-lesson`, 11-19, replaces `.sc-inbox-lesson`)
+
+One card, three rows. Kicker (xs, text-3, sparkling icon): "Rule for <project>, from your corrections". The rule: 16px semibold, editable in place (no border until hover or focus) with a pencil button at the right. Her own words it came from: quiet lines in 「」, each opens the message; pictures as thumbnails. Foot: text links "Ask about it" (opens one input) and, when no source is recorded, "Where is it from?"; at the right Drop (outline) and Keep (primary, tooltip says what keeping does). No avatar, no per-card explanation line.

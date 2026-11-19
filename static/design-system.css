@@ -1925,3 +1925,32 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-inbox-lesson-ask button { flex: none; min-height: 36px; padding: 0 12px; border: 1px solid var(--ds-line-strong); border-radius: var(--ds-r-control); background: none; color: var(--ds-text); font: inherit; font-size: var(--ds-fs-xs); cursor: pointer; }
 .sc-inbox-lesson-ask button:hover { background: var(--ds-hover); }
 .sc-inbox-lesson-ask button:disabled { opacity: .45; cursor: default; }
+
+/* Proposed rule, second version (11-19): one card, three rows. */
+.sc-lesson { margin: 8px 0; padding: 14px 16px 12px; border: 1px solid var(--ds-line); border-radius: var(--ds-r-card); background: var(--ds-surface); }
+.sc-lesson-kicker { display: inline-flex; align-items: center; gap: 6px; color: var(--ds-text-3); font-size: var(--ds-fs-xs); }
+.sc-lesson-kicker svg { color: var(--ds-accent); }
+.sc-lesson-line { display: flex; align-items: flex-start; gap: 4px; margin: 4px -8px 0; }
+#sc-inbox .sc-lesson-text { flex: 1; min-width: 0; margin: 0; padding: 6px 8px !important; border: 1px solid transparent !important; border-radius: var(--ds-r-control) !important; background: transparent !important; color: var(--ds-text); font: inherit; font-size: 16px; font-weight: 600; line-height: 1.45; resize: none; overflow: hidden; }
+#sc-inbox .sc-lesson-text:hover { background: var(--ds-hover) !important; }
+#sc-inbox .sc-lesson-text:focus { outline: none; border-color: var(--ds-accent) !important; background: var(--ds-surface) !important; }
+.sc-lesson-edit { flex: none; width: 32px; height: 32px; margin-top: 2px; display: grid; place-items: center; border: 0; border-radius: var(--ds-r-control); background: none; color: var(--ds-text-3); cursor: pointer; }
+.sc-lesson-edit:hover { background: var(--ds-hover); color: var(--ds-text); }
+.sc-lesson-src { margin: 2px 0 0; padding: 0; list-style: none; }
+.sc-lesson-src li { margin: 2px 0; }
+.sc-lesson-jump { display: block; width: 100%; padding: 2px 0; border: 0; background: none; color: var(--ds-text-2); font: inherit; font-size: var(--ds-fs-sm); line-height: 1.5; text-align: left; cursor: pointer; }
+.sc-lesson-jump:hover { color: var(--ds-text); text-decoration: underline; }
+.sc-lesson-src .sc-inbox-q-pic { display: block; margin: 6px 0; }
+.sc-lesson-src .sc-inbox-q-pic img { max-height: 140px; }
+.sc-lesson-ask { display: flex; gap: 8px; margin-top: 10px; }
+.sc-lesson-ask[hidden] { display: none; }
+.sc-lesson-ask input { flex: 1; min-width: 0; min-height: 36px; padding: 0 12px; border: 1px solid var(--ds-line-strong); border-radius: var(--ds-r-control); background: var(--ds-surface); color: var(--ds-text); font: inherit; font-size: 16px; }
+.sc-lesson-ask input:focus { outline: 2px solid var(--ds-accent-fill); outline-offset: 1px; }
+.sc-lesson-foot { display: flex; align-items: center; gap: 16px; margin-top: 10px; }
+.sc-lesson-link { padding: 0; border: 0; background: none; color: var(--ds-text-2); font: inherit; font-size: var(--ds-fs-sm); cursor: pointer; }
+.sc-lesson-link:hover { color: var(--ds-text); text-decoration: underline; }
+.sc-lesson-btns { display: flex; gap: 8px; margin-left: auto; }
+.sc-lesson-btns button, .sc-lesson-send { min-height: 32px; padding: 0 14px; border: 1px solid var(--ds-line-strong); border-radius: var(--ds-r-control); background: none; color: var(--ds-text); font: inherit; font-size: var(--ds-fs-sm); cursor: pointer; }
+.sc-lesson-btns button:hover, .sc-lesson-send:hover { background: var(--ds-hover); }
+.sc-lesson-btns button.primary { border-color: transparent; background: var(--ds-accent-fill); color: #fff; font-weight: 600; }
+.sc-lesson-send:disabled { opacity: .45; cursor: default; }
