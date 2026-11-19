@@ -490,6 +490,20 @@ def _fetch_role(server_port: int, agent_name: str) -> str:
         return ""
 
 
+def _fetch_recap(server_port: int, agent_name: str, token: str = "") -> str:
+    """The record of this teammate's own work (rows, what it handed in, what the owner told it),
+    for the first message of a session."""
+    try:
+        import urllib.request
+        base = re.sub(r"-[0-9]+$", "", agent_name.lower())
+        req = urllib.request.Request(f"http://127.0.0.1:{server_port}/api/scranton/recap/{base}",
+                                     headers={"Authorization": f"Bearer {token}"} if token else {})
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            return str(json.loads(resp.read()).get("text") or "")
+    except Exception:
+        return ""
+
+
 def _fetch_active_rules(server_port: int, token: str = "") -> dict | None:
     """Fetch active rules from the server."""
     try:
@@ -862,6 +876,7 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
     is added on the first wake-up and then every `refresh_interval` wake-ups.
     """
     first_mention = True
+    recap_due = True      # a session that starts (launch, restart, fresh session) begins from the record
     stuck_since = 0.0
     failures = 0
     brief_count = 0
@@ -1022,6 +1037,14 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                     # detection in CLIs (Claude Code shows "[Pasted text +N]")
                     # which can break injection of long session prompts
                     prompt += _quiet_note()
+                    if handoff_prefix:
+                        recap_due = True
+                    if recap_due:
+                        recap_due = False
+                        _recap = _fetch_recap(server_port, agent_name, get_token_fn() if get_token_fn else "")
+                        if _recap:
+                            handoff_prefix += ("Scranton's record of your work, so a new session does not start from nothing "
+                                               f"(trust it over your memory): {_recap} --- " + ("" if handoff_prefix else "The new message: "))
                     prompt = handoff_prefix + prompt
                     result = inject_fn(prompt.replace("\r", " ").replace("\n", " "))
                     blocked = result == "question"

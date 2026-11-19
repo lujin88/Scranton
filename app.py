@@ -453,7 +453,8 @@ def _install_security_middleware(token: str, cfg: dict):
             # for /api/messages and /api/send (no browser session needed).
             auth_header = request.headers.get("authorization", "")
             agent_ok = (path in AGENT_BEARER_PATHS or path.startswith("/api/rules/")
-                        or (path == "/api/scranton/handover" and request.method == "GET"))   # wrappers read when to hand over
+                        or (path == "/api/scranton/handover" and request.method == "GET")   # wrappers read when to hand over
+                        or (path.startswith("/api/scranton/recap/") and request.method == "GET"))
             if auth_header.lower().startswith("bearer ") and agent_ok:
                 bearer = auth_header[7:].strip()
                 if _self.registry and _self.registry.resolve_token(bearer):
@@ -3327,6 +3328,55 @@ async def scranton_handover():
     return JSONResponse(_handover_settings())
 
 
+def _sc_recap(name: str) -> str:
+    """What a teammate needs at the start of a session, taken from the record, not from its own
+    note. 11-19: in seven hours the visual designer and the visual checker said ten times "当前
+    会话未保留上一轮执行记录"; a restored Hero went back to the wrong version and BMW reached v7.
+    Rows it holds, what it handed in, what Lu told it, and what she already said is right."""
+    base = _re.sub(r"-\d+$", "", str(name or "").lower())
+    if base not in ((config or {}).get("agents") or {}):
+        return ""
+    owner = str(room_settings.get("username") or "Lu")
+    import mcp_bridge
+    out = []
+    board = mcp_bridge.BOARD
+    if board is not None:
+        with board.lock:
+            mine = [(ch, dict(r)) for ch, rows in board.data.items() for r in rows
+                    if _re.sub(r"-\d+$", "", str(r.get("who") or "").lower()) == base and r.get("state") in ("doing", "todo", "waiting_qa", "waiting_lu", "blocked")]
+        if mine:
+            out.append("Rows you hold: " + " ; ".join(
+                f"#{ch} row {r.get('id')} [{r.get('state')}] {str(r.get('ask') or '')[:60]}" + (f" (note: {str(r.get('note'))[:80]})" if r.get("note") else "")
+                + (f" (right when: {' / '.join(r.get('check') or [])[:160]})" if r.get("check") else "") for ch, r in mine[:8]))
+    cut = time.time() - 36 * 3600
+    with store._lock:
+        recent = [m for m in store._messages[-4000:] if float(m.get("timestamp") or 0) > cut and m.get("type") in ("chat", "decision", None)]
+    mine_ids = {m["id"] for m in recent if _re.sub(r"-\d+$", "", str(m.get("sender") or "").lower()) == base}
+    handed = [m for m in recent if m["id"] in mine_ids and (m.get("attachments") or _re.search(r"OUTBOX|/pull/\d+|PR\s*#\d+", str(m.get("text") or "")))][-5:]
+    if handed:
+        out.append("What you handed in last (newest last; open the files named there before you say anything is missing): " + " ; ".join(
+            f"#{m['id']} {m.get('time', '')[:5]} in #{m.get('channel')}: {' '.join(str(m.get('text') or '').split())[:260]}" for m in handed))
+    to_me = [m for m in recent if str(m.get("sender") or "").lower() == owner.lower()
+             and (_re.search(r"@" + _re.escape(base) + r"(?![\w-])", str(m.get("text") or ""), _re.I) or m.get("reply_to") in mine_ids)][-6:]
+    if to_me:
+        out.append(f"What {owner} told you last, in her words (newest last; these stand until she says otherwise): " + " ; ".join(
+            f"#{m['id']} {m.get('time', '')[:5]} in #{m.get('channel')}: {' '.join(_re.sub(r'(?m)^>.*$', '', str(m.get('text') or '')).split())[:240]}" for m in to_me))
+    said = _sc_said()
+    if said is not None:
+        with said.lock:
+            ok = [dict(v) for v in said.items.values() if v.get("verdict") == "ok" and v.get("done_msg")
+                  and _re.sub(r"-\d+$", "", str(v.get("done_by") or "").lower()) == base and time.time() - float(v.get("judged_ts") or 0) < 7 * 86400]
+        if ok:
+            out.append(f"{owner} said these are right. Do not change them unless she asks: " + " ; ".join(
+                f"result #{v['done_msg']} in #{v['ch']} for「{_sc_said_mod.body_of(v['text'])[:60]}」" for v in ok[-6:]))
+    return " || ".join(out)[:4200]
+
+
+@app.get("/api/scranton/recap/{name}")
+async def scranton_recap(name: str):
+    return JSONResponse({"text": await asyncio.to_thread(_sc_recap, name)})
+
+
 @app.post("/api/scranton/handover")
 async def scranton_handover_set(request: Request):
     try:
@@ -5358,6 +5408,10 @@ def _sc_said_note(msg: dict, sender: str, text: str, channel: str, msg_type: str
         if _sc_lu_today["day"] == _sc_today_mod.day_of():
             _sc_lu_today["n"][channel] = _sc_lu_today["n"].get(channel, 0) + 1
         _sc_said_chat_answer(said, msg, text, channel)
+        direct = _owner_told_directly(text)
+        if direct and isinstance(msg.get("id"), int) and said.add(msg, state="open"):
+            said.take([msg["id"]], direct[0], 0)        # she told them herself: nobody has to pass it on
+            return
         if _sc_today_mod.MENTION_RE.search(text or ""):
             return
         rid = msg.get("reply_to")
@@ -5387,6 +5441,38 @@ def _sc_said_note(msg: dict, sender: str, text: str, channel: str, msg_type: str
             if (isinstance(msg.get("id"), int) and msg.get("attachments") and _is_delivery(msg)
                     and not mcp_bridge.STILL_GOING_RE.search(text or "") and _for_owner(text)):
                 said.mark_done(ids, msg["id"], sender)
+
+
+def _owner_told_directly(text: str) -> list[str]:
+    """Teammates other than the project manager that the owner's message @s by name."""
+    via = _mentions_from()
+    agents = (config or {}).get("agents") or {}
+    names = [n.lower() for n in _re.findall(r"@([\w-]+)", _re.sub(r"(?m)^>.*$", "", text or ""))]
+    return [n for n in dict.fromkeys(names) if n in agents and n != via]
+
+
+def sc_retold(sender: str, text: str) -> str:
+    """The project manager passing on, in its own words, something the owner told a teammate
+    herself. 11-19 21:51 she wrote "@visual @pm … 重新渲染…" and "@visual 先给我出一张视觉稿";
+    at 21:53 the PM sent @visual a rewritten version with limits she never set ("只改人物与背景
+    交界") and "出稿 @pm，我转 Lu". Returns the reason it is refused, or ""."""
+    base = _re.sub(r"-\d+$", "", str(sender or "").lower())
+    if not base or base != _mentions_from():
+        return ""
+    owner = str(room_settings.get("username") or "").lower()
+    to = {n.lower() for n in _re.findall(r"@([\w-]+)", text or "")}
+    for mid in _sc_said_mod.cited_ids(text or ""):
+        m = store.get_by_id(mid) or {}
+        if str(m.get("sender") or "").lower() != owner or time.time() - float(m.get("timestamp") or 0) > 6 * 3600:
+            continue
+        told = set(_owner_told_directly(str(m.get("text") or ""))) & to
+        body = _re.sub(r"@[\w-]+|#\d+|\s+", "", text or "")
+        if told and len(body) > 40:
+            who = sorted(told)[0]
+            return (f"Error: not sent. {m.get('sender')} told @{who} this herself in #{mid}; @{who} has her own words and answers her directly, "
+                    f"in that thread. Do not retell it, add limits she did not set, or ask for the result to come through you. "
+                    f"If you only need to set order or a time, send one short line (e.g. \"@{who} #{mid} 先做这个，22:40 前\").")
+    return ""
 
 
 def _for_owner(text: str) -> bool:

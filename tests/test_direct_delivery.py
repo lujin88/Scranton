@@ -111,3 +111,20 @@ def test_one_row_at_a_time_for_the_visual_designer(tmp_path, monkeypatch):
     assert mcp_bridge._one_at_a_time("q", 0, "doing", "dev") == ""                              # only who she named
     b.upsert("p", "pm", id=r1["id"], state="later", note="等 Lu 选参考")
     assert mcp_bridge._one_at_a_time("q", r2["id"], "doing", "") == ""
+
+
+def test_pm_does_not_retell_what_she_told_a_teammate_herself(monkeypatch):
+    import time, app
+
+    class S:
+        def get_by_id(self, i):
+            return {20387: {"id": 20387, "sender": "Lu", "timestamp": time.time(), "text": "@visual @pm 我想让你用图一的感觉，重新渲染一下图二"},
+                    20300: {"id": 20300, "sender": "Lu", "timestamp": time.time(), "text": "@pm deck 第三页看不到"}}.get(i)
+    monkeypatch.setattr(app, "store", S())
+    monkeypatch.setattr(app, "config", {"team": {"mentions_from": "pm"}, "agents": {"pm": {}, "visual": {}, "dev": {}}})
+    monkeypatch.setattr(app, "room_settings", {**app.room_settings, "username": "Lu"})
+    long = "@visual Lu #20387：按图一的感觉重渲图二男人和背景的融合，先出一张静态视觉稿（两张图都先打开看）。只改人物与背景交界，屏幕/UI/双手不动。出稿 @pm，我转 Lu"
+    assert "told @visual this herself" in app.sc_retold("pm", long)
+    assert app.sc_retold("pm", "@visual #20387 先做这个，22:40 前") == ""          # order and time only
+    assert app.sc_retold("pm", "@dev Lu #20300：第三页翻到才加载导致空白，改回一次加载全部，交改前改后图给我，我转 Lu，22:20 前") == ""   # she told the PM, not dev
+    assert app.sc_retold("visual", long) == ""

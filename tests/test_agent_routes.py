@@ -29,8 +29,8 @@ class AgentRouteTests(unittest.TestCase):
         # routes the wrapper sends with an Authorization header
         posts = set(re.findall(r'/api/scranton/[a-z-]+', src))
         for p in posts:
-            if p == "/api/scranton/handover":
-                continue   # GET-only exception, handled separately
+            if p in ("/api/scranton/handover", "/api/scranton/recap"):
+                continue   # GET-only exceptions, handled separately
             self.assertIn(p, app.AGENT_BEARER_PATHS, f"{p} is called by the wrapper with a bearer token")
 
     def test_limit_check_passes_middleware_with_agent_token(self):

@@ -253,6 +253,13 @@ def chat_send(
     sender, err = _resolve_tool_identity(sender, ctx, field_name="sender", required=True)
     if err:
         return err
+    try:
+        import app as _app_mod
+        _no = _app_mod.sc_retold(sender, message)
+        if _no:
+            return _no
+    except Exception:
+        pass
 
     # Fallback routing: if caller omitted both channel and job_id, use
     # whatever target this sender last read from. Prevents agents that
