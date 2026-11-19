@@ -170,6 +170,7 @@
     // An @Lu further down ("…then send it to @Lu") is talk about you, not to you.
     function addressedToMe(m) {
         if (isDm(m.channel)) return true;
+        if (String(m.sender || '').toLowerCase() === 'scranton') return mentionsMe(leadOf(m.text));
         return fromPm(m) && mentionsMe(leadOf(m.text));
     }
     // [team] mentions_from in config.toml (Lu's: pm). Nobody set: anyone's @Lu counts.
@@ -224,7 +225,11 @@
             }
             return;
         }
-        if (!isAgentSender(msg.sender)) {
+        // Scranton itself asks her things too (which projects today, a plan that ran out): a card
+        // from Scranton that opens with @Lu is hers to answer like any other (Lu, 11-19: the 09:04
+        // "今天做哪几个项目？" never reached "Needs your answer", so every reminder stayed off till 11:27).
+        const fromScranton = String(msg.sender || '').toLowerCase() === 'scranton' && isQuestion(msg) && mentionsMe(leadOf(msg.text));
+        if (!isAgentSender(msg.sender) && !fromScranton) {
             if (pendingUnknown.length < 1000) pendingUnknown.push(msg);
             return;
         }
@@ -239,7 +244,7 @@
         // about you, often "静默时段不 @Lu" (Lu, 11-09: why are these under Mentions?). They stay in All.
         // And only from the project manager (Lu, 11-10: "只让 PM @我，别人 @PM"): anyone else's @Lu
         // went to the PM (the server wakes them), so it stays in All as talk about you.
-        if (mentionsMe(leadOf(msg.text)) && (fromPm(msg) || isDm(msg.channel))) kinds.add('mention');
+        if (mentionsMe(leadOf(msg.text)) && (fromPm(msg) || isDm(msg.channel) || fromScranton)) kinds.add('mention');
         else if (mentionsMe(msg.text)) kinds.add('about');
         if (isDm(msg.channel)) kinds.add('dm');
         if (msg.reply_to != null && myMsgIds.has(Number(msg.reply_to))) kinds.add('reply');
@@ -483,7 +488,7 @@
                 + `<span class="sc-inbox-body"><span class="sc-inbox-meta"><b>${esc(window.scLabelOf ? window.scLabelOf(to) : to)}</b> <span>${esc(r.channel)} · row ${esc(r.id)}</span></span>`
                 + `<span class="sc-inbox-text">${esc(r.ask || '')}</span>`
                 + (r.note ? `<span class="sc-inbox-note">${esc(String(r.note).slice(0, 220))}</span>` : '')
-                + `<span class="sc-inbox-status todo">${status} · ${ago}</span></span></button>`
+                + `<span class="sc-inbox-status todo${r.state === 'blocked' ? ' stuck' : r.state === 'stalled' ? ' quiet' : ''}">${status} · ${ago}</span></span></button>`
                 + `<span class="sc-inbox-side"><span class="sc-read-toggle" role="button" tabindex="0" data-tip="Seen: take it off this list" aria-label="Seen: take it off this list">${ic('check', 16)}</span></span>`
                 + (openRow === key ? `<div class="sc-inbox-answer">`
                     + question(r)
@@ -492,7 +497,10 @@
                         : `<a class="file-link" href="#" onclick="openPath('${esc(String(r.link).replace(/'/g, "\\'"))}'); return false;">${esc(r.link)}</a>`}</div>` : '')
                     + `<div class="sc-typebox"><textarea rows="1" placeholder="Answer ${esc(window.scLabelOf ? window.scLabelOf(to) : to)}…" aria-label="Your answer"></textarea>`
                     + `<button type="button" class="sc-typebox-send sc-inbox-send" disabled data-tip="Send (Enter)" aria-label="Send">${ic('enter', 18)}</button></div>`
-                    + `<div class="sc-inbox-answer-foot"><button type="button" class="sc-btn sm sc-inbox-go">Open #${esc(r.channel)}</button></div></div>` : '');
+                    + `<div class="sc-inbox-answer-foot">`
+                    // one-click answers for the common cases, so finished work does not need typing
+                    + (r.state === 'waiting_lu' ? `<button type="button" class="sc-btn sm" data-quick="可以，就这样。">Looks good</button><button type="button" class="sc-btn sm" data-quick="还不行，我在这个 channel 里说哪里要改。">Not yet</button>` : '')
+                    + `<button type="button" class="sc-btn sm sc-inbox-go">Open #${esc(r.channel)}</button></div></div>` : '');
             el.querySelector('.sc-read-toggle').addEventListener('click', (e) => {
                 e.stopPropagation(); e.preventDefault();
                 rowSeen.add(`${r.channel}|${r.id}|${r.at}`); LS.set('sc-row-seen', JSON.stringify([...rowSeen].slice(-300)));
@@ -518,6 +526,7 @@
                     renderInboxBadge(); renderInbox(); setTimeout(loadAttention, 1500);
                 };
                 send.addEventListener('click', go);
+                el.querySelectorAll('[data-quick]').forEach((b) => b.addEventListener('click', () => { ta.value = b.dataset.quick; go(); }));
                 ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); go(); } });
                 el.querySelector('.sc-inbox-go').addEventListener('click', () => {
                     window.scCloseInbox();
@@ -552,7 +561,7 @@
             const status = forMe && (isPrAsk(m) || (prs.length && prDone(m))) ? (prDone(m)
                     ? `<span class="sc-inbox-status done">${window.scIcon ? window.scIcon('check', 14) : ''}${prClosed ? 'Closed on GitHub' : 'Merged on GitHub'}</span>`
                     : `<span class="sc-inbox-status todo">Merge on GitHub</span>`)
-                : isStuck(m) ? (stuckOver(m) ? `<span class="sc-inbox-status done">${window.scIcon ? window.scIcon('check', 14) : ''}Going again</span>` : '<span class="sc-inbox-status todo">Stuck: needs you</span>')
+                : isStuck(m) ? (stuckOver(m) ? `<span class="sc-inbox-status done">${window.scIcon ? window.scIcon('check', 14) : ''}Going again</span>` : '<span class="sc-inbox-status todo stuck">Stuck: needs you</span>')
                 : !q ? ''
                 : done ? `<span class="sc-inbox-status done">${window.scIcon ? window.scIcon('check', 14) : ''}Answered${chosen ? ': ' + esc(chosen.length > 40 ? chosen.slice(0, 40) + '…' : chosen) : ''}</span>`
                 : `<span class="sc-inbox-status todo">Needs your answer</span>`;

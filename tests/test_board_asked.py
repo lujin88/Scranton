@@ -44,3 +44,10 @@ def test_parked_rows_are_not_stuck_and_her_own_rows_are_hers(tmp_path, monkeypat
     rep = scranton_board.housekeeping(b, lambda u: None, now=time.time() + 6 * 3600)
     assert sorted(r["ask"] for r in rep["p"]["stale"]) == ["Concept 模型", "视频压缩"]
     assert "later" in scranton_board.STATES and scranton_board.STATE_ZH["later"] == "以后做"
+
+
+def test_a_progress_report_with_a_picture_is_not_a_question_for_her(tmp_path, monkeypatch):
+    b = _setup(tmp_path, monkeypatch)
+    mcp_bridge.store.m[4] = {"id": 4, "sender": "pm", "type": "chat", "text": "@Lu 行 67：冬季女孩和猫已移到同一个位置，换季时不会跳。motion 接着做动效和季节切换，15:00 交。"}
+    mcp_bridge.store.m[5] = {"id": 5, "sender": "pm", "type": "chat", "text": "@Lu 行 67：两版换季，你看用哪个？15:00 交"}
+    assert not mcp_bridge.asked_owner(4) and mcp_bridge.asked_owner(5)

@@ -92,7 +92,7 @@
     function lessonCard() {
         if (!closeable()) return '';
         const k = lessons.kept || [], p = lessons.pending || [];
-        const head = `<button type="button" class="sc-lessons-toggle" aria-expanded="${lessonsOpen}">Your preferences for this project · ${k.length}${p.length ? ` · ${p.length} to confirm` : ''}</button>`;
+        const head = `<button type="button" class="sc-lessons-toggle" aria-expanded="${lessonsOpen}"><span>Your preferences · ${k.length}</span>${p.length ? `<span class="sc-lessons-n">${p.length} to confirm</span>` : ''}</button>`;
         if (!lessonsOpen) return `<div class="sc-lessons">${head}</div>`;
         return `<div class="sc-lessons">${head}<div class="sc-ch-card">
             <p class="sc-lessons-note">Handed to every teammate who works here. Up to 15; a new one past that pushes the oldest out.</p>
@@ -192,8 +192,8 @@
         for (const r of open) counts[r.state] = (counts[r.state] || 0) + 1;
         const tiles = STATE_ORDER.filter((k) => k !== 'live' && (counts[k] || k === 'waiting_lu'))
             .map((k) => `<button type="button" class="sc-ov-tile${filter === k ? ' on' : ''}" data-state="${k}" aria-pressed="${filter === k}"><b>${counts[k] || 0}</b><span>${esc((data.states || {})[k] || k)}</span></button>`).join('');
-        const html = `<div class="sc-board-head"><h3>Who's on what</h3><span>${data.paused ? 'Paused: no reminders, nobody woken' : open.length ? open.length + ' open' : 'Nothing open'}</span>
-                <button type="button" class="sc-ch-edit sc-board-pause" data-paused="${data.paused ? 1 : 0}">${data.paused ? 'Resume project' : 'Pause project'}</button>
+        const html = `<div class="sc-board-head"><h3>Who's on what</h3><span>${data.paused ? 'Paused: no reminders, nobody woken' : open.length ? open.length + ' open' : 'Nothing open'}</span></div>
+            <div class="sc-board-acts"><button type="button" class="sc-ch-edit sc-board-pause" data-paused="${data.paused ? 1 : 0}">${data.paused ? 'Resume project' : 'Pause project'}</button>
                 ${closeable() && !(closing && closing.closing) ? '<button type="button" class="sc-ch-edit sc-board-close">Close project</button>' : ''}</div>
             ${closeCard()}
             ${lessonCard()}

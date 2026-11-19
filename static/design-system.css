@@ -1957,3 +1957,48 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-inbox-answer { flex-basis: 100%; }
 .sc-inbox-answer-foot { display: flex; }
 .sc-close-foot .sc-btn.sm:disabled { opacity: .5; }
+
+/* ===== 11-19 design review (every screen at 1440 and 390, dark and light) ===== */
+/* 1. The floating day label sat on top of the "Waiting for your answer" strip: both are pinned at the top. */
+#messages:has(#sc-need-strip) #day-float, .messages:has(#sc-need-strip) #day-float { display: none; }
+/* 2. Channel overview is 340px wide: seven tiles in one row left one character of each label ("等 卡 在 在").
+      They wrap, four to a row, and the label is always whole. */
+.sc-ov-tiles { flex-wrap: wrap; }
+.sc-ov-tile { flex: 1 1 64px; min-width: 64px; }
+.sc-inbox-tiles .sc-ov-tile { flex: 0 1 220px; }
+.sc-inbox-tiles .sc-ov-tile span { white-space: normal; }
+/* 3. "Who's on what · 7 open · Pause project · Close project" broke into four ragged lines. Title and count
+      on one row, the two project actions on their own row under it. */
+.sc-board-head span { text-align: left; }
+.sc-board-acts { display: flex; gap: 12px; margin: -4px 0 8px; }
+.sc-board-acts .sc-ch-edit { min-height: 28px; padding: 2px 6px; margin-left: -6px; }
+/* 4. The preferences line was centred, bold and wrapped. One quiet row, count as a pill. */
+.sc-lessons-toggle { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0 6px; margin-left: -2px; text-align: left; font-weight: 500; }
+.sc-lessons-n { padding: 1px 8px; border-radius: var(--ds-r-pill); background: var(--ds-accent-fill); color: #fff; font-size: var(--ds-fs-xs); font-weight: 600; }
+/* 5. In Activity every status line was the same blue. Stuck is red like its tile, "no update" is quiet. */
+.sc-inbox-status.todo.stuck { color: var(--ds-danger); }
+.sc-inbox-status.todo.quiet { color: var(--ds-text-2); }
+/* 6. Off the type scale: 11 and 12.5 → 12, 13.5 → 13, 10.8 → 12. Weight 700 → 600. */
+#sc-inbox-badge, .sc-badge, .msg-time { font-size: var(--ds-fs-xs) !important; }
+#sc-inbox-badge, .sc-badge, .sc-card-title, .sc-me-initial, .sc-need-head b { font-weight: 600 !important; }
+.sc-tmsg-head b { font-size: var(--ds-fs-sm) !important; }
+.sc-tmsg-head span, .sc-inbox-meta span, .sc-rp-cmp small { font-size: var(--ds-fs-xs) !important; }
+/* 7. Small targets: Edit / Pause were 20px high, her quoted words 24px. */
+.sc-ch-edit { min-height: 28px; }
+.sc-lesson-jump { min-height: 28px; }
+.sc-inbox-q-pic { border: 0; }
+/* 8. On a phone a notice card covered the bottom third of every screen, the composer included.
+      One line: the title and its button; the explanation is left to the desktop. */
+@media (max-width: 760px) {
+    #sc-banners:not(.in-sidebar) .sc-card { display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 14px; }
+    #sc-banners:not(.in-sidebar) .sc-card .sc-card-sub { display: none; }
+    #sc-banners:not(.in-sidebar) .sc-card .sc-card-title { flex: 1; min-width: 0; margin: 0; font-size: var(--ds-fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #sc-banners:not(.in-sidebar) .sc-card .sc-card-btn { flex: none; margin: 0; min-height: 32px; padding: 0 12px; }
+    #sc-banners:not(.in-sidebar) .sc-card .sc-card-x { position: static; order: 3; flex: none; }
+    #sc-banners:not(.in-sidebar) .sc-card:nth-child(n+2) { display: none; }   /* one at a time */
+}
+/* tiles: equal cells in the narrow overview; three across in Activity, also on a phone */
+.sc-ov-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); }
+.sc-ov-tile { min-width: 0; }
+.sc-inbox-tiles { display: flex; flex-wrap: nowrap; }
+.sc-inbox-tiles .sc-ov-tile { flex: 1 1 0; max-width: 220px; min-width: 0; }

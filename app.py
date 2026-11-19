@@ -1415,6 +1415,8 @@ def _sc_board_follow(msg: dict, sender: str, text: str, channel: str, msg_type: 
         owner = _re.escape(str(room_settings.get("username") or "Lu"))
         if not lead or not _re.search(r"(^|[^\w])@(" + owner + r"|lu)(?![\w-])", lead.group(0), _re.I):
             return
+        if mcp_bridge.STILL_GOING_RE.search(text or ""):
+            return   # a picture with "接着做，15:00 交" is progress: the row stays where it is
         ids = {int(x) for x in _ROW_RE.findall(text or "")}
         for r in board.rows(channel):
             if int(r.get("id") or 0) in ids and r.get("state") not in ("live", "waiting_lu"):

@@ -1183,6 +1183,10 @@ def chat_board(sender: str, action: str = "read", channel: str = "", id: int = 0
     return "Error: action must be read, set or remove."
 
 
+# Words that say the work is still under way: a message with these and no question is a progress report.
+STILL_GOING_RE = _re_mod.compile(r"接着做|继续做|还在做|正在做|进行中|做完后|之后再|\d{1,2}[:：]\d{2}\s*(?:前)?交|交\s*\d{1,2}[:：]\d{2}|稍后|还剩|下一步")
+
+
 def asked_owner(msg_id) -> bool:
     """Is this message something put to the owner: sent by a teammate and addressed to her (a
     question, a card, finished work)? A row may say 等你 only when it points at one."""
@@ -1197,7 +1201,12 @@ def asked_owner(msg_id) -> bool:
         return False
     if m.get("type") == "decision":
         return True
-    return bool(_re_mod.search(r"(^|[^\w])@(" + _re_mod.escape(owner) + r"|lu)(?![\w-])", str(m.get("text") or ""), _re_mod.I))
+    text = str(m.get("text") or "")
+    # "…motion 接着做，15:00 交" with a picture is progress, not something for her to answer
+    # (Lu, 11-19: "这个为什么没有 option 呢？" on a row that asked nothing).
+    if STILL_GOING_RE.search(text) and not _re_mod.search(r"[?？]|吗[。 ]?$|请.{0,6}(选|定|看|确认)|你(选|定|看|觉得)", text):
+        return False
+    return bool(_re_mod.search(r"(^|[^\w])@(" + _re_mod.escape(owner) + r"|lu)(?![\w-])", text, _re_mod.I))
 
 
 def board_view(channel: str) -> list[dict]:

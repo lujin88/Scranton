@@ -330,7 +330,10 @@ SEEN_MODELS = ROOT / "data" / "models-seen.json"
 
 
 def _model_ids(pid: str) -> list[list[str]]:
-    return [[m[0], m[1]] for m in models_for(pid, full=True) if m and m[0]]
+    # The app's own short menu, not every effort and speed of every model: a card saying
+    # "New model: Gemini 4 Neon Low, use as default?" for each of 285 variants is noise, and one
+    # tap on it changes every teammate on that app (Lu's phone, 11-19).
+    return [[m[0], m[1]] for m in models_for(pid) if m and m[0]]
 
 
 def new_models() -> dict:
