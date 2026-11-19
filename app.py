@@ -1280,7 +1280,7 @@ _sc_batches: dict = {}
 
 def _sc_batch_wait() -> float:
     try:
-        return float((config or {}).get("team", {}).get("batch_seconds", 20))
+        return float((config or {}).get("team", {}).get("batch_seconds", 60))   # 60 since 11-19: she sent 502 messages in 36 h, nearly each one woke the project manager
     except (TypeError, ValueError):
         return 20.0
 
@@ -5497,6 +5497,8 @@ async def _sc_board_tick() -> None:
         return
     for ch, h, reply_to, text in _sc_idle_pokes(mcp_bridge.BOARD, time.time()) + _sc_check_pokes(mcp_bridge.BOARD, time.time()):
         store.add("Scranton", text, channel=ch, reply_to=reply_to)
+    for ch, text in _sc_lessons_tick():
+        store.add("Scranton", text, channel=ch)
     reps = await asyncio.to_thread(scranton_board.housekeeping, mcp_bridge.BOARD, _pr_state, None, _paused_channels())
     # What Lu said that nobody took for 15 minutes: one note to the PM per channel, at most every 45.
     said, via = _sc_said(), _mentions_from()
@@ -5554,6 +5556,69 @@ async def scranton_board_get(channel: str = "general"):
     rows = mcp_bridge.board_view(channel)
     return JSONResponse({"rows": rows, "summary": scranton_board.summary(rows) if rows else "",
                          "states": scranton_board.STATE_ZH, "paused": channel in _paused_channels()})
+
+
+# ---- Lessons (scranton_lessons.py): her corrections become kept preferences per project ----
+
+def _sc_lessons():
+    import mcp_bridge
+    return mcp_bridge.LESSONS
+
+
+def _sc_lessons_tick(now: float | None = None) -> list[tuple[str, str]]:
+    """Once a day per project, after 07:00: when she corrected the team at least three times there
+    in the last day, ask one teammate to turn those into at most three preferences for her to keep."""
+    import scranton_lessons
+    L, said = _sc_lessons(), _sc_said()
+    now = time.time() if now is None else now
+    if L is None or said is None or time.localtime(now).tm_hour < 7:
+        return []
+    day = _sc_today_mod.day_of(now)
+    agents = (config or {}).get("agents", {})
+    handle = str((config or {}).get("team", {}).get("lessons_by", "") or "") or ("harness" if "harness" in agents else "pm")
+    out = []
+    for ch in _project_channels():
+        if ch.startswith("dm-") or ch in _paused_channels() or not L.due(ch, day):
+            continue
+        L.mark_ran(ch, day)
+        with said.lock:
+            items = [dict(v) for v in said.items.values() if v.get("ch") == ch and now - float(v.get("ts") or 0) < 86400
+                     and scranton_lessons.is_correction(str(v.get("text") or ""))]
+        if len(items) < scranton_lessons.MIN_CORRECTIONS:
+            continue
+        items.sort(key=lambda v: v["ts"])
+        out.append((ch, scranton_lessons.request_text(ch, items, L.get(ch)["kept"], handle)))
+    return out
+
+
+@app.get("/api/scranton/lessons")
+async def scranton_lessons_get(channel: str = ""):
+    L = _sc_lessons()
+    if L is None:
+        return JSONResponse({"kept": [], "pending": []})
+    if channel:
+        return JSONResponse({"channel": channel, **L.get(channel)})
+    waiting = [{"channel": ch, "pending": len(L.get(ch)["pending"])} for ch in room_settings.get("channels", []) if L.get(ch)["pending"]]
+    return JSONResponse({"waiting": waiting})
+
+
+@app.post("/api/scranton/lessons")
+async def scranton_lessons_post(request: Request):
+    """keep / drop a proposed one, add one of her own, remove a kept one."""
+    L = _sc_lessons()
+    body = await request.json()
+    ch, action = str(body.get("channel") or ""), str(body.get("action") or "")
+    if L is None or ch not in room_settings.get("channels", []):
+        return JSONResponse({"error": "no such channel"}, status_code=404)
+    if action in ("keep", "drop"):
+        ok = L.decide(ch, int(body.get("id") or 0), action == "keep")
+    elif action == "add":
+        ok = bool(str(body.get("text") or "").strip()) and L.add(ch, str(body.get("text"))) is not None
+    elif action == "remove":
+        ok = L.remove(ch, int(body.get("id") or 0))
+    else:
+        return JSONResponse({"error": "action is keep, drop, add or remove"}, status_code=400)
+    return JSONResponse({"ok": bool(ok), "channel": ch, **L.get(ch)})
 
 
 # ---- Close project (scranton_close.py) ----
@@ -5819,7 +5884,9 @@ async def scranton_attention():
                                 "since": r.get("since") or r.get("at") or 0, "by": r.get("by", ""),
                                 "link": r.get("link", ""), "due": r.get("due", ""), "q": _row_question(r)})
     out.sort(key=lambda r: -float(r["at"] or 0))
-    return JSONResponse({"rows": out})
+    L = _sc_lessons()
+    lessons = [{"channel": ch, "items": L.get(ch)["pending"]} for ch in _project_channels() if L is not None and L.get(ch)["pending"]]
+    return JSONResponse({"rows": out, "lessons": lessons})
 
 
 @app.get("/api/scranton/said")

@@ -584,6 +584,15 @@ def _serialize_messages(msgs: list[dict]) -> str:
         if m.get("reply_to") is not None:
             entry["reply_to"] = m["reply_to"]
         out.append(entry)
+    # Her kept preferences for a project ride along with the last message read from its channel.
+    if LESSONS is not None and out:
+        last_of = {}
+        for e in out:
+            last_of[e["channel"]] = e
+        for ch, e in last_of.items():
+            text = LESSONS.text_for(ch)
+            if text:
+                e["project_lessons"] = text
     return json.dumps(out, ensure_ascii=False) if out else ""
 
 
@@ -1240,6 +1249,36 @@ def chat_said(sender: str, action: str = "open", channel: str = "", q: str = "",
     return "Error: action must be find, open or skip."
 
 
+LESSONS = None   # set by run.py: scranton_lessons.Lessons
+
+
+def chat_lessons(sender: str, action: str = "list", channel: str = "", lessons: str = "", ctx: Context | None = None) -> str:
+    """The owner's preferences for a project: short lines distilled from what she keeps correcting.
+
+    action:
+      list    — the preferences she has kept for this channel's project, and the ones waiting for her.
+      propose — `lessons`: one preference per line (at most 3, each one sentence a builder can follow,
+                not about one page or one occasion). They reach the team only after she keeps them.
+    Kept preferences arrive by themselves with chat_read (project_lessons); you do not pass them on."""
+    sender, err = _resolve_tool_identity(sender, ctx, field_name="sender", required=False)
+    if err:
+        return err
+    if LESSONS is None:
+        return "Error: not available."
+    channel = (channel or _last_channel_of(sender) or "general").strip()
+    action = (action or "list").strip().lower()
+    if action == "list":
+        return json.dumps({"channel": channel, **LESSONS.get(channel)}, ensure_ascii=False)
+    if action == "propose":
+        lines = [l for l in str(lessons or "").splitlines() if l.strip()][:3]
+        if not lines:
+            return "Error: propose needs lessons, one per line."
+        added = LESSONS.propose(channel, lines, by=sender)
+        return json.dumps({"channel": channel, "proposed": [a["text"] for a in added],
+                           "note": "Waiting for the owner to keep or drop each one. Do not announce them in the channel."}, ensure_ascii=False)
+    return "Error: action must be list or propose."
+
+
 def _last_channel_of(sender: str) -> str:
     with _last_read_lock:
         return str(_last_read_channel.get(sender) or "")
@@ -1247,7 +1286,7 @@ def _last_channel_of(sender: str) -> str:
 
 _ALL_TOOLS = [
     chat_send, chat_read, chat_resync, chat_join, chat_who, chat_rules, chat_decision,
-    chat_channels, chat_set_hat, chat_claim, chat_summary, chat_propose_job, chat_handoff, chat_board, chat_said,
+    chat_channels, chat_set_hat, chat_claim, chat_summary, chat_propose_job, chat_handoff, chat_board, chat_said, chat_lessons,
 ]
 
 

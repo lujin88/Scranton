@@ -91,6 +91,8 @@ def main():
     mcp_bridge.BOARD = scranton_board.Board(data_dir / "board.json")
     import scranton_said
     mcp_bridge.SAID = scranton_said.Said(data_dir / "said.json")
+    import scranton_lessons
+    mcp_bridge.LESSONS = scranton_lessons.Lessons(data_dir / "lessons.json")
     mcp_bridge._load_roles()
 
     # Start MCP servers in background threads

@@ -144,3 +144,7 @@ A channel row shows one number, and only when something there needs Lu: question
 ## ds-check (11-19)
 
 `tools/ds-check.mjs` measures a deck or page in a browser. `init` writes `design-system/tokens.json` (fonts, type sizes, weights, title size and position that most slides share) and a readable `design-system.md` with every odd one out; `check` lists each difference by slide and saves pictures with the wrong elements outlined in red. Visual QA runs it before looking; builders run it before handing over.
+
+## Preferences for a project (11-19)
+
+Lu's kept preferences live per project. In Activity a proposed one is an item under "Needs your answer" (`.sc-inbox-lesson`: sparkling icon, the line, "Keep it as a rule for this project?", Drop and Keep). In the channel overview, "Your preferences for this project · N" (`.sc-lessons`) opens the list: proposed ones on top in bold with Drop / Keep, kept ones numbered with Remove, and one field to add her own.

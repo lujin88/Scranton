@@ -293,6 +293,7 @@
             if (rowSeen.has(`${r.channel}|${r.id}|${r.at}`)) continue;
             if (r.state === 'waiting_lu' ? !ids.has(Number(r.msg)) : Date.now() / 1000 - Number(r.at || 0) <= 86400) n++;
         }
+        for (const g of ((typeof attn !== 'undefined' && attn.lessons) || [])) n += g.items.length;
         return n;
     }
 
@@ -524,7 +525,7 @@
             }
             list.appendChild(el);
         };
-        const nothing = !asks.length && !waitRows.length && !stuckMsgs.length && !stuckRows.length;
+        const nothing = !asks.length && !waitRows.length && !stuckMsgs.length && !stuckRows.length && !(attn.lessons || []).some((g) => g.items.length);
         if (nothing) {
             list.insertAdjacentHTML('beforeend', `<div class="sc-empty">${ic('check-double', 28)}<h3>Nothing is waiting for you</h3><p>No question to answer and nobody stuck.</p></div>`);
         }
@@ -571,9 +572,31 @@
         const at = (ch) => { if (!proj.has(ch)) proj.set(ch, { wait: [], stuck: [] }); return proj.get(ch); };
         asks.forEach((m) => at(m.channel || 'general').wait.push({ m }));
         waitRows.forEach((r) => at(r.channel).wait.push({ r }));
+        // preferences a teammate distilled from her corrections: hers to keep or drop
+        const lessonN = (attn.lessons || []).reduce((n, g) => n + g.items.length, 0);
+        (attn.lessons || []).forEach((g) => g.items.forEach((l) => at(g.channel).wait.push({ l, ch: g.channel })));
         stuckMsgs.forEach((m) => at(m.channel || 'general').stuck.push({ m }));
         stuckRows.forEach((r) => at(r.channel).stuck.push({ r }));
-        const nWait = asks.length + waitRows.length, nStuck = stuckMsgs.length + stuckRows.length;
+        const nWait = asks.length + waitRows.length + lessonN, nStuck = stuckMsgs.length + stuckRows.length;
+        const addLesson = (l, ch) => {
+            const el = document.createElement('div');
+            el.className = 'sc-inbox-item sc-inbox-lesson unread';
+            el.innerHTML = `<span class="sc-inbox-avatar">${ic('sparkling', 20)}</span>`
+                + `<span class="sc-inbox-body"><span class="sc-inbox-meta"><b>Learned from your corrections</b> <span>${esc(ch)}</span></span>`
+                + `<span class="sc-inbox-text">${esc(l.text)}</span>`
+                + `<span class="sc-inbox-status todo">Keep it as a rule for this project?</span></span>`
+                + `<span class="sc-inbox-lesson-btns"><button type="button" data-a="drop">Drop</button><button type="button" class="primary" data-a="keep">Keep</button></span>`;
+            el.querySelectorAll('button').forEach((b) => b.addEventListener('click', async () => {
+                b.disabled = true;
+                try {
+                    await fetch('/api/scranton/lessons', { method: 'POST', headers: { 'X-Session-Token': window.SESSION_TOKEN, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ channel: ch, action: b.dataset.a, id: l.id }) });
+                } catch (_) { /* shown again on the next load */ }
+                (attn.lessons || []).forEach((g) => { if (g.channel === ch) g.items = g.items.filter((x) => x.id !== l.id); });
+                renderInboxBadge(); renderInbox();
+            }));
+            list.appendChild(el);
+        };
         if (!nothing) {
             const few = nWait + nStuck <= FEW;
             // Two tiles like the board overview (Lu, 11-19: "我喜欢 Activity 上面有一个这样子的 overview，
@@ -600,7 +623,7 @@
                 btn.addEventListener('click', () => { if (actKind) return; openProj.set(ch, !open); renderInbox(); });
                 list.appendChild(btn);
                 if (!open) continue;
-                wait.forEach((x) => (x.m ? addMsg(x.m) : addRow(x.r, 'Needs your answer')));
+                wait.forEach((x) => (x.m ? addMsg(x.m) : x.l ? addLesson(x.l, x.ch) : addRow(x.r, 'Needs your answer')));
                 stuck.forEach((x) => (x.m ? addMsg(x.m) : addRow(x.r, x.r.state === 'stalled' ? 'No update' : 'Stuck')));
             }
         }

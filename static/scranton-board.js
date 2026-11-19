@@ -24,7 +24,7 @@
                 data.said = s.ok ? await s.json() : null;
             } catch (_) { data.said = null; }
             if (ch() !== c) return;
-            await loadClosing();
+            await Promise.all([loadClosing(), loadLessons()]);
             paint();
         } catch (_) { /* offline */ }
     }
@@ -77,6 +77,42 @@
         </div>`;
     }
     setInterval(() => { if (closing && closing.closing && !armed) loadClosing().then(fill); }, 15000);
+
+    // What the team has learned here: her kept preferences for this project (scranton_lessons.py).
+    let lessons = { kept: [], pending: [] }, lessonsOpen = false;
+    async function loadLessons() {
+        const c = ch();
+        lessons = { kept: [], pending: [] };
+        if (!closeable()) return;
+        try {
+            const r = await fetch(`/api/scranton/lessons?channel=${encodeURIComponent(c)}`, { headers: { 'X-Session-Token': window.SESSION_TOKEN } });
+            if (r.ok && ch() === c) lessons = await r.json();
+        } catch (_) { /* offline */ }
+    }
+    function lessonCard() {
+        if (!closeable()) return '';
+        const k = lessons.kept || [], p = lessons.pending || [];
+        const head = `<button type="button" class="sc-lessons-toggle" aria-expanded="${lessonsOpen}">Your preferences for this project · ${k.length}${p.length ? ` · ${p.length} to confirm` : ''}</button>`;
+        if (!lessonsOpen) return `<div class="sc-lessons">${head}</div>`;
+        return `<div class="sc-lessons">${head}<div class="sc-ch-card">
+            <p class="sc-lessons-note">Handed to every teammate who works here. Up to 15; a new one past that pushes the oldest out.</p>
+            ${p.map((x) => `<div class="sc-lessons-item pending"><span>${esc(x.text)}</span><button type="button" data-lesson="drop" data-id="${x.id}">Drop</button><button type="button" class="primary" data-lesson="keep" data-id="${x.id}">Keep</button></div>`).join('')}
+            ${k.map((x, i) => `<div class="sc-lessons-item"><span>${i + 1}. ${esc(x.text)}</span><button type="button" data-lesson="remove" data-id="${x.id}">Remove</button></div>`).join('') || (p.length ? '' : '<p class="sc-lessons-note">None yet. They come from what you correct, once you confirm them; or add one yourself.</p>')}
+            <form class="sc-lessons-add"><input type="text" maxlength="140" placeholder="Add one yourself, for example: titles sit in the same place on every slide" aria-label="Add a preference"><button type="submit">Add</button></form>
+        </div></div>`;
+    }
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('#sc-ch-board .sc-lessons-toggle')) { lessonsOpen = !lessonsOpen; fill(); return; }
+        const b = e.target.closest('#sc-ch-board [data-lesson]');
+        if (b) { b.disabled = true; post('/api/scranton/lessons', { channel: ch(), action: b.dataset.lesson, id: Number(b.dataset.id) }).then((d) => { if (d && d.kept) lessons = d; fill(); if (window.scLoadAttention) window.scLoadAttention(); }); }
+    });
+    document.addEventListener('submit', (e) => {
+        const f = e.target.closest && e.target.closest('#sc-ch-board .sc-lessons-add');
+        if (!f) return;
+        e.preventDefault();
+        const v = f.querySelector('input').value.trim();
+        if (v) post('/api/scranton/lessons', { channel: ch(), action: 'add', text: v }).then((d) => { if (d && d.kept) lessons = d; fill(); });
+    });
 
     // Closed projects: one quiet line under the channel list; open it to bring one back.
     let closedOpen = false;
@@ -160,6 +196,7 @@
                 <button type="button" class="sc-ch-edit sc-board-pause" data-paused="${data.paused ? 1 : 0}">${data.paused ? 'Resume project' : 'Pause project'}</button>
                 ${closeable() && !(closing && closing.closing) ? '<button type="button" class="sc-ch-edit sc-board-close">Close project</button>' : ''}</div>
             ${closeCard()}
+            ${lessonCard()}
             ${open.length ? `<div class="sc-ch-card sc-ov">
                 <div class="sc-ov-tiles">${tiles}</div>
                 <div class="sc-ov-foot"><span>${busy.length} busy</span><span>${free.length} free${free.length ? ': ' + names(free) : ''}</span>${live.length ? `<span>${live.length} live today</span>` : ''}</div>

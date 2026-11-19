@@ -1886,3 +1886,20 @@ body.sc-report-open #scroll-anchor { display: none !important; }
    我的 cognitive load 嘛"). How much the team said among themselves is not shown; the blue number
    is questions and finished work addressed to you. Direct messages keep their count: those are to you. */
 #channel-sidebar-list .channel-sidebar-row-unread { display: none !important; }
+
+/* Lessons: her preferences per project (11-19). */
+.sc-lessons { margin: 12px 0 0; }
+.sc-lessons-toggle { border: 0; background: none; padding: 4px; color: var(--ds-text-2); font: inherit; font-size: var(--ds-fs-sm); font-weight: 600; cursor: pointer; border-radius: var(--ds-r-control); }
+.sc-lessons-toggle:hover { background: var(--ds-hover); }
+.sc-lessons-note { margin: 0 0 8px; color: var(--ds-text-3); font-size: var(--ds-fs-xs); }
+.sc-lessons-item { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 0; border-top: 1px solid var(--ds-line); font-size: var(--ds-fs-sm); }
+.sc-lessons-item span { flex: 1; min-width: 0; }
+.sc-lessons-item.pending span { font-weight: 600; }
+.sc-lessons-item button, .sc-lessons-add button, .sc-inbox-lesson-btns button { flex: none; min-height: 32px; padding: 0 12px; border: 1px solid var(--ds-line-strong); border-radius: var(--ds-r-control); background: none; color: var(--ds-text); font: inherit; font-size: var(--ds-fs-xs); cursor: pointer; }
+.sc-lessons-item button:hover, .sc-lessons-add button:hover, .sc-inbox-lesson-btns button:hover { background: var(--ds-hover); }
+.sc-lessons-item button.primary, .sc-inbox-lesson-btns button.primary { border-color: transparent; background: var(--ds-accent-fill); color: #fff; font-weight: 600; }
+.sc-lessons-add { display: flex; gap: 8px; margin-top: 10px; }
+.sc-lessons-add input { flex: 1; min-width: 0; min-height: 36px; padding: 0 12px; border: 1px solid var(--ds-line-strong); border-radius: var(--ds-r-control); background: var(--ds-surface); color: var(--ds-text); font: inherit; font-size: 16px; }
+.sc-inbox-lesson { display: flex; align-items: flex-start; cursor: default; }
+.sc-inbox-lesson .sc-inbox-avatar { display: grid; place-items: center; color: var(--ds-accent); }
+.sc-inbox-lesson-btns { display: flex; gap: 8px; align-self: center; flex: none; margin-left: 12px; }
