@@ -10,7 +10,7 @@ import scranton_said
 def test_proposed_then_kept_then_handed_to_readers(tmp_path, monkeypatch):
     L = sl.Lessons(tmp_path / "lessons.json")
     monkeypatch.setattr(mcp_bridge, "LESSONS", L)
-    got = L.propose("deck", ["- 每页标题的位置和字号一致", "2. 主视觉不用缩小的界面截图", "每页标题的位置和字号一致", "x"], by="harness")
+    got = L.propose("deck", ["- 每页标题的位置和字号一致 #101", "2. 主视觉不用缩小的界面截图（#102）", "每页标题的位置和字号一致 #101", "x #101", "没有出处的一条"], by="harness")
     assert [g["text"] for g in got] == ["每页标题的位置和字号一致", "主视觉不用缩小的界面截图"]
     assert L.text_for("deck") == ""                        # nothing reaches the team before she keeps it
     assert L.decide("deck", got[0]["id"], True) and L.decide("deck", got[1]["id"], False)
@@ -27,7 +27,7 @@ def test_proposed_then_kept_then_handed_to_readers(tmp_path, monkeypatch):
 def test_cap_and_her_own_and_remove(tmp_path):
     L = sl.Lessons(tmp_path / "l.json")
     for i in range(sl.MAX_KEPT + 3):
-        assert L.add("p", f"偏好第 {i} 条的内容")
+        assert L.add("p", f"偏好第 {i} 条的内容")          # her own lines need no source
     kept = L.get("p")["kept"]
     assert len(kept) == sl.MAX_KEPT and kept[0]["text"] == "偏好第 3 条的内容"      # the oldest three were pushed out
     assert L.remove("p", kept[0]["id"]) and len(L.get("p")["kept"]) == sl.MAX_KEPT - 1
@@ -56,7 +56,13 @@ def test_a_proposal_carries_the_messages_it_came_from_and_can_be_reworded(tmp_pa
     L = sl.Lessons(tmp_path / "l.json")
     L.set_batch("p", [11, 12, 13])
     got = L.propose("p", ["每页标题的位置和字号一致（#18127 #18136）", "主视觉不用缩小的界面截图"])
-    assert got[0]["text"] == "每页标题的位置和字号一致" and got[0]["from"] == [18127, 18136]
-    assert got[1]["from"] == [11, 12, 13]                       # none named: the day's corrections
+    assert len(got) == 1 and got[0]["text"] == "每页标题的位置和字号一致" and got[0]["from"] == [18127, 18136]   # no source: not proposed
     assert L.decide("p", got[0]["id"], True, text="标题位置每页一致，字号按 design system")
     assert L.get("p")["kept"][0]["text"] == "标题位置每页一致，字号按 design system"
+
+
+def test_old_proposals_without_her_words_are_taken_out_and_asked_again(tmp_path):
+    L = sl.Lessons(tmp_path / "l.json")
+    c = L._ch("p"); c["pending"] = [{"id": 1, "text": "没有出处", "by": "harness", "at": 1}, {"id": 2, "text": "有出处", "by": "harness", "at": 1, "from": [7]}]
+    c["ran_day"] = "2026-11-19"
+    assert L.drop_unsourced() == ["p"] and [x["id"] for x in L.get("p")["pending"]] == [2] and L.due("p", "2026-11-19")

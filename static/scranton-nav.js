@@ -293,7 +293,7 @@
             if (rowSeen.has(`${r.channel}|${r.id}|${r.at}`)) continue;
             if (r.state === 'waiting_lu' ? !ids.has(Number(r.msg)) : Date.now() / 1000 - Number(r.at || 0) <= 86400) n++;
         }
-        for (const g of ((typeof attn !== 'undefined' && attn.lessons) || [])) n += g.items.length;
+        for (const g of ((typeof attn !== 'undefined' && attn.lessons) || [])) n += g.items.filter((l) => (l.sources || []).length).length;
         return n;
     }
 
@@ -525,7 +525,8 @@
             }
             list.appendChild(el);
         };
-        const nothing = !asks.length && !waitRows.length && !stuckMsgs.length && !stuckRows.length && !(attn.lessons || []).some((g) => g.items.length);
+        const rules = (attn.lessons || []).flatMap((g) => g.items.filter((l) => (l.sources || []).length).map((l) => ({ l, ch: g.channel })));
+        const nothing = !asks.length && !waitRows.length && !stuckMsgs.length && !stuckRows.length && !rules.length;
         if (nothing) {
             list.insertAdjacentHTML('beforeend', `<div class="sc-empty">${ic('check-double', 28)}<h3>Nothing is waiting for you</h3><p>No question to answer and nobody stuck.</p></div>`);
         }
@@ -573,11 +574,10 @@
         asks.forEach((m) => at(m.channel || 'general').wait.push({ m }));
         waitRows.forEach((r) => at(r.channel).wait.push({ r }));
         // preferences a teammate distilled from her corrections: hers to keep or drop
-        const lessonN = (attn.lessons || []).reduce((n, g) => n + g.items.length, 0);
-        (attn.lessons || []).forEach((g) => g.items.forEach((l) => at(g.channel).wait.push({ l, ch: g.channel })));
+        
         stuckMsgs.forEach((m) => at(m.channel || 'general').stuck.push({ m }));
         stuckRows.forEach((r) => at(r.channel).stuck.push({ r }));
-        const nWait = asks.length + waitRows.length + lessonN, nStuck = stuckMsgs.length + stuckRows.length;
+        const nWait = asks.length + waitRows.length, nStuck = stuckMsgs.length + stuckRows.length;
         const addLesson = (l, ch) => {
             const el = document.createElement('div');
             el.className = 'sc-inbox-item sc-inbox-lesson unread';
@@ -590,14 +590,14 @@
             const who0 = String(l.by || '').toLowerCase().split('-')[0];
             const asker = esc(window.scLabelOf && who0 ? window.scLabelOf(who0) : 'the teammate');
             el.className = 'sc-lesson';
-            el.innerHTML = `<div class="sc-lesson-top"><span class="sc-lesson-kicker">${ic('sparkling', 14)} Rule for ${esc(ch)}, from your corrections</span></div>`
+            el.innerHTML = `<div class="sc-lesson-top"><span class="sc-lesson-kicker">${ic('sparkling', 14)} ${esc(ch)}</span></div>`
                 + `<div class="sc-lesson-line"><textarea class="sc-lesson-text" rows="1" maxlength="140" aria-label="The rule. Edit to reword it.">${esc(l.text)}</textarea>`
                 + `<button type="button" class="sc-lesson-edit" data-tip="Reword it" aria-label="Reword it">${ic('pencil', 16)}</button></div>`
-                + (src.length ? `<ul class="sc-lesson-src">${src.map((m) => `<li><button type="button" class="sc-lesson-jump" data-id="${m.id}" data-tip="Open your message">「${esc(String(m.text).replace(/^@\S+\s*/, '').slice(0, 160))}」</button>`
+                + (src.length ? `<div class="sc-lesson-you">You said</div><ul class="sc-lesson-src">${src.map((m) => `<li><button type="button" class="sc-lesson-jump" data-id="${m.id}" data-tip="Open your message">「${esc(String(m.text).replace(/^@\S+\s*/, '').slice(0, 160))}」</button>`
                     + (m.files || []).filter(pics).map((f) => `<button type="button" class="sc-inbox-q-pic" data-url="${esc(f.url)}"><img src="${esc(f.url)}?w=320" alt="" loading="lazy"></button>`).join('') + `</li>`).join('')}</ul>` : '')
                 + `<div class="sc-lesson-ask" hidden><input type="text" maxlength="300" placeholder="Ask ${asker} about it…" aria-label="Ask about this rule"><button type="button" class="sc-lesson-send" disabled>Send</button></div>`
                 + `<div class="sc-lesson-foot"><button type="button" class="sc-lesson-link" data-ask="open">Ask about it</button>`
-                + (src.length ? '' : `<button type="button" class="sc-lesson-link" data-ask="where">Where is it from?</button>`)
+
                 + `<span class="sc-lesson-btns"><button type="button" data-a="drop">Drop</button><button type="button" class="primary" data-a="keep" data-tip="Teammates on this project get this line with every task">Keep</button></span></div>`;
             // Talk about it before deciding: the question goes to whoever proposed it, in the project's channel.
             const askBox = el.querySelector('.sc-lesson-ask'), askIn = askBox.querySelector('input'), askBtn = askBox.querySelector('.sc-lesson-send');
@@ -645,11 +645,12 @@
             const tiles = document.createElement('div');
             tiles.className = 'sc-ov-tiles sc-inbox-tiles';
             tiles.innerHTML = `<button type="button" class="sc-ov-tile${actKind === 'wait' ? ' on' : ''}" data-state="waiting_lu" data-kind="wait" aria-pressed="${actKind === 'wait'}"><b>${nWait}</b><span>Needs your answer</span></button>`
-                + `<button type="button" class="sc-ov-tile${actKind === 'stuck' ? ' on' : ''}" data-state="blocked" data-kind="stuck" aria-pressed="${actKind === 'stuck'}"><b>${nStuck}</b><span>Stuck</span></button>`;
+                + `<button type="button" class="sc-ov-tile${actKind === 'stuck' ? ' on' : ''}" data-state="blocked" data-kind="stuck" aria-pressed="${actKind === 'stuck'}"><b>${nStuck}</b><span>Stuck</span></button>`
+                + (rules.length ? `<button type="button" class="sc-ov-tile${actKind === 'rules' ? ' on' : ''}" data-kind="rules" aria-pressed="${actKind === 'rules'}"><b>${rules.length}</b><span>Rules to confirm</span></button>` : '');
             tiles.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { actKind = actKind === b.dataset.kind ? '' : b.dataset.kind; renderInbox(); }));
             list.appendChild(tiles);
             for (const [ch, g] of proj) {
-                const wait = actKind === 'stuck' ? [] : g.wait, stuck = actKind === 'wait' ? [] : g.stuck;
+                const wait = actKind === 'stuck' || actKind === 'rules' ? [] : g.wait, stuck = actKind === 'wait' || actKind === 'rules' ? [] : g.stuck;
                 if (!wait.length && !stuck.length) continue;
                 const open = actKind ? true : (openProj.has(ch) ? openProj.get(ch) : few);
                 const btn = document.createElement('button');
@@ -663,8 +664,16 @@
                 btn.addEventListener('click', () => { if (actKind) return; openProj.set(ch, !open); renderInbox(); });
                 list.appendChild(btn);
                 if (!open) continue;
-                wait.forEach((x) => (x.m ? addMsg(x.m) : x.l ? addLesson(x.l, x.ch) : addRow(x.r, 'Needs your answer')));
+                wait.forEach((x) => (x.m ? addMsg(x.m) : addRow(x.r, 'Needs your answer')));
                 stuck.forEach((x) => (x.m ? addMsg(x.m) : addRow(x.r, x.r.state === 'stalled' ? 'No update' : 'Stuck')));
+            }
+            // A category of its own, after the questions: not something a teammate asks, something
+            // the team wrote down from her corrections (Lu, 11-19: "需不需要一个 category？… 和上面的区别是什么？").
+            if (rules.length && (!actKind || actKind === 'rules')) {
+                list.insertAdjacentHTML('beforeend', `<div class="sc-rules-head"><h4>Rules to confirm · ${rules.length}</h4>`
+                    + `<p>Not questions. These are things you had to correct, written down as one line each so you don't have to say them twice. `
+                    + `Under each line are your own words it comes from. Keep it and the team follows it on that project from now on; drop it and nothing changes.</p></div>`);
+                rules.forEach((x) => addLesson(x.l, x.ch));
             }
         }
         if (oldRows.length) {

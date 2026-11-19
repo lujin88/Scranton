@@ -1277,8 +1277,20 @@ def chat_lessons(sender: str, action: str = "list", channel: str = "", lessons: 
         lines = [l for l in str(lessons or "").splitlines() if l.strip()][:3]
         if not lines:
             return "Error: propose needs lessons, one per line."
-        added = LESSONS.propose(channel, lines, by=sender)
+        # each line has to point at her own messages in this channel: that is what she judges it by
+        owner = _owner_name().lower()
+        good, bad = [], []
+        for line in lines:
+            ids = [int(x) for x in _re_mod.findall(r"#(\d{3,7})", line)]
+            hers = [i for i in ids if (m := (store.get_by_id(i) if store is not None else None))
+                    and str(m.get("sender", "")).lower() in (owner, "lu") and (m.get("channel") or "general") == channel]
+            (good if hers else bad).append(line)
+        added = LESSONS.propose(channel, good, by=sender)
+        if bad and not added:
+            return ("Error: nothing proposed. Every line must end with the numbers of the owner's own messages in this channel "
+                    "that it comes from, e.g. 「每页标题位置一致（#18127 #18136）」. She decides by reading her words next to the rule.")
         return json.dumps({"channel": channel, "proposed": [a["text"] for a in added],
+                           "left_out": [b[:60] for b in bad],
                            "note": "Waiting for the owner to keep or drop each one. Do not announce them in the channel."}, ensure_ascii=False)
     return "Error: action must be list or propose."
 

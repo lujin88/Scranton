@@ -93,6 +93,7 @@ def main():
     mcp_bridge.SAID = scranton_said.Said(data_dir / "said.json")
     import scranton_lessons
     mcp_bridge.LESSONS = scranton_lessons.Lessons(data_dir / "lessons.json")
+    mcp_bridge.LESSONS.drop_unsourced()   # proposals from before her own words were required beside each rule
     mcp_bridge._load_roles()
 
     # Start MCP servers in background threads

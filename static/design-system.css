@@ -1954,3 +1954,9 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-lesson-btns button:hover, .sc-lesson-send:hover { background: var(--ds-hover); }
 .sc-lesson-btns button.primary { border-color: transparent; background: var(--ds-accent-fill); color: #fff; font-weight: 600; }
 .sc-lesson-send:disabled { opacity: .45; cursor: default; }
+
+/* Rules to confirm: their own section in Activity (11-19). */
+.sc-rules-head { margin: 24px 4px 4px; }
+.sc-rules-head h4 { margin: 0 0 4px; font-size: var(--ds-fs-sm); font-weight: 600; color: var(--ds-text); }
+.sc-rules-head p { margin: 0; max-width: 70ch; color: var(--ds-text-2); font-size: var(--ds-fs-sm); line-height: 1.5; }
+.sc-lesson-you { margin: 6px 0 0; color: var(--ds-text-3); font-size: var(--ds-fs-xs); font-weight: 600; }

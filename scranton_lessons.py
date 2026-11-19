@@ -61,7 +61,7 @@ class Lessons:
             c = self.data.get(ch) or {}
             return {"kept": list(c.get("kept", [])), "pending": list(c.get("pending", [])), "ver": c.get("ver", 0)}
 
-    def propose(self, ch: str, texts: list[str], by: str = "", now: float | None = None) -> list[dict]:
+    def propose(self, ch: str, texts: list[str], by: str = "", now: float | None = None, need_source: bool = True) -> list[dict]:
         """Add proposals (short lines). Ones already kept or pending are skipped."""
         now = time.time() if now is None else now
         added = []
@@ -73,7 +73,8 @@ class Lessons:
                 # the messages it was drawn from ("…（#18127 #18136）"): kept apart, so she can see them
                 src = [int(x) for x in re.findall(r"#(\d{3,7})", t)][:6]
                 t = re.sub(r"[（(]?\s*(?:#\d{3,7}[\s,，、]*)+[)）]?\s*$", "", t).strip()[:MAX_LEN]
-                src = src or list(c.get("batch") or [])[-6:]
+                if not src and need_source:
+                    continue    # no source, no proposal: she cannot judge a rule without her own words beside it
                 if len(t) < 4 or _norm(t) in have or len(c["pending"]) >= MAX_PENDING:
                     continue
                 c["seq"] += 1
@@ -84,6 +85,21 @@ class Lessons:
             if added:
                 self._save()
         return added
+
+    def drop_unsourced(self) -> list[str]:
+        """Proposals made before sources were required: take them out and let that project be
+        asked again today. Returns the channels touched."""
+        out = []
+        with self.lock:
+            for ch, c in self.data.items():
+                keep = [x for x in c.get("pending", []) if x.get("from")]
+                if len(keep) != len(c.get("pending", [])):
+                    c["pending"] = keep
+                    c.pop("ran_day", None)
+                    out.append(ch)
+            if out:
+                self._save()
+        return out
 
     def set_batch(self, ch: str, ids: list[int]) -> None:
         """The corrections a request was made from: the source of proposals that name none."""
@@ -110,7 +126,7 @@ class Lessons:
 
     def add(self, ch: str, text: str, now: float | None = None) -> dict | None:
         """One she writes herself: kept at once."""
-        got = self.propose(ch, [text], by="Lu", now=now)
+        got = self.propose(ch, [text], by="Lu", now=now, need_source=False)
         if not got:
             return None
         self.decide(ch, got[0]["id"], True, now)
@@ -159,5 +175,5 @@ def request_text(ch: str, items: list[dict], kept: list[dict], handle: str) -> s
     return (f"@{handle} 学习任务，只做这一件，不要改任何文件。下面是 Lu 昨天在这个项目里纠正团队的原话。"
             f"把其中会再次发生的归纳成最多 3 条「偏好」：每条一句话、30 字以内、写成做事的人能直接照做的样子"
             f"（例：主视觉不用缩小的界面截图；每页标题的位置和字号一致）。只针对某一页某一次的不要写，已有的不要重复。"
-            f"每条末尾写上它出自哪几条原话的编号，例如「（#18127 #18136）」，Lu 要对照着看。没有值得归纳的就回「没有」。用 chat_lessons(action=\"propose\", channel=\"{ch}\", lessons=\"一行一条\") 提交，"
+            f"每条末尾必须写上它出自哪几条原话的编号，例如「（#18127 #18136）」：Lu 要对照自己的原话才能判断，没写编号的那条不会被收下。没有值得归纳的就回「没有」。用 chat_lessons(action=\"propose\", channel=\"{ch}\", lessons=\"一行一条\") 提交，"
             f"Lu 确认后才生效。\n已有的偏好：\n{have}\nLu 的原话：\n{said}")
