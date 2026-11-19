@@ -5851,7 +5851,9 @@ async def scranton_board_get(channel: str = "general"):
         return JSONResponse({"rows": [], "summary": ""})
     rows = mcp_bridge.board_view(channel)
     return JSONResponse({"rows": rows, "summary": scranton_board.summary(rows) if rows else "",
-                         "states": scranton_board.STATE_ZH, "paused": channel in _paused_channels()})
+                         "states": scranton_board.STATE_ZH, "paused": channel in _paused_channels(),
+                         # minutes each teammate has been quiet, so "idle" is said only when it is true
+                         "quiet": {_re.sub(r"-\d+$", "", n.lower()): int((time.time() - t) // 60) for n, t in _sc_idle_since.items()}})
 
 
 # ---- Lessons (scranton_lessons.py): her corrections become kept preferences per project ----

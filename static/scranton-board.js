@@ -168,11 +168,16 @@
         // right now. Online with work marked 在做 means it isn't on it at the moment: say so (Lu, 11-12).
         const doingNow = (h) => (byWho[h] || []).some((r) => r.state === 'doing');
         const stuck = (h) => { const d = String((window.scDoing || {})[h] || ''); return /^Stuck\?/.test(d) ? d : ''; };
+        // A teammate works in turns and is quiet for a moment between them. 11-19 23:47: the
+        // developer was shown "Idle, not on it right now" seconds after being handed the next step,
+        // and Lu asked why nobody was working. Idle is said only after three quiet minutes.
+        const quiet = (h) => Number((data.quiet || {})[h] ?? -1);
+        const idle = (h) => st(h) === 'available' && doingNow(h) && (quiet(h) < 0 || quiet(h) >= 3);
         const stateLbl = (h) => stuck(h) ? stuck(h) : st(h) === 'working' ? 'Working'
-            : st(h) === 'available' ? (doingNow(h) ? 'Idle, not on it right now' : 'Online') : 'Not running';
+            : st(h) === 'available' ? (idle(h) ? `Idle${quiet(h) >= 3 ? ` for ${quiet(h)} min` : ''}, not on it` : doingNow(h) ? 'Between steps' : 'Online') : 'Not running';
         const person = (h) => `<div class="sc-who">
                 <div class="sc-who-head"><span class="sc-who-av">${window.scAvatarHtml ? window.scAvatarHtml(h) : ''}</span>
-                    <b>${esc(label(h))}</b><span class="sc-who-st" data-st="${esc(st(h))}"${stuck(h) ? ' data-stuck' : st(h) !== 'working' && doingNow(h) ? ' data-idle' : ''}>${stateLbl(h)}</span>
+                    <b>${esc(label(h))}</b><span class="sc-who-st" data-st="${esc(st(h))}"${stuck(h) ? ' data-stuck' : idle(h) ? ' data-idle' : ''}>${stateLbl(h)}</span>
                     ${byWho[h] ? `<span class="sc-who-n">${byWho[h].length}</span>` : ''}</div>
                 ${byWho[h] ? `<ul class="sc-board-list">${byWho[h].map(askLi).join('')}</ul>` : ''}
             </div>`;
