@@ -172,9 +172,9 @@
         // developer was shown "Idle, not on it right now" seconds after being handed the next step,
         // and Lu asked why nobody was working. Idle is said only after three quiet minutes.
         const quiet = (h) => Number((data.quiet || {})[h] ?? -1);
-        const idle = (h) => st(h) === 'available' && doingNow(h) && (quiet(h) < 0 || quiet(h) >= 3);
+        const idle = (h) => st(h) === 'available' && doingNow(h) && quiet(h) >= 3;
         const stateLbl = (h) => stuck(h) ? stuck(h) : st(h) === 'working' ? 'Working'
-            : st(h) === 'available' ? (idle(h) ? `Idle${quiet(h) >= 3 ? ` for ${quiet(h)} min` : ''}, not on it` : doingNow(h) ? 'Between steps' : 'Online') : 'Not running';
+            : st(h) === 'available' ? (idle(h) ? `Idle for ${quiet(h)} min, not on it` : doingNow(h) ? 'Between steps' : 'Online') : 'Not running';
         const person = (h) => `<div class="sc-who">
                 <div class="sc-who-head"><span class="sc-who-av">${window.scAvatarHtml ? window.scAvatarHtml(h) : ''}</span>
                     <b>${esc(label(h))}</b><span class="sc-who-st" data-st="${esc(st(h))}"${stuck(h) ? ' data-stuck' : idle(h) ? ' data-idle' : ''}>${stateLbl(h)}</span>
