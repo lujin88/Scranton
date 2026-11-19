@@ -48,7 +48,7 @@ const url = /^https?:\/\//.test(target) ? target : pathToFileURL(path.resolve(ta
 const W = Number(opt('width', 1440)), H = Number(opt('height', 810));
 
 // ---- runs inside the page ----
-function measure(slideSel) {
+async function measure(slideSel) {
     const pick = (sel) => [...document.querySelectorAll(sel)];
     let sel = slideSel;
     if (!sel) sel = ['[data-slide]', 'section.slide', '.slide', '.reveal .slides > section', 'main > section', 'body > section'].find((s) => pick(s).length >= 2) || '';
@@ -59,42 +59,84 @@ function measure(slideSel) {
     // Only names that mean "current" (a cover's own class is also on no other slide, and must stay put).
     const STATE = /^(is-)?(active|visible|current|present|shown?|on|selected)$/i;
     const stateCls = vis && hid.length ? [...vis.classList].filter((c) => STATE.test(c) && !hid.some((h) => h.classList.contains(c))) : [];
-    const style = document.createElement('style');
-    style.textContent = '*,*::before,*::after{animation:none!important;transition:none!important}';
-    document.head.appendChild(style);
-    const out = [];
-    slides.forEach((s, i) => {
-        if (slides.length > 1) {
-            slides.forEach((o) => stateCls.forEach((c) => o.classList.toggle(c, o === s)));
-            if (!shown(s)) { slides.forEach((o) => { o.style.display = o === s ? '' : 'none'; }); if (!shown(s)) s.style.cssText += ';display:block!important;visibility:visible!important'; }
+    const NOANIM = '*,*::before,*::after{animation:none!important;transition:none!important}';
+    const noAnim = (doc) => { if (doc.querySelector('style[data-ds-noanim]')) return; const st = doc.createElement('style'); st.setAttribute('data-ds-noanim', ''); st.textContent = NOANIM; (doc.head || doc.documentElement).appendChild(st); };
+    noAnim(document);
+    // Show slide i the same way for measuring and for pictures (ds-check check --shots calls it again).
+    window.__dsShow = (i) => {
+        const s = slides[i];
+        if (slides.length < 2) return;
+        slides.forEach((o) => stateCls.forEach((c) => o.classList.toggle(c, o === s)));
+        slides.forEach((o) => { if (o !== s && o.dataset.dsHid) o.style.display = 'none'; });
+        if (!shown(s)) { slides.forEach((o) => { if (o !== s) { o.style.display = 'none'; o.dataset.dsHid = '1'; } }); s.style.display = ''; if (!shown(s)) s.style.cssText += ';display:block!important;visibility:visible!important'; }
+    };
+    // Slides drawn in an <iframe> (one page per slide): measure inside it. A page from another
+    // origin can't be read: say so instead of passing it as "no text".
+    const frameDoc = async (f) => {
+        let d; try { d = f.contentDocument; } catch (_) { d = null; }
+        if (!d) return null;
+        if (d.readyState !== 'complete' || d.URL === 'about:blank') {
+            await new Promise((res) => { f.addEventListener('load', res, { once: true }); setTimeout(res, 8000); });
+            try { d = f.contentDocument; } catch (_) { d = null; }
         }
+        if (!d || !d.body) return null;
+        noAnim(d);
+        try { await Promise.race([d.fonts && d.fonts.ready, new Promise((r) => setTimeout(r, 3000))]); } catch (_) { /* no fonts api */ }
+        return d;
+    };
+    const out = [];
+    for (let i = 0; i < slides.length; i++) {
+        const s = slides[i];
+        window.__dsShow(i);
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
         const box = s.getBoundingClientRect();
-        const texts = [];
-        const walker = document.createTreeWalker(s, NodeFilter.SHOW_TEXT);
-        const seen = new Set();
-        for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-            const el = n.parentElement;
-            if (!n.nodeValue.trim() || !el || seen.has(el) || el.closest('svg,script,style,[data-ds-ignore]')) continue;
-            seen.add(el);
-            const cs = getComputedStyle(el);
-            const r = el.getBoundingClientRect();
-            if (cs.display === 'none' || r.width < 1 || r.height < 1) continue;
-            const fam = cs.fontFamily.split(',')[0].trim().replace(/^["']|["']$/g, '');
-            if (/remixicon|icon|symbols/i.test(fam)) continue;
-            texts.push({ tag: el.tagName.toLowerCase(), cls: typeof el.className === 'string' ? el.className.trim().split(/\s+/).filter(Boolean) : [],
-                text: el.textContent.trim().replace(/\s+/g, ' ').slice(0, 40), font: fam, size: Math.round(parseFloat(cs.fontSize) * 10) / 10,
-                weight: Number(cs.fontWeight) || 400, color: cs.color, left: Math.round(r.left - box.left), top: Math.round(r.top - box.top),
-                idx: texts.length });
-            el.setAttribute('data-ds-i', `${i}-${texts.length - 1}`);
+        const k = s.offsetWidth ? box.width / s.offsetWidth : 1;   // slides scaled to fit the window: report CSS px of the slide
+        const texts = [], unread = [];
+        const walk = (root, win, ox, oy, kk) => {
+            const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+            const seen = new Set();
+            for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+                const el = n.parentElement;
+                if (!n.nodeValue.trim() || !el || seen.has(el) || el.closest('svg,script,style,noscript,[data-ds-ignore]')) continue;
+                seen.add(el);
+                const cs = win.getComputedStyle(el);
+                const r = el.getBoundingClientRect();
+                if (cs.display === 'none' || r.width < 1 || r.height < 1) continue;
+                const fam = cs.fontFamily.split(',')[0].trim().replace(/^["']|["']$/g, '');
+                if (/remixicon|icon|symbols/i.test(fam)) continue;
+                texts.push({ tag: el.tagName.toLowerCase(), cls: typeof el.className === 'string' ? el.className.trim().split(/\s+/).filter(Boolean) : [],
+                    text: el.textContent.trim().replace(/\s+/g, ' ').slice(0, 40), font: fam, size: Math.round(parseFloat(cs.fontSize) * 10) / 10,
+                    weight: Number(cs.fontWeight) || 400, color: cs.color, left: Math.round((r.left - ox) / kk), top: Math.round((r.top - oy) / kk),
+                    idx: texts.length });
+                el.setAttribute('data-ds-i', `${i}-${texts.length - 1}`);
+            }
+        };
+        walk(s, window, box.left, box.top, k || 1);
+        for (const f of s.querySelectorAll('iframe')) {
+            const d = await frameDoc(f);
+            if (!d) { unread.push(f.getAttribute('src') || '(iframe)'); continue; }
+            // inside the iframe rects are in its own CSS px; add where the iframe sits in the slide
+            const fr = f.getBoundingClientRect();
+            const fk = f.offsetWidth ? fr.width / f.offsetWidth : 1;
+            const ox = (fr.left - box.left) / (k || 1) + f.clientLeft, oy = (fr.top - box.top) / (k || 1) + f.clientTop;
+            const before = texts.length;
+            walk(d.body, d.defaultView, 0, 0, 1);
+            const m = fk / (k || 1);                              // iframe px -> slide px
+            for (let j = before; j < texts.length; j++) { texts[j].left = Math.round(ox + texts[j].left * m); texts[j].top = Math.round(oy + texts[j].top * m); }
         }
         // the title: a heading if there is one, else the biggest text in the upper half
-        let title = texts.find((t) => /^h[12]$/.test(t.tag));
-        if (!title) title = texts.filter((t) => t.top < box.height * 0.5).sort((a, b) => b.size - a.size || a.top - b.top)[0];
+        // the biggest h1/h2 (a mock-up of an app inside the slide can have its own small h2)
+        let title = texts.filter((t) => /^h[12]$/.test(t.tag)).sort((a, b) => b.size - a.size || a.top - b.top)[0];
+        if (!title) title = texts.filter((t) => t.top < (s.offsetHeight || box.height) * 0.5).sort((a, b) => b.size - a.size || a.top - b.top)[0];
         out.push({ n: i + 1, name: s.getAttribute('data-title') || (title && title.text) || '', kind: [...s.classList].filter((c) => !stateCls.includes(c) && c !== 'slide').join('.'),
-            free: s.hasAttribute('data-ds-free'), w: Math.round(box.width), h: Math.round(box.height), title: title ? title.idx : -1, texts });
-    });
+            free: s.hasAttribute('data-ds-free'), w: s.offsetWidth || Math.round(box.width), h: s.offsetHeight || Math.round(box.height), title: title ? title.idx : -1, texts, unread });
+    }
     return { selector: sel, slides: out };
 }
+
+// iframes we could not look into (another origin, or never loaded): their text was not checked
+const unreadList = (m) => m.slides.flatMap((s) => (s.unread || []).map((src) => ({ slide: s.n, src })));
+const warnUnread = (m) => { for (const u of unreadList(m)) console.log(`- Slide ${u.slide}: not measured, its iframe ${u.src} could not be read (another origin or not loaded)`); };
 
 const modeOf = (vals) => { const c = new Map(); vals.forEach((v) => c.set(v, (c.get(v) || 0) + 1)); return [...c.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]; };
 const spread = (vals) => { const c = new Map(); vals.forEach((v) => c.set(v, (c.get(v) || 0) + 1)); return [...c.entries()].sort((a, b) => b[1] - a[1]); };
@@ -163,6 +205,7 @@ try {
         fs.mkdirSync(path.dirname(out), { recursive: true });
         fs.writeFileSync(out, JSON.stringify(tk, null, 2) + '\n');
         fs.writeFileSync(path.join(path.dirname(out), 'design-system.md'), humanDoc(m, tk, odd));
+        warnUnread(m);
         console.log(`${m.slides.length} slides measured. Wrote ${out} and design-system.md. ${odd.length} place${odd.length === 1 ? '' : 's'} already differ from what most slides use (listed in design-system.md).`);
     } else {
         const file = path.resolve(opt('tokens', 'design-system/tokens.json'));
@@ -174,26 +217,27 @@ try {
             fs.mkdirSync(shots, { recursive: true });
             for (const n of [...new Set(bad.map((b) => b.slide))]) {
                 const marks = bad.filter((b) => b.slide === n).map((b) => b.mark);
-                await page.evaluate(({ sel, n, marks, measureSrc }) => {
-                    document.querySelectorAll('[data-ds-bad]').forEach((e) => { e.style.outline = ''; e.removeAttribute('data-ds-bad'); });
-                    marks.forEach((k) => { const e = document.querySelector(`[data-ds-i="${k}"]`); if (e) { e.style.outline = '3px solid #e5484d'; e.style.outlineOffset = '2px'; e.setAttribute('data-ds-bad', ''); } });
-                    const slides = sel ? [...document.querySelectorAll(sel)] : [document.body];
-                    const cur = slides.find((s) => { const r = s.getBoundingClientRect(); return r.width > 2 && getComputedStyle(s).display !== 'none'; });
-                    const state = cur ? [...cur.classList].filter((c) => /^(is-)?(active|visible|current|present|shown?|on|selected)$/i.test(c) && !slides.some((o) => o !== cur && o.classList.contains(c))) : [];
-                    slides.forEach((o, i) => { state.forEach((c) => o.classList.toggle(c, i === n - 1)); if (o.style.display === 'none' || i === n - 1) o.style.display = i === n - 1 ? '' : 'none'; });
-                }, { sel: m.selector, n, marks });
-                await page.waitForTimeout(150);
+                await page.evaluate(({ n, marks }) => {
+                    // the page and every iframe we could read (marks inside an iframe live in its document)
+                    const docs = [document];
+                    document.querySelectorAll('iframe').forEach((f) => { try { if (f.contentDocument) docs.push(f.contentDocument); } catch (_) { /* other origin */ } });
+                    docs.forEach((d) => d.querySelectorAll('[data-ds-bad]').forEach((e) => { e.style.outline = ''; e.removeAttribute('data-ds-bad'); }));
+                    marks.forEach((k) => docs.forEach((d) => { const e = d.querySelector(`[data-ds-i="${k}"]`); if (e) { e.style.outline = '3px solid #e5484d'; e.style.outlineOffset = '2px'; e.setAttribute('data-ds-bad', ''); } }));
+                    window.__dsShow(n - 1);                       // same switch as when it was measured
+                }, { n, marks });
+                await page.waitForTimeout(300);
                 await page.screenshot({ path: path.join(shots, `slide-${String(n).padStart(2, '0')}.png`) });
             }
         }
-        if (flag('json')) console.log(JSON.stringify({ slides: m.slides.length, differences: bad }, null, 2));
-        else if (!bad.length) console.log(`ds-check: ${m.slides.length} slides, all follow ${path.basename(file)}.`);
+        if (flag('json')) console.log(JSON.stringify({ slides: m.slides.length, differences: bad, not_measured: unreadList(m) }, null, 2));
+        else if (!bad.length && !unreadList(m).length) console.log(`ds-check: ${m.slides.length} slides, all follow ${path.basename(file)}.`);
         else {
             console.log(`ds-check: ${bad.length} difference${bad.length === 1 ? '' : 's'} on ${new Set(bad.map((b) => b.slide)).size} of ${m.slides.length} slides.`);
             for (const b of bad) console.log(`- Slide ${b.slide}${b.name ? ' (' + b.name + ')' : ''}: 「${b.text}」 ${b.what}`);
             if (shots) console.log(`Pictures of the slides that differ: ${path.resolve(shots)}`);
         }
-        process.exitCode = bad.length ? 1 : 0;
+        if (!flag('json')) warnUnread(m);
+        process.exitCode = bad.length || unreadList(m).length ? 1 : 0;
     }
 } finally {
     await browser.close();
