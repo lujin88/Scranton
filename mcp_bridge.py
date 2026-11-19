@@ -5,6 +5,7 @@ Serves two transports for compatibility:
   - SSE on port 8201 (Gemini)
 """
 
+import scranton_board
 import re as _re_mod
 import json
 import os
@@ -1136,7 +1137,7 @@ def chat_board(sender: str, action: str = "read", channel: str = "", id: int = 0
 
     action: read | set | remove.
       set without id adds a row (ask = what was asked, a few words). set with id changes that row:
-      state (todo, doing, in_pr, waiting_qa, waiting_lu, live, blocked), who (teammate handle),
+      state (todo, doing, in_pr, waiting_qa, waiting_lu, live, blocked, later = put aside on purpose or waiting for other work), who (teammate handle),
       due ("10:30"), link (PR or page URL), note (one short line: what it's waiting on),
       msg (the chat message id to open: for waiting_lu, the id of your question to the owner, from
       chat_send's "Sent (id=…)"; the owner clicks the row and lands there).
@@ -1153,6 +1154,9 @@ def chat_board(sender: str, action: str = "read", channel: str = "", id: int = 0
         if action == "read":
             return json.dumps({"channel": channel, "rows": BOARD.rows(channel)}, ensure_ascii=False)
         if action == "set":
+            if (state or "").strip().lower() == "blocked" and scranton_board.PARKED_RE.search(note or ""):
+                return ("Error: 卡住 (blocked) means someone has to act now and the row names who and what. This note says the work "
+                        "was put aside or waits for other work: set state later (以后做) instead, with the reason in the note.")
             if (state or "").strip().lower().replace(" ", "_") == "waiting_lu" and not asked_owner(msg):
                 return ("Error: 等你 (waiting_lu) means the owner has a question or finished work in front of her right now. "
                         "Send it to her first (chat_send, with the picture), then set the row with msg = that message's id. "
@@ -1191,6 +1195,10 @@ def board_view(channel: str) -> list[dict]:
     for r in rows:
         if r.get("state") == "waiting_lu" and not asked_owner(r.get("msg")):
             r["state"], r["not_asked"] = "doing", True
+        elif scranton_board.is_parked(r):
+            r["state"], r["parked"] = "later", True     # 卡住 in name only: put aside, or waiting for other work
+        elif r.get("state") == "doing" and str(r.get("who") or "").lower() in (_owner_name().lower(), "lu"):
+            r["yours"] = True                             # the owner said she would do this one herself
     return rows
 
 

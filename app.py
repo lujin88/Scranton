@@ -5800,7 +5800,9 @@ async def scranton_attention():
             for r in mcp_bridge.board_view(ch):
                 # no change for 4 hours while it says someone is on it: that is stuck too, said or not
                 quiet = time.time() - float(r.get("at") or 0) > scranton_board.STALE_H * 3600
-                if r.get("state") in ("doing", "in_pr", "waiting_qa") and quiet:
+                if r.get("yours"):
+                    r = dict(r, state="waiting_lu", note=f"你说这件自己做 · {r.get('note', '')}".strip(" ·"))
+                elif r.get("state") in ("doing", "in_pr", "waiting_qa") and quiet:
                     r = dict(r, state="stalled", note=f"{scranton_board.STATE_ZH.get(r.get('state'), '')} · {r.get('note', '')}".strip(" ·"))
                 if r.get("state") in ("waiting_lu", "blocked", "stalled"):
                     out.append({"channel": ch, "id": r.get("id"), "state": r.get("state"),

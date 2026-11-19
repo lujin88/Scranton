@@ -3,7 +3,7 @@
 // clicking it opens the channel overview on the right, with the list at the top.
 (function () {
     'use strict';
-    const STATE_ORDER = ['waiting_lu', 'blocked', 'doing', 'in_pr', 'waiting_qa', 'todo', 'live'];
+    const STATE_ORDER = ['waiting_lu', 'blocked', 'doing', 'in_pr', 'waiting_qa', 'todo', 'later', 'live'];
     let data = { rows: [], summary: '', states: {} };
 
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

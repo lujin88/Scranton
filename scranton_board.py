@@ -7,13 +7,16 @@ top of the channel. Stored in data/board.json as {channel: [row, ...]}.
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
 from pathlib import Path
 
-STATES = ("todo", "doing", "in_pr", "waiting_qa", "waiting_lu", "live", "blocked")
+# later (Lu, 11-19): put aside on purpose (she paused it, or it waits for other work). 12 of the 15
+# rows that said 卡住 were this, so 卡住 stopped meaning "someone must act now".
+STATES = ("todo", "doing", "in_pr", "waiting_qa", "waiting_lu", "live", "blocked", "later")
 STATE_ZH = {"todo": "排队", "doing": "在做", "in_pr": "在 PR", "waiting_qa": "等 QA",
-            "waiting_lu": "等你", "live": "已上线", "blocked": "卡住"}
+            "waiting_lu": "等你", "live": "已上线", "blocked": "卡住", "later": "以后做"}
 MAX_ROWS = 30
 KEEP_LIVE_H = 24   # finished rows stay a day so Lu sees them land, then drop off
 
@@ -136,6 +139,8 @@ def housekeeping(board: "Board", pr_state, now: float | None = None, skip=None) 
                         rep["merged"].append(dict(r))
                         changed = True
                         continue
+                if r.get("state") == "later" or is_parked(r):
+                    continue   # put aside on purpose: not anyone's load, and nothing to re-check every 4 hours
                 if r.get("who"):
                     counts[r["who"]] = counts.get(r["who"], 0) + 1
                 last = max(float(r.get("at") or 0), float(r.get("nudged") or 0))
@@ -170,3 +175,12 @@ def nudge_text(rep: dict, label=lambda h: h) -> str:
     if rep.get("overloaded"):
         lines.append("超过 5 件的人，把没开始的转给别人：" + "，".join(f"{label(w)} {n} 件" for w, n in rep["overloaded"].items()))
     return "\n".join(lines)
+
+
+# What a 卡住 note says when the row is not stuck at all.
+PARKED_RE = re.compile(r"暂停|面试后|以后再|先不做|先放|不做[；;，,。 ]|定在.{0,12}之后|无需(?:补|操作)|待行\s*\d+|等行\s*\d+|paused|on hold", re.I)
+
+
+def is_parked(row: dict) -> bool:
+    """A 卡住 row whose own note says it was put aside or waits for other work."""
+    return row.get("state") == "blocked" and bool(PARKED_RE.search(str(row.get("note") or "")))
