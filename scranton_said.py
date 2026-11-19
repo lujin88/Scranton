@@ -159,6 +159,7 @@ class Said:
             it = self.items.get(str(mid))
             if not it or not it.get("done_msg"):
                 return None
+            it.setdefault("judged_ts", time.time())
             if ok:
                 it["verdict"] = "ok"
             else:
@@ -175,9 +176,35 @@ class Said:
             hit = [int(k) for k, it in self.items.items() if it.get("done_msg") == int(msg_id) and it.get("verdict") != "ok"]
             for k in hit:
                 self.items[str(k)]["verdict"] = "ok"
+                self.items[str(k)].setdefault("judged_ts", time.time())
             if hit:
                 self._save()
         return hit
+
+    def pending_for(self, channel: str, exclude=()) -> list[dict]:
+        """Her instructions someone took in this channel that no result has been shown for yet."""
+        skip = {int(i) for i in exclude}
+        with self.lock:
+            out = [dict(v) for v in self.items.values()
+                   if v["ch"] == channel and v["state"] == "taken" and not v.get("done_msg") and v.get("verdict") != "ok"
+                   and v["id"] not in skip and is_instruction(v["text"]) and time.time() - v["ts"] < self.CHECK_DAYS * 86400]
+        return sorted(out, key=lambda v: v["ts"])
+
+    def first_time(self, days: int = 7, now: float | None = None) -> dict:
+        """Of the results she judged in the period, how many were right the first time she saw them.
+        Counted per instruction; by whoever showed the result."""
+        now = time.time() if now is None else now
+        who: dict[str, list[int]] = {}
+        with self.lock:
+            for v in self.items.values():
+                if not v.get("judged_ts") or now - float(v["judged_ts"]) > days * 86400:
+                    continue
+                by = re.sub(r"-\d+$", "", str(v.get("done_by") or (v.get("last_no") or {}).get("by") or "").lower()) or "?"
+                w = who.setdefault(by, [0, 0])
+                w[0] += 1
+                w[1] += 1 if v.get("verdict") == "ok" and not v.get("rounds") else 0
+        return {"judged": sum(w[0] for w in who.values()), "first": sum(w[1] for w in who.values()),
+                "by": sorted(({"who": k, "judged": w[0], "first": w[1]} for k, w in who.items()), key=lambda x: -x["judged"])}
 
     def to_check(self, channel: str = "", now: float | None = None) -> list[dict]:
         """Results waiting for her verdict, oldest first."""

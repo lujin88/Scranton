@@ -121,3 +121,14 @@ Then: look at the result next to an existing screen at 1440 and 390 wide, in the
 
 - About 600 `!important` in `design-system.css`, from layering over the legacy styles. New rules should win by being the right component, not by `!important`.
 - Class names from features that were restyled still exist in the markup (`.sc-inbox-item`, `.sc-inbox-row`). Do not copy their one-off rules; use the components above.
+
+### Widths and touch (checked 2026-11-19)
+
+Every screen is walked at 1024, 768, 390 and 320 wide, the last three as touch screens, and the home page once on a slow 3G line (`tools/page-walk.mjs --slow`). Rules that came out of it:
+
+- Two columns inside a page become one under 760px. A desktop rule with `!important` needs its own phone rule.
+- A page title never shrinks to make room for tabs: under 420px the tabs go on their own row.
+- A name and its buttons share a row only when both fit; under 420px the buttons go under the name.
+- Chips are one line each and shorten with …; they never wrap.
+- On a phone, status cards show on the home list and in a conversation, not over a full page.
+- Static files are sent compressed and kept by the browser; first content on slow 3G went from 19.7 s to 3.9 s.

@@ -65,6 +65,7 @@
             return;
         }
         const c = r.counts || {};
+        const k = r.checked || { judged: 0, first: 0, by: [] };
         const w = r.waiting || {};
         const maxH = Math.max(1, ...(r.work || []).map((x) => x.hours));
         const anyHours = (r.work || []).some((x) => x.hours > 0);   // all 0 h: empty bars are noise
@@ -81,6 +82,7 @@
                 <div><b>${c.prs ?? 0}</b><span>PRs in chat</span></div>
                 <div><b>${c.agent_hours ?? 0} h</b><span>Agent busy time</span></div>
                 <div><b>${w.avg_minutes == null ? '–' : w.avg_minutes < 60 ? w.avg_minutes + ' min' : Math.round(w.avg_minutes / 6) / 10 + ' h'}</b><span>Your average answer time</span></div>
+                <div${k.judged ? ` data-tip="${esc(k.by.map((x) => `${x.who}: ${x.first} of ${x.judged}`).join(' · '))}"` : ''}><b>${k.judged >= 5 ? Math.round(100 * k.first / k.judged) + '%' : '–'}</b><span>Right the first time${k.judged >= 5 ? ` · ${k.first} of ${k.judged}` : ` · after 5 checks`}</span></div>
             </div>
 
             <h2>Tokens: what gets re-read, and what to change</h2>

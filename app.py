@@ -3409,12 +3409,16 @@ async def scranton_report(days: int = 7):
     team = {n: a for n, a in config.get("agents", {}).items()}
     msgs = store.get_since(-1)
     # Same answer for a minute unless a message or the estimate changed: the page re-asks often.
-    key = (days, owner, len(msgs), msgs[-1]["id"] if msgs else -1, _sc_report.settings().get("minutes_per_pr"))
+    _s = _sc_said()
+    key = (days, owner, len(msgs), msgs[-1]["id"] if msgs else -1, _sc_report.settings().get("minutes_per_pr"),
+           _s.first_time(days)["judged"] if _s is not None else 0)
     hit = _report_cache.get("v")
     import time as _t
     if hit and hit[0] == key and _t.time() - hit[1] < 60:
         return JSONResponse(hit[2])
     data = await asyncio.to_thread(_sc_report.build, msgs, team, owner, days)
+    said = _sc_said()
+    data["checked"] = said.first_time(days) if said is not None else {"judged": 0, "first": 0, "by": []}
     _report_cache["v"] = (key, _t.time(), data)
     return JSONResponse(data)
 

@@ -156,7 +156,19 @@ def main():
         )
         return HTMLResponse(injected, headers={"Cache-Control": "no-store"})
 
-    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+    # 11-19, page-walk on a slow 3G line: first content after 19.7 s. The page pulls 1.4 MB of
+    # CSS and JS as plain text, and asks again for all 39 files on every visit. Send them
+    # compressed, and let the browser keep a file whose address carries its own change time (?v=).
+    from starlette.middleware.gzip import GZipMiddleware
+
+    class _Static(StaticFiles):
+        async def get_response(self, path, scope):
+            r = await super().get_response(path, scope)
+            if r.status_code == 200 and b"v=" in scope.get("query_string", b""):
+                r.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            return r
+
+    app.mount("/static", GZipMiddleware(_Static(directory=str(static_dir)), minimum_size=1024), name="static")
 
     # Capture the event loop for the store→WebSocket bridge
     @app.on_event("startup")

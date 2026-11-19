@@ -7,11 +7,16 @@
 // would, at a desktop and a phone width, and lists what is broken, so QA's turn goes to the job
 // itself and not to finding a dead link.
 //
-//   node page-walk.mjs <url> [<url> ...] [--shots dir] [--widths 1440,390] [--json]
+//   node page-walk.mjs <url> [<url> ...] [--shots dir] [--widths 1440,768,390] [--slow] [--json]
 //
 // For every address and width it reports: errors in the console, requests that failed, pictures that
 // did not load, links that lead nowhere (same site only), content wider than the screen, and
 // buttons or links with no name a screen reader could say. --shots saves a full-page picture of each.
+// At widths under 700 the page is opened as a touch screen, and anything to tap that is smaller than
+// 24px is counted (a finger misses it); 24 to 43px is listed but not counted.
+// --slow opens the narrowest width once more on a slow 3G line (400 kbit/s, 400 ms delay) and
+// reports when the first content appeared and when the page finished; first content after 5 s counts
+// as broken, and with --shots it saves what a visitor sees after 3 seconds.
 // Exit code 1 when anything is broken. Needs the `playwright` package (found by itself; or set
 // DS_CHECK_MODULES=/path/to/a/project/that/has/it).
 import { createRequire } from 'node:module';
@@ -25,11 +30,12 @@ const opt = (name, dflt) => { const i = args.indexOf('--' + name); return i >= 0
 const flagNames = new Set(['shots', 'widths']);
 const urls = args.filter((a, i) => !a.startsWith('--') && !(i > 0 && flagNames.has(args[i - 1].replace(/^--/, ''))));
 if (!urls.length) {
-    console.error('usage: node page-walk.mjs <url> [<url> ...] [--shots dir] [--widths 1440,390] [--json]');
+    console.error('usage: node page-walk.mjs <url> [<url> ...] [--shots dir] [--widths 1440,768,390] [--slow] [--json]');
     process.exit(2);
 }
-const widths = String(opt('widths', '1440,390')).split(',').map((w) => Number(w.trim())).filter(Boolean);
+const widths = String(opt('widths', '1440,768,390')).split(',').map((w) => Number(w.trim())).filter(Boolean);
 const shots = opt('shots', '');
+const slow = args.includes('--slow');
 
 function loadPlaywright() {
     const places = [process.env.DS_CHECK_MODULES, process.cwd(), path.dirname(new URL(import.meta.url).pathname),
@@ -53,7 +59,7 @@ try {
         for (const w of widths) {
             const ctx = await browser.newContext({ viewport: { width: w, height: w < 700 ? 844 : 900 }, isMobile: w < 700, hasTouch: w < 700 });
             const page = await ctx.newPage();
-            const found = { url, width: w, console: [], failed: [], pictures: [], links: [], overflow: 0, unnamed: [] };
+            const found = { url, width: w, console: [], failed: [], pictures: [], links: [], overflow: 0, unnamed: [], small: [], tight: [] };
             page.on('console', (m) => { if (m.type() === 'error') found.console.push(m.text().slice(0, 200)); });
             page.on('pageerror', (e) => found.console.push(String(e).slice(0, 200)));
             page.on('requestfailed', (r) => found.failed.push(`${r.url().slice(0, 140)} (${(r.failure() || {}).errorText || 'failed'})`));
@@ -80,9 +86,17 @@ try {
                 const name = (el) => (el.getAttribute('aria-label') || el.getAttribute('title') || el.innerText || (el.querySelector('img[alt]') || {}).alt || '').trim();
                 const unnamed = [...document.querySelectorAll('a[href], button, [role=button]')].filter((el) => vis(el) && !name(el))
                     .map((el) => el.outerHTML.replace(/\s+/g, ' ').slice(0, 100));
-                return { pictures, links, unnamed: unnamed.slice(0, 8), overflow: Math.max(0, document.documentElement.scrollWidth - innerWidth) };
+                const taps = [...document.querySelectorAll('a[href], button, [role=button], input:not([type=hidden]), select, textarea, summary')].filter(vis)
+                    .filter((el) => { const cs = getComputedStyle(el); return cs.pointerEvents !== 'none' && !(el.tagName === 'A' && cs.display === 'inline'); })
+                    .map((el) => { const r = el.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), what: (name(el) || el.outerHTML.replace(/\s+/g, ' ')).slice(0, 50) }; });
+                return { pictures, links, unnamed: unnamed.slice(0, 8), taps, overflow: Math.max(0, document.documentElement.scrollWidth - innerWidth) };
             });
             found.pictures = seen.pictures; found.unnamed = seen.unnamed; found.overflow = seen.overflow;
+            if (w < 700) {
+                const say = (t) => `${t.what} (${t.w}×${t.h})`;
+                found.small = [...new Set(seen.taps.filter((t) => Math.min(t.w, t.h) < 24).map(say))].slice(0, 12);
+                found.tight = [...new Set(seen.taps.filter((t) => Math.min(t.w, t.h) >= 24 && Math.min(t.w, t.h) < 44).map(say))].slice(0, 8);
+            }
             if (w === widths[0]) {            // links are the same at every width: ask once
                 for (const href of seen.links.slice(0, 60)) {
                     if (!linkSeen.has(href)) {
@@ -105,12 +119,34 @@ try {
             report.push(found);
             await ctx.close();
         }
+        if (slow) {
+            const w = Math.min(...widths);
+            const ctx = await browser.newContext({ viewport: { width: w, height: w < 700 ? 844 : 900 }, isMobile: w < 700, hasTouch: w < 700 });
+            const page = await ctx.newPage();
+            const cdp = await ctx.newCDPSession(page);
+            await cdp.send('Network.enable');
+            await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 400, downloadThroughput: 400 * 1024 / 8, uploadThroughput: 400 * 1024 / 8 });
+            const found = { url, width: w, slow: true, console: [], failed: [], pictures: [], links: [], overflow: 0, unnamed: [], small: [], tight: [] };
+            const t0 = Date.now();
+            const done = page.goto(url, { waitUntil: 'load', timeout: 90000 }).then(() => Date.now() - t0).catch(() => null);
+            if (shots) {
+                await page.waitForTimeout(3000);
+                fs.mkdirSync(shots, { recursive: true });
+                found.shot = path.join(shots, `${url.replace(/^https?:\/\//, '').replace(/[^\w.-]+/g, '_').slice(0, 80)}-${w}-slow-3s.png`);
+                await page.screenshot({ path: found.shot }).catch(() => {});
+            }
+            found.loadMs = await done;
+            found.firstMs = found.loadMs == null ? null : await page.evaluate(() => { const e = performance.getEntriesByName('first-contentful-paint')[0]; return e ? Math.round(e.startTime) : null; });
+            if (found.loadMs == null) found.console.push('did not finish loading in 90 s on a slow line');
+            report.push(found);
+            await ctx.close();
+        }
     }
 } finally {
     await browser.close();
 }
 
-const bad = (f) => f.console.length + f.failed.length + f.pictures.length + f.links.length + (f.overflow > 2 ? 1 : 0);
+const bad = (f) => f.console.length + f.failed.length + f.pictures.length + f.links.length + (f.overflow > 2 ? 1 : 0) + f.small.length + (f.firstMs > 5000 ? 1 : 0);
 const total = report.reduce((n, f) => n + bad(f), 0);
 if (args.includes('--json')) {
     console.log(JSON.stringify({ broken: total, pages: report }, null, 2));
@@ -124,10 +160,13 @@ if (args.includes('--json')) {
             ...f.links.map((x) => `link leads nowhere: ${x}`),
             ...(f.overflow > 2 ? [`content is ${f.overflow}px wider than the screen (scrolls sideways)`] : []),
         ];
-        if (!lines.length && !f.unnamed.length) continue;
-        console.log(`\n${f.url} at ${f.width}px${f.shot ? '  [' + f.shot + ']' : ''}`);
+        for (const x of f.small) lines.push(`too small to tap: ${x}`);
+        if (f.slow && f.firstMs != null) lines.push(`${f.firstMs > 5000 ? '' : '(not counted) '}on slow 3G: first content after ${(f.firstMs / 1000).toFixed(1)} s, finished after ${(f.loadMs / 1000).toFixed(1)} s`);
+        if (!lines.length && !f.unnamed.length && !f.tight.length) continue;
+        console.log(`\n${f.url} at ${f.width}px${f.slow ? ' (slow 3G)' : ''}${f.shot ? '  [' + f.shot + ']' : ''}`);
         for (const l of lines) console.log(`- ${l}`);
         for (const u of f.unnamed) console.log(`- (not counted) no name for a screen reader: ${u}`);
+        for (const u of f.tight) console.log(`- (not counted) smaller than 44px to tap: ${u}`);
     }
     if (shots) console.log(`\nFull-page pictures: ${path.resolve(shots)}`);
 }

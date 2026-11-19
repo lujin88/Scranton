@@ -424,7 +424,7 @@ body.sc-report-open #sc-empty-room { display: none; }
 .sc-rp-range { display: flex; gap: 4px; }
 .sc-rp-range button { border: 0; background: none; color: var(--ds-text-2); font: inherit; font-size: var(--ds-fs-sm); padding: 6px 14px; border-radius: var(--ds-r-pill); cursor: pointer; }
 .sc-rp-range button[aria-selected="true"] { background: var(--ds-raised); color: var(--ds-text); }
-.sc-rp-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; background: var(--ds-raised); border-radius: var(--ds-r-card); padding: 6px; }
+.sc-rp-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: var(--ds-raised); border-radius: var(--ds-r-card); padding: 6px; }
 .sc-rp-stats > div { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; }
 .sc-rp-stats b { font-size: 24px; font-weight: 600; color: var(--ds-text); }
 .sc-rp-stats span { font-size: var(--ds-fs-sm); color: var(--ds-text-2); }
@@ -2023,3 +2023,37 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-check-why { margin-top: 10px; }
 .sc-check-why[hidden] { display: none; }
 @media (max-width: 760px) { .sc-check-cols { grid-template-columns: minmax(0, 1fr); gap: 12px; } }
+
+/* ---- 11-19: found by walking every screen at 1024, 768, 390 and 320 wide with a touch screen ---- */
+/* Settings → Profile on a phone: the photo column was forced beside the fields (an !important above
+   beat the phone rule), so "Profile photo" and "Upload photo" were cut off at the right edge. */
+@media (max-width: 760px) {
+    .sc-pf { grid-template-columns: minmax(0, 1fr) !important; gap: var(--ds-5) !important; }
+    .sc-pf-photo { align-items: flex-start !important; }
+}
+/* Report on a narrow phone: the period tabs pushed the title down to "R". Tabs go under the title. */
+@media (max-width: 420px) {
+    .sc-rp-head { flex-wrap: wrap; row-gap: 8px; }
+    .sc-rp-head h1 { flex: 1 1 auto; min-width: 0; }
+    .sc-rp-head .sc-rp-range { order: 3; flex-basis: 100%; }
+}
+/* Report numbers: five across only where there is room; two across on a phone with the fifth full width. */
+@media (max-width: 900px) and (min-width: 761px) { .sc-rp-stats { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 760px) { .sc-rp-stats > div:nth-child(5) { grid-column: 1 / -1; } }
+/* An agent's page on a narrow phone: name and buttons shared one row, so the name broke into
+   one character per line. Buttons go under the name. */
+@media (max-width: 420px) {
+    .sc-agh { flex-wrap: wrap; }
+    .sc-agh .sc-agh-txt { flex: 1 1 0; min-width: 0; }
+    .sc-agh .sc-agh-act { flex-basis: 100%; justify-content: flex-start; }
+}
+/* The @ chips under the message box broke into two cut-off lines between 761 and 1100 wide
+   ("@项目 / 经理"). One line each, shortened with … */
+#input-row .mention-toggle { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 11em; flex: 0 0 auto; }
+/* Phone: a status card ("An agent stopped") floated over whatever page was open and covered its
+   last lines and buttons. It shows on the home list and in a conversation; on a full page
+   (Activity, Report, a project's overview) it waits. */
+@media (max-width: 760px) {
+    body.sc-inbox-open #sc-banners:not(.in-sidebar), body.sc-report-open #sc-banners:not(.in-sidebar),
+    body.sc-info-open #sc-banners:not(.in-sidebar) { display: none !important; }
+}

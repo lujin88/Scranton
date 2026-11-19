@@ -47,7 +47,8 @@ class Board:
             return [dict(r) for r in keep]
 
     def upsert(self, channel: str, by: str, id: int = 0, ask: str = "", state: str = "", who: str = "",
-               due: str = "", link: str = "", note: str = "", msg: int = 0, now: float | None = None) -> dict:
+               due: str = "", link: str = "", note: str = "", msg: int = 0, now: float | None = None,
+               check: str = "") -> dict:
         now = time.time() if now is None else now
         state = (state or "").strip().lower().replace(" ", "_")
         if state and state not in STATES:
@@ -66,6 +67,10 @@ class Board:
             for k, v in (("ask", ask), ("state", state), ("who", who), ("due", due), ("link", link), ("note", note)):
                 if v:
                     row[k] = str(v).strip()[:200 if k != "ask" else 120]
+            if check and str(check).strip():
+                # How anyone can tell the row is right, written when it is assigned (11-19): two
+                # to four things a checker can look at, so "done" is not the doer's own opinion.
+                row["check"] = [c.strip(" ·-•\t")[:140] for c in str(check).replace("；", "\n").split("\n") if c.strip(" ·-•\t")][:5]
             if msg and int(msg) > 0:
                 row["msg"] = int(msg)
             row["at"] = now

@@ -405,7 +405,7 @@ def chat_send(
     _update_cursor(sender, [msg], channel)
     with _presence_lock:
         _presence[sender] = time.time()
-    return f"Sent (id={msg['id']})" + moved + _length_note(message, clean_choices)
+    return f"Sent (id={msg['id']})" + moved + _length_note(message, clean_choices) + _shown_hint(msg)
 
 
 def _picture_check(sender: str, message: str, choices, image_path: str, channel: str):
@@ -1144,7 +1144,7 @@ BOARD = None   # set by run.py: scranton_board.Board(<data>/board.json)
 
 def chat_board(sender: str, action: str = "read", channel: str = "", id: int = 0, ask: str = "",
                state: str = "", who: str = "", due: str = "", link: str = "", note: str = "",
-               msg: int = 0, ctx: Context | None = None) -> str:
+               msg: int = 0, check: str = "", ctx: Context | None = None) -> str:
     """The pinned list of what the owner asked for in a channel, one row each, kept up to date by
     the project manager instead of status messages.
 
@@ -1152,6 +1152,9 @@ def chat_board(sender: str, action: str = "read", channel: str = "", id: int = 0
       set without id adds a row (ask = what was asked, a few words). set with id changes that row:
       state (todo, doing, in_pr, waiting_qa, waiting_lu, live, blocked, later = put aside on purpose or waiting for other work), who (teammate handle),
       due ("10:30"), link (PR or page URL), note (one short line: what it's waiting on),
+      check (how anyone can tell this row is right: 2 to 4 things a checker can LOOK AT, one per line,
+      e.g. "390 宽不横向滚动" / "标题和参考图同字号同位置" / "点 Start 进到第 2 步"; not "好看" or "符合要求".
+      Write it when you assign the row; if you cannot write one, the task is not clear yet: ask the owner),
       msg (the chat message id to open: for waiting_lu, the id of your question to the owner, from
       chat_send's "Sent (id=…)"; the owner clicks the row and lands there).
     When something moves (PR opened, QA passed, merged, live), change the row; don't post a message
@@ -1174,8 +1177,12 @@ def chat_board(sender: str, action: str = "read", channel: str = "", id: int = 0
                 return ("Error: 等你 (waiting_lu) means the owner has a question or finished work in front of her right now. "
                         "Send it to her first (chat_send, with the picture), then set the row with msg = that message's id. "
                         "If you will ask her later (\"08:00 问\"), the row is not 等你 yet: keep it doing or todo and put the time in due.")
-            row = BOARD.upsert(channel, sender, id=id, ask=ask, state=state, who=who, due=due, link=link, note=note, msg=msg)
-            return json.dumps({"ok": True, "row": row}, ensure_ascii=False)
+            row = BOARD.upsert(channel, sender, id=id, ask=ask, state=state, who=who, due=due, link=link, note=note, msg=msg, check=check)
+            out = {"ok": True, "row": row}
+            if not row.get("check") and row.get("who") and row.get("state") in ("todo", "doing"):
+                out["hint"] = ("This row has no check. Add check = 2 to 4 things a checker can look at to tell it is right "
+                               "(one per line). Whoever does it and whoever checks it both read them.")
+            return json.dumps(out, ensure_ascii=False)
         if action == "remove":
             return json.dumps({"ok": BOARD.remove(channel, id)})
     except ValueError as e:
@@ -1228,8 +1235,26 @@ def board_view(channel: str) -> list[dict]:
 SAID = None   # set by run.py: scranton_said.Said
 
 
+def _shown_hint(msg: dict) -> str:
+    """A picture sent with none of her message numbers never reaches her "Done, to check" list, so
+    the work stays unjudged (11-19). Say so in the tool result, where the sender reads it, with
+    the instructions still waiting in that channel. Nothing is posted to the chat."""
+    import scranton_said as _S
+    if SAID is None or not msg.get("attachments") or msg.get("type") == "decision" or isinstance(msg.get("reply_to"), int):
+        return ""
+    if _S.cited_ids(msg.get("text") or ""):
+        return ""
+    waiting = SAID.pending_for(msg.get("channel") or "general")[-6:]
+    if not waiting:
+        return ""
+    lines = "; ".join(f"#{it['id']}「{_S.body_of(it['text'])[:40]}」" for it in waiting)
+    return (f"\nThis has a picture but names none of the owner's messages, so she is not asked to check it. Still waiting for a result "
+            f"in this channel: {lines}. If this picture is the result for any of them, call "
+            f"chat_said(action=\"shown\", ids=[…], msg={msg['id']}). If it is for none, do nothing.")
+
+
 def chat_said(sender: str, action: str = "open", channel: str = "", q: str = "", ids: list[int] | None = None,
-              note: str = "", ctx: Context | None = None) -> str:
+              note: str = "", msg: int = 0, ctx: Context | None = None) -> str:
     """What the owner said in a channel, word for word, kept by Scranton (her words, her pictures,
     the message she was replying to). Use it instead of your memory.
 
@@ -1239,6 +1264,8 @@ def chat_said(sender: str, action: str = "open", channel: str = "", q: str = "",
               or change a page, and paste her lines and picture paths into the assignment.
       open  — what she said here that nobody has taken yet.
       skip  — these `ids` won't be done; `note` says why (she can see it).
+      shown — your message `msg` (it carries the picture) is the result for these `ids`; she then
+              checks it against her own words. Only needed when that message did not cite them.
     You take one by putting its number (#15247) in the message where you assign or do it, or by
     replying to it. There is no "take" call."""
     sender, err = _resolve_tool_identity(sender, ctx, field_name="sender", required=False)
@@ -1259,7 +1286,12 @@ def chat_said(sender: str, action: str = "open", channel: str = "", q: str = "",
         if not ids or not str(note or "").strip():
             return "Error: skip needs ids and a note saying why."
         return json.dumps({"skipped": SAID.skip(ids, sender, note)})
-    return "Error: action must be find, open or skip."
+    if action == "shown":
+        m = store.get_by_id(int(msg or 0)) if msg else None
+        if not ids or not m or not m.get("attachments") or m.get("sender") != sender:
+            return "Error: shown needs ids (her message numbers) and msg = the id of YOUR message that carries the picture."
+        return json.dumps({"to_check": SAID.mark_done(ids, m["id"], sender)})
+    return "Error: action must be find, open, skip or shown."
 
 
 LESSONS = None   # set by run.py: scranton_lessons.Lessons

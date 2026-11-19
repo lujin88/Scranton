@@ -99,3 +99,28 @@ def test_a_result_waits_for_her_verdict(tmp_path):
     assert said.accept_result(21) == [10] and said.get(10)["verdict"] == "ok" and said.to_check(now=1795000500) == []
     assert said.mark_done([10], 22, "visual") == []                                  # finished stays finished
     assert said.verdict(11, True) is None
+
+
+def test_first_time_rate_and_pending(tmp_path):
+    import scranton_said as S
+    said = S.Said(tmp_path / "said.json")
+    import time as _t
+    now = _t.time()
+    for i in (1, 2, 3):
+        said.add({"id": i, "sender": "Lu", "text": f"@pm 第 {i} 页的标题往左移一点对齐", "channel": "p", "timestamp": now})
+    said.take([1, 2, 3], "pm", 9)
+    assert [it["id"] for it in said.pending_for("p")] == [1, 2, 3]
+    said.mark_done([1, 2], 20, "visual")
+    assert [it["id"] for it in said.pending_for("p")] == [3]
+    said.verdict(1, True); said.verdict(2, False, "没对齐")
+    said.mark_done([2], 21, "visual"); said.verdict(2, True)
+    r = said.first_time(7)
+    assert (r["judged"], r["first"]) == (2, 1) and r["by"] == [{"who": "visual", "judged": 2, "first": 1}]
+
+
+def test_board_row_keeps_checks(tmp_path):
+    import scranton_board as B
+    b = B.Board(tmp_path / "board.json")
+    row = b.upsert("p", "pm", ask="首页气球", who="visual", check="390 宽不横向滚动\n· 气球不被裁；标题同字号")
+    assert row["check"] == ["390 宽不横向滚动", "气球不被裁", "标题同字号"]
+    assert b.upsert("p", "pm", id=row["id"], state="doing")["check"] == row["check"]
