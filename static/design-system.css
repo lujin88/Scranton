@@ -1914,3 +1914,14 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-inbox-lesson-said .sc-inbox-q-pic img { max-height: 160px; }
 .sc-inbox-lesson-jump { margin-left: 6px; padding: 0 6px; border: 0; background: none; color: var(--ds-accent); font: inherit; font-size: var(--ds-fs-xs); cursor: pointer; }
 .sc-inbox-lesson-btns { align-self: flex-start; margin-top: 22px; }
+
+/* The rule is a real field (it looked like plain text), and it can be asked about (11-19). */
+#sc-inbox .sc-inbox-lesson-text { border: 1px solid var(--ds-line-strong) !important; background: var(--ds-surface) !important; padding: 8px 10px !important; border-radius: var(--ds-r-control) !important; cursor: text; }
+#sc-inbox .sc-inbox-lesson-text:hover { border-color: var(--ds-accent) !important; }
+.sc-inbox-lesson-edit { display: block; margin-top: 4px; color: var(--ds-text-3); font-size: var(--ds-fs-xs); }
+.sc-inbox-lesson-ask { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.sc-inbox-lesson-ask input { flex: 1 1 240px; min-width: 0; min-height: 36px; padding: 0 12px; border: 1px solid var(--ds-line-strong); border-radius: var(--ds-r-control); background: var(--ds-surface); color: var(--ds-text); font: inherit; font-size: 16px; }
+.sc-inbox-lesson-ask input:focus { outline: 2px solid var(--ds-accent-fill); outline-offset: 1px; }
+.sc-inbox-lesson-ask button { flex: none; min-height: 36px; padding: 0 12px; border: 1px solid var(--ds-line-strong); border-radius: var(--ds-r-control); background: none; color: var(--ds-text); font: inherit; font-size: var(--ds-fs-xs); cursor: pointer; }
+.sc-inbox-lesson-ask button:hover { background: var(--ds-hover); }
+.sc-inbox-lesson-ask button:disabled { opacity: .45; cursor: default; }

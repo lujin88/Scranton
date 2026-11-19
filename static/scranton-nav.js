@@ -587,13 +587,29 @@
             const pics = (f) => /\.(png|jpe?g|gif|webp|avif)$/i.test(f.url || '');
             el.innerHTML = `<span class="sc-inbox-avatar">${ic('sparkling', 20)}</span>`
                 + `<span class="sc-inbox-body"><span class="sc-inbox-meta"><b>A rule drawn from your corrections</b> <span>${esc(ch)}</span></span>`
-                + `<textarea class="sc-inbox-lesson-text" rows="1" maxlength="140" aria-label="The rule, in your words">${esc(l.text)}</textarea>`
+                + `<span class="sc-inbox-lesson-edit">Click the line to reword it</span><textarea class="sc-inbox-lesson-text" rows="1" maxlength="140" aria-label="The rule, in your words">${esc(l.text)}</textarea>`
                 + (src.length ? `<span class="sc-inbox-lesson-src"><b>You said</b>${src.map((m) => `<span class="sc-inbox-lesson-said" data-id="${m.id}">「${esc(String(m.text).replace(/^@\S+\s*/, '').slice(0, 220))}」`
                     + (m.files || []).filter(pics).map((f) => `<button type="button" class="sc-inbox-q-pic" data-url="${esc(f.url)}"><img src="${esc(f.url)}?w=320" alt="" loading="lazy"></button>`).join('')
                     + `<button type="button" class="sc-inbox-lesson-jump" data-id="${m.id}">Open</button></span>`).join('')}</span>`
-                    : `<span class="sc-inbox-lesson-src"><b>You said</b><span class="sc-inbox-lesson-said">The teammate did not name which of your messages this comes from.</span></span>`)
+                    : `<span class="sc-inbox-lesson-src"><b>You said</b><span class="sc-inbox-lesson-said">Not recorded for this one. Ask below and ${esc(window.scLabelOf && l.by ? window.scLabelOf(String(l.by).toLowerCase()) : 'the teammate')} will show you which of your messages it comes from.</span></span>`)
+                + `<span class="sc-inbox-lesson-ask"><input type="text" maxlength="300" placeholder="Ask about it, or say what is wrong with it…" aria-label="Ask about this rule">`
+                + `<button type="button" class="sc-inbox-lesson-where">Where is this from?</button><button type="button" class="sc-inbox-lesson-send" disabled>Send</button></span>`
                 + `<span class="sc-inbox-status todo">Keep = every teammate on this project gets this line with each task. Edit the wording first if it is off.</span></span>`
                 + `<span class="sc-inbox-lesson-btns"><button type="button" data-a="drop">Drop</button><button type="button" class="primary" data-a="keep">Keep</button></span>`;
+            // Talk about it before deciding: the question goes to whoever proposed it, in the project's channel.
+            const askIn = el.querySelector('.sc-inbox-lesson-ask input'), askBtn = el.querySelector('.sc-inbox-lesson-send');
+            const who = (String(l.by || '').toLowerCase().split('-')[0]) || 'pm';
+            const ask = (q) => {
+                if (!q || !window.ws || window.ws.readyState !== 1) { if (window.scToast) window.scToast('Not connected. Try again in a moment.'); return; }
+                window.ws.send(JSON.stringify({ type: 'message', sender: window.username, channel: ch, attachments: [],
+                    text: `@${who} 关于你提的这条偏好「${l.text}」：${q}（回答时列出它出自我哪几条消息的编号，带原话。）` }));
+                askIn.value = ''; askBtn.disabled = true;
+                if (window.scToast) window.scToast(`Asked in #${ch}. The answer comes back there and in Activity.`);
+            };
+            askIn.addEventListener('input', () => { askBtn.disabled = !askIn.value.trim(); });
+            askIn.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); ask(askIn.value.trim()); } });
+            askBtn.addEventListener('click', () => ask(askIn.value.trim()));
+            el.querySelector('.sc-inbox-lesson-where').addEventListener('click', () => ask('这条是从我哪几句话里归纳出来的？'));
             const ta = el.querySelector('textarea');
             const fit = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
             ta.addEventListener('input', fit); setTimeout(fit, 0);
