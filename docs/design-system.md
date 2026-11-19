@@ -1,163 +1,122 @@
-# Scranton design system (v2)
+# Scranton design system (v3)
 
-Code: `static/design-system.css` (tokens + components, loaded last). Icons: Remix Icon only, through `scIcon(name, size)` in `static/scranton-icons.js`. Never draw an icon by hand.
+Code: `static/design-system.css` (tokens and components, loaded last). Icons: Remix Icon only, through `scIcon(name, size)` in `static/scranton-icons.js`; never draw one by hand.
+
+v3 (2026-11-19) is the same system, reorganised. v2 had grown by one dated section per feature, so the rule for a button sat on line 37 and nine features later nobody read it: the Activity answer box shipped with its own font size, its own bordered field and its own outlined buttons. This version is ordered by what you are about to build.
+
+## Before you add anything to the interface
+
+Answer these with something that already exists. If none fits, extend the component here first, then use it.
+
+| You need | Use | Never |
+|---|---|---|
+| Text | 14 body · 13 secondary · 12 meta (`--ds-fs-md/sm/xs`), weight 400 / 500 / 600 | 16px on desktop, 700, a size of your own |
+| A button | `.sc-btn` (quiet) or `.sc-btn.primary` (one per group); `.sm` = 32px | an outlined button, a second primary |
+| A place to type | `.sc-typebox` (the composer) | a bordered `<input>` or `<textarea>`, a button that says "Send" |
+| A box around related things | a card: `--ds-raised`, `--ds-r-card`, no border | a 1px border, a shadow |
+| A count | a pill: `--ds-accent-fill`, white, `--ds-fs-xs` 600 | a number in a coloured circle of your own |
+| A choice between views | `.sc-tabs` pills, or `.sc-ov-tile` when each view has a number | underlined tabs, a `<select>` |
+| An icon | `scIcon('name')` from the set in `scranton-icons.js` | an emoji, an SVG you drew, an icon from another set |
+| A colour | a `--ds-*` token | a hex value in a component rule |
+
+Then: look at the result next to an existing screen at 1440 and 390 wide, in the dark and the light theme, before anyone else sees it. `python -m pytest tests/test_design_tokens.py` must pass.
 
 ## Principles
 
-1. **The page belongs to the conversation.** No top bar. Sidebar tools (hide sidebar, search) sit at the top of the sidebar. The channel or agent name floats top-left as a pill; clicking it opens the details panel on the right.
-2. **Separate by tone, not by lines.** Areas are told apart by different blacks. A line only appears where two areas of the same tone meet (details panel), and it uses the next tone up (`#1f1f1f`), so it reads as a seam.
-3. **Greys carry the hierarchy, one accent for action.** Darker = further back (sidebar), lighter = closer to you (your bubbles). Blue only for actions, unread and on-states.
+1. **The page belongs to the conversation.** No top bar. Sidebar tools sit at the top of the sidebar. The channel or agent name floats top-left as a pill; clicking it opens the details panel.
+2. **Separate by tone, not by lines.** Areas are told apart by different blacks. A line appears only where two areas of the same tone meet, in the next tone up, so it reads as a seam.
+3. **Greys carry the hierarchy, one accent for action.** Darker is further back (sidebar), lighter is closer (your bubbles). Blue only for actions, unread and on-states. Red only for a real failure or the last step of something that removes.
 4. **Soft corners, not round.** Controls 8, rows 10, cards and popovers 14, bubbles 18. Full pills only for tags, counts and the floating name pill.
-5. **Little text.** Labels say what a thing is in one or two words; hints only where a choice isn't obvious.
+5. **Little text.** A label says what a thing is in one or two words. A hint appears only where a choice is not obvious, and once per group, not once per item.
+6. **One thing per row of attention.** A card is a few rows read top to bottom: what it is, the content, the actions on one line. If it needs seven separate pieces it is two cards or it is too much.
 
-## Blacks (sampled from Grok Bot)
+## Tokens
 
-| Token | Value | Used for |
+| Token | Dark value | Used for |
 |---|---|---|
 | `--ds-canvas` | `#0e0e0e` | Sidebar |
-| `--ds-surface` | `#121212` | Conversation, details panel, settings |
-| `--ds-raised` / `--ds-field` | `#1f1f1f` | Composer, cards, grouped lists, inputs, seams |
+| `--ds-surface` | `#121212` | Conversation, details panel, settings, full pages |
+| `--ds-raised`, `--ds-field` | `#1f1f1f` | Cards, grouped lists, the type box, seams |
 | `--ds-selected` | `#202020` | Selected sidebar row |
 | `--ds-bubble` | `#212121` | Agent message bubbles |
-| `--ds-overlay` | `#2c2c2c` | Menus, popovers, floating pills, secondary buttons |
-| `--ds-accent-soft` | `#3c3c3c` | Your message bubbles (lightest grey) |
+| `--ds-overlay` | `#2c2c2c` | Menus, popovers, floating pills, quiet buttons |
+| `--ds-accent-soft` | accent at 16% | Your bubbles, on-state tint, the message you came for |
+| `--ds-hover` | white at 5% | Hover on rows and quiet controls |
+| `--ds-line`, `--ds-line-strong` | | Seams; the ring a type box gets on focus |
 
-Text: `#f5f5f5` primary, `#a7a7a7` secondary, `#8a8a8a` tertiary (timestamps, section labels; 5:1 on the surface, WCAG AA).
-Accent: `#4c8df6` (hover `#6aa1f8`) for links, icons and on-states. Filled buttons use `#2f6fde` (hover `#3b7ae8`) so white text passes AA. Status: online `#3fb950`, away `#e3b341`, danger `#f47067`.
-
-## Spacing, type, layout
-
-- Spacing: 4 · 8 · 12 · 16 · 24 · 32 · 48.
-- Type: 12 (meta) · 13 (secondary) · 14 (body, rows) · 15 (titles in pills) · 20 (panel titles). Weight 400 / 500 / 600 only.
-- Sidebar 256 px, details panel 340 px, conversation column max 820 px, centred.
-- Only floating layers (menus, popovers, dialogs) get a shadow: `0 12px 32px rgba(0,0,0,.45)`.
+- Text: `--ds-text` `#f5f5f5`, `--ds-text-2` `#a7a7a7`, `--ds-text-3` `#8a8a8a` (timestamps, section labels; 5:1 on the surface).
+- Accent: `--ds-accent` `#4c8df6` for links, icons and on-states; `--ds-accent-fill` `#2f6fde` under white text (passes AA). `--ds-danger` `#f47067`. Status: online `#3fb950`, away `#e3b341`.
+- Type: `--ds-fs-xs` 12 · `sm` 13 · `md` 14 · `lg` 15 (titles in pills) · `xl` 20 (page and panel titles). On phones every field is 16px so iOS does not zoom; that is the only 16.
+- Spacing: 4 · 8 · 12 · 16 · 24 · 32 · 48. Radius: `--ds-r-control` 8 · `--ds-r-row` 10 · `--ds-r-card` 14 · `--ds-r-pill`.
+- Layout: sidebar 256, details panel 340, reading column `--ds-read-w` (820) centred. Pages that read like documents (Activity, Report) use that same column.
+- Shadow only on floating layers (menus, popovers, dialogs): `0 12px 32px rgba(0,0,0,.45)`.
+- There is no `--ds-border`. A token that is not defined in `design-system.css` draws nothing; the test catches it.
 
 ## Components
 
-- **Buttons:** secondary = `--ds-overlay` fill, no border; primary = accent fill. Height 32–36, radius 8. Icon buttons 36×36, transparent until hover.
-- **Rows** (sidebar, menus, lists): min 32–36 px high, radius 10, hover `rgba(255,255,255,.05)`, selected `--ds-selected`.
-- **Menus:** flat list; a row with a value and › opens a submenu to the right (Status, Support).
-- **Composer:** `--ds-field`, radius 14, no border until focus (hairline). + and ↵ are plain icon buttons; ↵ turns blue when there is something to send. Up to 3 quick @ chips: the people you @ most here, then overall.
-- **@ list:** 300 px popover above the composer, search hint on top, people you @ most first.
-- **Bubbles:** agents `#212121`, you `#3c3c3c`; no borders. Thread replies ("N replies") sit under the bubble, outside it. "X is working…" is the last item in the conversation.
-- **Date divider:** calendar icon + "Today", no rules.
-- **Details panel:** big avatar, name, status, Start/Restart + Settings, tabs Activity / Terminal. For channels: members and Add people.
+**Button** `.sc-btn`. Quiet: `--ds-overlay` fill, no border. `.primary`: accent fill, one per group, on the right. `.sm`: 32px high, 13px, weight 500. `.danger` only on the step that removes something, and that step asks for a second click. Buttons that sit together are the same height.
 
-## Rules added after the v2.1 review
+**Icon button.** 32 or 36px square, transparent until hover (`--ds-hover`), a `data-tip` and an `aria-label`.
 
-- People are always circles; only app logos are squares.
-- Offline is shown by the status dot only; avatars keep their colour.
-- No row band on hover: the floating toolbar is the signal.
-- Popovers start at the edge of what opened them (the @ list at the composer's left edge).
-- Pages that read like documents (Activity, Report) use the same centred 820px column.
-- Tabs are pills (`--ds-overlay` when selected), never underlines.
-- Neutral states (not signed in, not installed) are grey; red is only for real failures.
-- Search opens centred, without key hints.
+**Type box** `.sc-typebox`. Wherever the owner types more than a name: `--ds-field`, radius 14, no border until focus (then a `--ds-line-strong` ring), 14px text, one line high and growing to 160px. An Enter icon at the right, grey when empty and accent when there is something to send. Enter sends, Shift+Enter is a new line. Used by: the message composer, the thread reply, answering a board row in Activity, asking about a rule. (`.sc-field` is taken: it is the labelled form field in Settings.)
 
-## Terminal (live xterm view, 11-11)
+**Text edited in place.** The text looks like text; hover gives it the `--ds-hover` fill, focus an accent ring, and a pencil icon button at its right says it can be changed. Used by the rule line and by rename.
 
-- Background `#f5f5f5` light / `#161616` dark, radius `--ds-r-card`, 8 px inner padding on `.xterm`, never on the box (the fit addon would cut the last row).
-- Selection is the accent at reading strength: light `rgba(47,111,222,.32)`, dark `rgba(76,141,246,.5)`; it stays (a bit lighter) when focus leaves, so you can still see what you copied.
-- A plain left drag always selects text, even when the agent or tmux has turned on mouse reporting. The wheel still scrolls the agent. ⌘C copies.
-- No tmux status bar in Scranton (the tab already says who it is); the green bar was tmux's default, not ours.
-- The note above the terminal says what you can do in one line: "Live. Click inside to type. Drag to select, ⌘C to copy."
+**Card.** `--ds-raised`, `--ds-r-card`, padding 12–16, no border. Rows inside it read top to bottom: a 12px kicker saying what it is, the content, then the actions on one line with links at the left and buttons at the right.
 
-## Inline create / rename in the sidebar (11-11)
+**Row** (sidebar, menus, lists). 32–36px high, radius 10, hover `--ds-hover`, selected `--ds-selected`. No band on hover in the conversation: the floating toolbar is the signal there.
 
-- The row turns into the field in place: same 32 px height, padding and `#` as a channel row, `--ds-field` fill with a 1 px accent ring, check and × as 28 px plain icon buttons.
-- The channel being renamed is hidden behind it and stays hidden through re-renders (rows are `display:flex !important`, so hide with `setProperty('display','none','important')`).
+**Tile** `.sc-ov-tile`. A number over a two-word label; pressing it filters the list under it and pressing again clears. 等你 / Needs your answer is blue, 卡住 / Stuck is red, the rest neutral. Used on the board overview and at the top of Activity.
 
-## Page head (component, 11-11)
+**Pill.** Counts and tags: `--ds-r-pill`, 12px 600. A count that means "yours to act on" is `--ds-accent-fill` with white text, in every row state.
 
-Full-page views (Activity, Report, and any new one) use `.sc-page-head`, never their own header:
-- 24 px icon box (`.sc-page-ic`, the same icon as the sidebar row), title `h1` at `--ds-fs-xl` / 28 px line / 600, actions (tabs) on the right, close `.sc-page-x` (36 px round icon button) last.
-- Same column as the conversation: `max-width: --ds-read-w`, `--ds-5` sides, 14 px top. Switching Activity ↔ Report must not move the title (checked: both at x 392 / y 18 at 1440 wide).
-- Period / filter switches are `.sc-tabs` + `.sc-tab`, the same component as Activity's tabs.
-- Use a `div`, not `header`: the legacy app styles header elements globally.
+**Tabs** `.sc-tabs` + `.sc-tab`. Pills, `--ds-overlay` when selected. Never underlines.
 
-Side panels (thread, channel overview): the title starts at the content edge (32 px in), same as the cards below.
+**Menu.** A flat list in a `--ds-overlay` popover that starts at the edge of what opened it. A row with a value and › opens a submenu to the right.
 
-## Tokens only (11-11 sweep)
+**Bubbles.** Agents `--ds-bubble`, you `--ds-accent-soft`; no borders. "N replies" sits under the bubble. "X is working…" is the last item in the conversation. Date divider: calendar icon and "Today", no rules.
 
-In `design-system.css`, font sizes and radii use tokens: 12/13/14/15/20 px → `--ds-fs-xs/sm/md/lg/xl`; off-scale 10, 11 → xs, 12.5 → sm. Radii 7/8 → `--ds-r-control`, 10 → `--ds-r-row`, 14 → `--ds-r-card`, 999 → `--ds-r-pill`. Left as they are on purpose: 50% (circles), 16 px on phone selects (stops iOS zooming).
-Known debt: about 580 `!important` in design-system.css, from layering over the legacy styles; new rules should win by being in the right component, not by `!important`.
+**People and apps.** People are circles, app logos are squares. Offline is shown by the status dot only; avatars keep their colour. Neutral states (not signed in, not installed) are grey.
 
-## Pasted text chip (11-17)
+**Page head** `.sc-page-head`. Every full page (Activity, Report): 24px icon box, `h1` at `--ds-fs-xl` / 600, actions at the right, a 36px round close button last, in the reading column. Switching pages must not move the title. Use a `div`, not `header` (the legacy styles catch `header`).
 
-Pasting 1200+ characters or 16+ lines into the message box (channel or thread) does not fill the box: the text is uploaded as `Pasted - <first line>.md` and shown as a chip in the attachment row.
+**Details panel.** Big avatar, name, status, Start/Restart and Settings, tabs Activity / Terminal. For channels: members and Add people. Side panels start their title at the content edge (32px in).
 
-- Chip: 200 × 132, `--ds-overlay` background, 1px `--ds-line`, `--ds-r-card`, padding 12. Up to 4 lines of the text in `--ds-fs-sm` / `--ds-text-2`.
-- Foot: a `PASTED` tag (`--ds-r-pill`, 1px `--ds-line-strong`, `--ds-fs-xs`, 600) on the left; a 28px pencil button (Remix `edit`) on the right that puts the text back into the box and removes the chip.
-- Remove (×) sits top right, shown on hover like every other attachment.
-- Shorter pastes are untouched. In a sent message it is a normal file attachment.
+**Inline create / rename in the sidebar.** The row turns into the field in place: same 32px height, padding and `#`, `--ds-field` fill with a 1px accent ring, check and × as 28px icon buttons.
 
-## Picture viewer zoom (11-18)
+**Pasted text chip.** A paste of 1200+ characters or 16+ lines becomes a chip in the attachment row instead of filling the box: 200 × 132, `--ds-overlay`, up to 4 lines of the text in 13px, a `PASTED` tag and a pencil button that puts the text back.
 
-In the full-screen picture viewer: pinch or scroll zooms at the pointer (100%–800%), drag moves a zoomed picture, double-click toggles fit and 250%, keys `+` `-` `0`. A pill at the bottom centre (above the counter) has three 32px buttons: Remix `subtract`, the current percentage (click = fit), Remix `add`. The pill is always dark (it sits on the black backdrop in both themes): `rgba(20,20,22,.78)`, 1px white 14% border, `--ds-r-pill`, white icons. Zoom resets with every picture. Clicking the backdrop while zoomed returns to fit; a second click closes.
+**Picture viewer.** Pinch or scroll zooms at the pointer (100–800%), drag moves, double-click toggles fit and 250%, keys `+` `-` `0`. A dark pill at the bottom centre: `subtract`, the percentage (click = fit), `add`.
 
-## Waiting for your answer (11-18)
+**Terminal.** Background `#f5f5f5` light / `#161616` dark, `--ds-r-card`, 8px padding on `.xterm` (not on the box). A left drag always selects, ⌘C copies. One line above it says what you can do.
 
-The asks put to the owner (a question or a card that @s her, a PR to merge), shown where she already is instead of only in Activity.
+## Screens
 
-- **Sidebar pill**: on a channel row, right-aligned, 18px high, `--ds-accent-fill` with white `--ds-fs-xs` 600 text: how many asks wait in that channel (`9+` above nine). It is not the unread dot: unread says "new messages", the pill says "yours to answer".
-- **Strip**: pinned to the top of the channel's message list: a `--ds-raised` card, 1px `--ds-line`, `--ds-r-card`. A 40px head (count pill, "Waiting for your answer", a Remix `chevron-down` that collapses it; the choice is remembered) and up to six rows, newest first: who, the first line, the time, and a 28px Remix `check` button = "seen, nothing more from me" (adds her 👍 and takes it off). A row opens the message. With nothing waiting the strip is not drawn.
-- Her reaction on a message counts as seen everywhere: Activity, the strip, the pill, and the board row that points at it.
+**Sidebar.** A channel row shows one number, and only when something there is the owner's to act on (`.sc-need-pill`): questions and finished work addressed to her. How much the team said among themselves is not shown. Direct messages keep their unread count. Closed projects are one quiet line under the channel list, "Closed projects · N", each with Reopen.
 
-## Activity: two lists (11-18)
+**Activity.** Only what needs her. From the top:
+1. Tiles: "Needs your answer", "Stuck", and "Rules to confirm" when there are any.
+2. One row per project (`.sc-inbox-proj`: chevron, name, count pills). Six items or fewer: every project starts open. Under it, the questions put to her and the board rows that wait for her.
+3. A board row opens in place: the teammate's own message with its pictures (click to enlarge), the row's link, and a type box to answer. The answer goes to the project's channel as "@teammate 行 N：…" and the row leaves 等你.
+4. "Rules to confirm": its own section with two sentences saying what it is, then one card per rule (`.sc-lesson`): project, the rule (edit in place), "You said" with her own words and pictures (each opens the message), then "Ask about it" at the left and Drop / Keep at the right. A rule without her words beside it is never shown.
+5. Stuck: teammates that stopped, board rows in 卡住, and rows with no update for four hours. Older than a day: behind one line.
+6. One folded line: "Everything else that mentions you · N".
 
-Activity has no tabs and no filters. It shows, in this order:
+**Coming from Activity into a channel.** The message she came for keeps a 2px accent frame, `--ds-accent-soft` fill and an "Asked here" pill, in the channel and in the thread panel, until she answers, reacts, presses Esc, or 45 seconds pass. Only that message is marked.
 
-1. **Waiting for your answer**: questions put to Lu, plus board rows in 等你, grouped by project (`.sc-inbox-ch`).
-2. **Stuck**: teammates that stopped, plus board rows in 卡住 from the last day. Older ones sit behind "Stuck for over a day · N".
-3. One folded line, "Everything else that mentions you · N" (`.sc-inbox-rest`).
+**Channel.** At the top, when something waits for her: a `--ds-raised` strip, "Waiting for your answer", up to six rows, each with a check button meaning "seen, nothing more from me". Her reaction on a message counts as seen everywhere.
 
-Board rows come from `GET /api/scranton/attention` (all projects that are not paused). A row uses the same `.sc-inbox-item` as a message; its ✓ takes it off the list. Clicking any item opens its channel at that message with the reply box ready. The sidebar count is the sum of lists 1 and 2.
+**Channel overview.** "Who's on what": tiles per state (等你, 卡住, 在做, 在 PR, 等 QA, 排队, 以后做), then rows by teammate. 以后做 is work put aside on purpose and is never counted as stuck. Next to the title: Pause project, Close project. "Your preferences for this project · N" opens the kept rules (Remove), the proposed ones (Drop / Keep) and a field to add one. Closing a project shows one card with three numbered steps that tick themselves, then the buttons; the last one is `.danger` and needs two clicks.
 
-### Activity summary (11-18)
+**Preview.** On a device other than the Scranton computer, a localhost link or a path in a message opens in a new tab through `/preview/…`. No element of its own.
 
-The two lists are shown per project. On top one line of totals (`.sc-inbox-sum`), then one row per project (`.sc-inbox-proj`: chevron, name, "N waiting for you" pill in accent-soft, "N stuck" pill). Click a row to open or close it. With 6 items or fewer every project starts open; above that all start closed. Open or closed is kept while the page is open.
+## Checks
 
-### Message you came for (`.sc-target`, 11-18)
+- `tests/test_design_tokens.py` runs with the test suite: every `var(--ds-…)` used without a fallback is defined; no raw pixel font size, no weight outside 400 / 500 / 600 and no outlined button is added beyond what is already there (the counts may only go down).
+- `tools/ds-check.mjs` measures a deck or page in a browser and holds every slide to the project's `design-system/tokens.json` (fonts, type sizes, weights, title size and position). It does not read Scranton's own screens; those are checked by eye against this page.
+- What no check sees: whether it looks good. Take the screenshot and look.
 
-Coming from Activity, the asked message gets a 2px accent frame, accent-soft fill and an "Asked here" pill at its top right, in the channel and in the thread panel. It stays until you answer, react, press Esc, or 45 s pass. Only the asked message is marked, never the thread's first message.
+## Known debt
 
-### Board row answered in Activity (11-18)
-
-A board row (`.sc-inbox-row`) does not navigate. Click it: it opens in place with the file path, a text box and two buttons, "Open #channel" (secondary, left) and "Send" (primary, right). Send posts "@teammate 行 N：answer" to the project's channel; the server moves the row back to 在做. Enter sends, Shift+Enter is a new line. The time shown is how long the row has been waiting (`since`), not when it was last nudged.
-
-## Close project (11-19)
-
-In a project channel's overview, next to Pause: "Close project". It opens a card (`.sc-close`) with three numbered steps (hand-over note, old files to set aside, chat) that tick themselves as the project manager finishes, and the buttons: "Keep the project open" (left), "Close, leave files", and the red primary, which must be clicked twice. Files are moved to the archive's `_to_delete`, never deleted. Closed projects sit under the channel list as one quiet line, "Closed projects · N" (`.sc-closed`), each with Reopen.
-
-## Activity tiles and the question (11-19)
-
-Activity opens with two tiles in the board's style (`.sc-inbox-tiles`, reusing `.sc-ov-tile`): "Needs your answer" (blue) and "Stuck" (red). Pressing one opens every project and shows only that kind; pressing it again returns to the list by project. A board row opened in Activity shows the teammate's own message with its pictures (`.sc-inbox-q`) above the answer box; pictures open in the viewer; the row's link is clickable.
-
-## Preview (11-19)
-
-On a device other than the Scranton computer, a localhost link or a path in a message opens in a new tab through `/preview/…` (sandboxed). No new visual element.
-
-## Channel counts (11-19)
-
-A channel row shows one number, and only when something there needs Lu: questions and finished work addressed to her (`.sc-need-pill`, white on accent in every state). The plain unread count is hidden in the channel list. Direct messages keep their unread count.
-
-## ds-check (11-19)
-
-`tools/ds-check.mjs` measures a deck or page in a browser. `init` writes `design-system/tokens.json` (fonts, type sizes, weights, title size and position that most slides share) and a readable `design-system.md` with every odd one out; `check` lists each difference by slide and saves pictures with the wrong elements outlined in red. Visual QA runs it before looking; builders run it before handing over.
-
-## Preferences for a project (11-19)
-
-Lu's kept preferences live per project. In Activity a proposed one is an item under "Needs your answer" (`.sc-inbox-lesson`: sparkling icon, the line, "Keep it as a rule for this project?", Drop and Keep). In the channel overview, "Your preferences for this project · N" (`.sc-lessons`) opens the list: proposed ones on top in bold with Drop / Keep, kept ones numbered with Remove, and one field to add her own.
-
-### Proposed rule card (`.sc-lesson`, 11-19, replaces `.sc-inbox-lesson`)
-
-One card, three rows. Kicker (xs, text-3, sparkling icon): "Rule for <project>, from your corrections". The rule: 16px semibold, editable in place (no border until hover or focus) with a pencil button at the right. Her own words it came from: quiet lines in 「」, each opens the message; pictures as thumbnails. Foot: text links "Ask about it" (opens one input) and, when no source is recorded, "Where is it from?"; at the right Drop (outline) and Keep (primary, tooltip says what keeping does). No avatar, no per-card explanation line.
-
-## One field, one button (11-19 sweep)
-
-Everything added to Activity and the channel overview uses the existing components, nothing of its own:
-
-- **A place to type** is `.sc-typebox`: the composer (`--ds-field`, radius 14, no border until focus, body 14px, Enter icon at the right that is grey when empty and accent when there is something to send). Used for answering a board row, asking about a rule, adding a preference. On phones the text is 16px so iOS does not zoom.
-- **A button** is `.sc-btn` (overlay fill, no border) or `.sc-btn.primary` (accent); `.sm` is the 32px size. The only other colour is `.danger` on the last step of closing a project. No outlined buttons.
-- **A card** is `--ds-raised` with radius `--ds-r-card` and no border.
-- Text is 14 (body), 13 (secondary), 12 (meta); weight 400, 500 or 600.
+- About 600 `!important` in `design-system.css`, from layering over the legacy styles. New rules should win by being the right component, not by `!important`.
+- Class names from features that were restyled still exist in the markup (`.sc-inbox-item`, `.sc-inbox-row`). Do not copy their one-off rules; use the components above.

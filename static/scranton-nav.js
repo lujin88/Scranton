@@ -674,8 +674,7 @@
             // the team wrote down from her corrections (Lu, 11-19: "需不需要一个 category？… 和上面的区别是什么？").
             if (rules.length && (!actKind || actKind === 'rules')) {
                 list.insertAdjacentHTML('beforeend', `<div class="sc-rules-head"><h4>Rules to confirm · ${rules.length}</h4>`
-                    + `<p>Not questions. These are things you had to correct, written down as one line each so you don't have to say them twice. `
-                    + `Under each line are your own words it comes from. Keep it and the team follows it on that project from now on; drop it and nothing changes.</p></div>`);
+                    + `<p>Not questions: things you corrected, written as one line each so you don't say them twice. Keep one and the team follows it on that project from now on; drop it and nothing changes.</p></div>`);
                 rules.forEach((x) => addLesson(x.l, x.ch));
             }
         }
