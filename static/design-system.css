@@ -1881,3 +1881,8 @@ body.sc-report-open #scroll-anchor { display: none !important; }
    current row in the light theme the row's own text colour won, and the number went dark). */
 .channel-sidebar-row .sc-need-pill, .channel-sidebar-row.active .sc-need-pill, .channel-sidebar-row:hover .sc-need-pill,
 .channel-sidebar-row .channel-sidebar-row-unread, .channel-sidebar-row.active .channel-sidebar-row-unread, .channel-sidebar-row:hover .channel-sidebar-row-unread { color: #fff !important; -webkit-text-fill-color: #fff; }
+
+/* Channel rows count only what needs you (11-19: "没有 tag 我也会显示这个数字… 跟我无关的话，不是增加
+   我的 cognitive load 嘛"). How much the team said among themselves is not shown; the blue number
+   is questions and finished work addressed to you. Direct messages keep their count: those are to you. */
+#channel-sidebar-list .channel-sidebar-row-unread { display: none !important; }

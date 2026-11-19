@@ -136,3 +136,11 @@ Activity opens with two tiles in the board's style (`.sc-inbox-tiles`, reusing `
 ## Preview (11-19)
 
 On a device other than the Scranton computer, a localhost link or a path in a message opens in a new tab through `/preview/…` (sandboxed). No new visual element.
+
+## Channel counts (11-19)
+
+A channel row shows one number, and only when something there needs Lu: questions and finished work addressed to her (`.sc-need-pill`, white on accent in every state). The plain unread count is hidden in the channel list. Direct messages keep their unread count.
+
+## ds-check (11-19)
+
+`tools/ds-check.mjs` measures a deck or page in a browser. `init` writes `design-system/tokens.json` (fonts, type sizes, weights, title size and position that most slides share) and a readable `design-system.md` with every odd one out; `check` lists each difference by slide and saves pictures with the wrong elements outlined in red. Visual QA runs it before looking; builders run it before handing over.
