@@ -398,7 +398,10 @@ def _install_security_middleware(token: str, cfg: dict):
             if host not in allowed_hosts:
                 return JSONResponse({"error": f"forbidden: unknown host {host!r}. To open Scranton from this address, add https://{host} to [server] allowed_origins in config.local.toml and restart."}, status_code=403)
             origin = request.headers.get("origin")
-            if origin and origin not in allowed_origins:
+            # A previewed page is sandboxed, so its own requests arrive with "Origin: null"; the
+            # preview route checks the secret key in the path instead (scranton_preview.py).
+            is_preview = path.startswith("/preview/") and request.method in ("GET", "HEAD")
+            if origin and origin not in allowed_origins and not is_preview:
                 return JSONResponse({"error": "forbidden: origin not allowed"}, status_code=403)
             # Only Lu's own Tailscale login may come in through Tailscale Serve, when set.
             owner_login = str(cfg.get("server", {}).get("owner_login", "") or "").strip().lower()
@@ -406,6 +409,9 @@ def _install_security_middleware(token: str, cfg: dict):
                 proxied = any(h in request.headers for h in ("x-forwarded-for", "forwarded", "x-real-ip", "tailscale-user-login"))
                 if proxied and request.headers.get("tailscale-user-login", "").strip().lower() != owner_login:
                     return JSONResponse({"error": "forbidden: this Scranton belongs to someone else on the tailnet"}, status_code=403)
+
+            if is_preview:
+                return await call_next(request)
 
             # Static assets, index page, and uploaded images are public.
             # The index page injects the token client-side via same-origin script.
@@ -5533,6 +5539,122 @@ async def scranton_board_get(channel: str = "general"):
     rows = mcp_bridge.board_view(channel)
     return JSONResponse({"rows": rows, "summary": scranton_board.summary(rows) if rows else "",
                          "states": scranton_board.STATE_ZH, "paused": channel in _paused_channels()})
+
+
+def _preview_key(scope: str) -> str:
+    import scranton_preview
+    return scranton_preview.key_for((config or {}).get("server", {}).get("data_dir", "./data"), scope)
+
+
+@app.get("/api/scranton/preview")
+async def scranton_preview_info():
+    """What previews may open, so the page can tell before asking."""
+    import scranton_preview
+    spec = (config or {}).get("preview", {}).get("ports", scranton_preview.DEFAULT_PORTS)
+    return JSONResponse({"ports": [list(r) for r in scranton_preview._ranges(spec)],
+                         "own_ports": sorted(scranton_preview.own_ports(config or {})),
+                         "roots": [str(r) for r in scranton_preview.roots(config or {})]})
+
+
+@app.get("/api/scranton/preview-open")
+async def scranton_preview_open(port: int = 0, path: str = "", file: str = ""):
+    """The signed-in page comes here (session token checked like every /api route) and is sent on
+    to the keyed preview address."""
+    import scranton_preview
+    from urllib.parse import quote
+    if file:
+        target, why = scranton_preview.file_target(config or {}, file)
+        if target is None:
+            return _preview_refused(why)
+        root = scranton_preview.root_of(config or {}, target)
+        loc = scranton_preview.url_for_file(_preview_key(f"f:{root}"), target)
+    else:
+        if not scranton_preview.port_ok(config or {}, port):
+            return _preview_refused(f"port {port} is not one previews may open (see [preview] ports in config.local.toml).", 403)
+        rest = path if path.startswith("/") else "/" + path
+        if rest.startswith("//"):
+            rest = "/" + rest.lstrip("/")
+        loc = f"/preview/{_preview_key(f'p:{port}')}/p/{port}" + quote(rest, safe="/?&=#%:@+,;~!$'()*-._")
+    return Response(status_code=302, headers={"Location": loc, "Referrer-Policy": "no-referrer", "Cache-Control": "no-store"})
+
+
+def _preview_refused(why: str, code: int = 404):
+    import html as _html, scranton_preview
+    return Response(f"<!doctype html><meta charset=utf-8><body style='font:15px system-ui;margin:32px;background:#111;color:#eee'>"
+                    f"<p>This can't be previewed: {_html.escape(why)}</p>", status_code=code,
+                    media_type="text/html", headers=scranton_preview.HEADERS)
+
+
+@app.api_route("/preview/{key}/f/{path:path}", methods=["GET", "HEAD"])
+async def scranton_preview_file(key: str, path: str):
+    import secrets as _secrets, mimetypes, scranton_preview
+    target, why = scranton_preview.file_target(config or {}, path)
+    root = scranton_preview.root_of(config or {}, target) if target is not None else None
+    if root is None or not _secrets.compare_digest(key, _preview_key(f"f:{root}")):
+        # one answer for "wrong key" and "no such file", so a guess learns nothing
+        return _preview_refused(why or "this preview address is not valid. Open it again from Scranton.", 404)
+    if target.is_dir():
+        index = target / "index.html"
+        if not index.is_file():
+            return Response(scranton_preview.listing(key, target), media_type="text/html", headers=scranton_preview.HEADERS)
+        if not path.endswith("/"):   # so the page's relative links resolve inside the folder
+            return Response(status_code=307, headers={**scranton_preview.HEADERS, "Location": scranton_preview.url_for_file(key, target) + "/"})
+        target = index
+    suffix = target.suffix.lower()
+    if suffix in scranton_preview.TEXT_AS_PLAIN:
+        media = "text/plain; charset=utf-8"
+    else:
+        media = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+        if media.startswith("text/") or media in ("application/javascript", "application/json"):
+            media += "; charset=utf-8"
+    return FileResponse(target, media_type=media, headers=scranton_preview.HEADERS)
+
+
+_PREVIEW_PASS = ("accept", "accept-language", "range", "if-none-match", "if-modified-since", "user-agent")
+_PREVIEW_DROP = ("content-length", "content-encoding", "transfer-encoding", "connection", "keep-alive", "set-cookie",
+                 "content-security-policy", "content-security-policy-report-only", "x-frame-options", "strict-transport-security",
+                 "access-control-allow-origin", "access-control-allow-credentials", "referrer-policy", "cache-control",
+                 "x-content-type-options", "cross-origin-resource-policy", "location", "date", "server")
+
+
+@app.api_route("/preview/{key}/p/{port}/{path:path}", methods=["GET", "HEAD"])
+async def scranton_preview_port(key: str, port: int, path: str, request: Request):
+    """A page on this machine's localhost, read-only. Only GET and HEAD go through, without the
+    visitor's cookies, and only to 127.0.0.1 on a port previews may use."""
+    import secrets as _secrets, httpx, scranton_preview
+    if not _secrets.compare_digest(key, _preview_key(f"p:{port}")):
+        return _preview_refused("this preview address is not valid. Open it again from Scranton.", 403)
+    if not scranton_preview.port_ok(config or {}, port):
+        return _preview_refused(f"port {port} is not one previews may open (see [preview] ports in config.local.toml).", 403)
+    prefix = f"/preview/{key}/p/{port}"
+    url = f"http://127.0.0.1:{port}/{path}" + (f"?{request.url.query}" if request.url.query else "")
+    heads = {k: v for k, v in request.headers.items() if k.lower() in _PREVIEW_PASS}
+    heads["accept-encoding"] = "identity"
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=4.0), follow_redirects=False) as client:
+            r = await client.request(request.method, url, headers=heads)
+    except httpx.ConnectError:
+        return _preview_refused(f"nothing is running on port {port} of the Scranton computer right now. Ask the teammate who sent the link to start it again.", 502)
+    except httpx.HTTPError as e:
+        return _preview_refused(f"the page on port {port} did not answer ({type(e).__name__}).", 502)
+    out = {k: v for k, v in r.headers.items() if k.lower() not in _PREVIEW_DROP}
+    out.update(scranton_preview.HEADERS)
+    loc = r.headers.get("location", "")
+    if loc:
+        m = _re.match(rf"^https?://(?:localhost|127\.0\.0\.1):{port}(/.*)?$", loc)
+        if m:
+            loc = prefix + (m.group(1) or "/")
+        elif loc.startswith("/") and not loc.startswith("//"):
+            loc = prefix + loc
+        elif _re.match(r"^[a-z][a-z0-9+.-]*:", loc, _re.I):
+            return _preview_refused("the page sent you to another site; previews stay on the Scranton computer.", 502)
+        out["Location"] = loc
+    ctype = r.headers.get("content-type", "")
+    body = r.content
+    if any(t in ctype.lower() for t in ("html", "css", "javascript")):
+        body = scranton_preview.rewrite(body, ctype, prefix)
+    return Response(content=b"" if request.method == "HEAD" else body, status_code=r.status_code, headers=out,
+                    media_type=ctype or None)
 
 
 @app.get("/api/scranton/attention")
