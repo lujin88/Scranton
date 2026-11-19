@@ -105,7 +105,7 @@ async function measure(slideSel) {
                 const fam = cs.fontFamily.split(',')[0].trim().replace(/^["']|["']$/g, '');
                 if (/remixicon|icon|symbols/i.test(fam)) continue;
                 texts.push({ tag: el.tagName.toLowerCase(), cls: typeof el.className === 'string' ? el.className.trim().split(/\s+/).filter(Boolean) : [],
-                    text: el.textContent.trim().replace(/\s+/g, ' ').slice(0, 40), font: fam, size: Math.round(parseFloat(cs.fontSize) * 10) / 10,
+                    text: (el.innerText || el.textContent).trim().replace(/\s+/g, ' ').slice(0, 40), font: fam, size: Math.round(parseFloat(cs.fontSize) * 10) / 10,
                     weight: Number(cs.fontWeight) || 400, color: cs.color, left: Math.round((r.left - ox) / kk), top: Math.round((r.top - oy) / kk),
                     idx: texts.length });
                 el.setAttribute('data-ds-i', `${i}-${texts.length - 1}`);
