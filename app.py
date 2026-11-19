@@ -772,6 +772,13 @@ def configure(cfg: dict, session_token: str = ""):
                         # next morning is noise. Skip it; it runs again at its next time.
                         schedules.mark_run(s["id"])
                         continue
+                    # Lu, 11-17: a project she is not working on today gets no plan, summary or night
+                    # list (the backup still runs). Same test as every other reminder.
+                    seeded_ids = room_settings.get("seeded_schedule_ids") or {}
+                    planning = {seeded_ids.get(k) for k in ("daily-plan", "daily-summary", "night-queue")}
+                    if s.get("id") in planning and _quiet_channel(channel):
+                        schedules.mark_run(s["id"])
+                        continue
                     if s.get("daily_at") and late > 600:
                         full_text += f" (missed {s.get('daily_at')}, running now)"
                     # Mark it run first: a crash right after posting must not post it twice.

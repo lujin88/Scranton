@@ -398,3 +398,7 @@ design = "Rework cap: when the same deliverable fails review three times in a ro
 # [preview]
 # roots = ["~/Desktop/Presentation"]        # more folders whose files may be previewed
 # ports = ["3000-3999", "4000-4999", "5173-5179", "8000-8099", "8080-8089"]
+
+[preview]
+# Folders outside the teammates' own that Lu's team hands things over in (11-19).
+roots = ["~/Desktop/Presentation", "~/.buzz/OUTBOX", "~/contour-slide-evidence"]

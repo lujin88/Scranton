@@ -227,7 +227,8 @@ def chat_send(
     ctx: Context | None = None,
 ) -> str:
     """Send a message to the agentchattr chat. Use your name as sender (claude/codex/user).
-    Optionally attach a local image by providing image_path (absolute path).
+    Optionally attach a local image by providing image_path (absolute path). For several pictures
+    (before and after, three options side by side) put one path per line, up to 6.
     Optionally reply to a message by providing reply_to (message ID).
     Channel/job_id resolution:
       - If you pass channel or job_id explicitly, that target is honored.
@@ -350,22 +351,25 @@ def chat_send(
         import shutil
         import uuid
         from pathlib import Path
-        src = Path(image_path)
-        if not src.exists():
-            return f"Image not found: {image_path}"
-        if src.suffix.lower() not in ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'):
-            return f"Unsupported image type: {src.suffix}"
-        
-        # Get upload dir from config (fall back to ./uploads)
+        # Several pictures in one message (Lu, 11-18): one path per line. Up to 6, checked before
+        # any is copied, so a wrong path sends nothing instead of half the set.
+        paths = [p.strip() for p in str(image_path).splitlines() if p.strip()][:6]
+        for one in paths:
+            src = Path(os.path.expanduser(one))
+            if not src.exists():
+                return f"Image not found: {one}"
+            if src.suffix.lower() not in ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'):
+                return f"Unsupported image type: {src.suffix}"
         raw_dir = "./uploads"
         if config and "images" in config:
             raw_dir = config["images"].get("upload_dir", raw_dir)
         upload_dir = Path(raw_dir)
-        
         upload_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"{uuid.uuid4().hex[:8]}{src.suffix}"
-        shutil.copy2(str(src), str(upload_dir / filename))
-        attachments.append({"name": src.name, "url": f"/uploads/{filename}"})
+        for one in paths:
+            src = Path(os.path.expanduser(one))
+            filename = f"{uuid.uuid4().hex[:8]}{src.suffix}"
+            shutil.copy2(str(src), str(upload_dir / filename))
+            attachments.append({"name": src.name, "url": f"/uploads/{filename}"})
 
     reply_id = reply_to if reply_to >= 0 else None
     if reply_id is not None and store.get_by_id(reply_id) is None:
