@@ -5360,7 +5360,7 @@ async def scranton_said_verdict(request: Request):
         who = _re.sub(r"-\d+$", "", who.lower()) or "pm"
         quotes = "\n".join(f"· #{it['id']}「{_sc_said_mod.body_of(it['text'])[:160]}」" + (f"（第 {it['rounds'] + 1} 次）" if it.get("rounds", 0) > 1 else "") for it in items)
         store.add("Scranton", f"@{who} Lu 看了 #{result_id}，说不对" + (f"：{note}" if note else "。") +
-                  f"\n她的原话：\n{quotes}\n照原话改；改完再交一次，带改前｜改后的图，并写上这几个编号。", channel=ch,
+                  f"\n她的原话：\n{quotes}\n照原话改；同一个项目里同类的地方（别的页、别的同类组件）有一样的问题就一起改，并列出改了哪几处。改完再交一次，带改前｜改后的图，并写上这几个编号。", channel=ch,
                   reply_to=result_id if store.get_by_id(result_id) else None)
     return JSONResponse({"ok": True, "done": done})
 
