@@ -3337,6 +3337,39 @@ async def scranton_handover():
     return JSONResponse(_handover_settings())
 
 
+def _sc_decisions(channel: str, days: int = 14, limit: int = 40) -> list[dict]:
+    """What Lu decided in a project: her answers to cards with options, oldest first, read straight
+    from the chat so nothing has to be kept in step. One answer per card (her latest); a later
+    line overrides an earlier one about the same thing.
+    11-20: at 18:08 she had asked for the Team setup labels to move; the next morning "不是说文字
+    不要动吗" and the project manager answered "你说得对，是我们做错了" and had it undone. Nobody
+    could look up what she had last decided: it was somewhere in 600 messages."""
+    owner = str(room_settings.get("username") or "Lu").lower()
+    cut = time.time() - days * 86400
+    with store._lock:
+        msgs = [m for m in store._messages if m.get("channel") == channel and float(m.get("timestamp") or 0) > cut]
+    by_id = {m["id"]: m for m in msgs if isinstance(m.get("id"), int)}
+    out: dict[int, dict] = {}
+    for m in msgs:
+        if str(m.get("sender") or "").lower() != owner or not isinstance(m.get("reply_to"), int):
+            continue
+        card = by_id.get(m["reply_to"]) or store.get_by_id(m["reply_to"])
+        if not _is_card(card):
+            continue
+        said = " ".join(_re.sub(r"(?m)^>.*$", "", str(m.get("text") or "")).split())
+        said = _re.sub(r"^(?:@[\w-]+\s*)+", "", said)
+        asked = " ".join(_re.sub(r"^\s*(?:@[\w-]+[\s,，、]*)+", "", str(card.get("text") or "")).split())
+        if said:
+            out[card["id"]] = {"at": m.get("timestamp"), "time": time.strftime("%m-%d %H:%M", time.localtime(float(m.get("timestamp") or 0))),
+                               "msg": m["id"], "card": card["id"], "by": card.get("sender"), "asked": asked[:160], "decided": said[:220]}
+    return sorted(out.values(), key=lambda d: float(d["at"] or 0))[-limit:]
+
+
+@app.get("/api/scranton/decisions")
+async def scranton_decisions(channel: str = "general", days: int = 14):
+    return JSONResponse({"channel": channel, "decisions": await asyncio.to_thread(_sc_decisions, channel, max(1, min(days, 60)))})
+
+
 def _sc_recap(name: str) -> str:
     """What a teammate needs at the start of a session, taken from the record, not from its own
     note. 11-19: in seven hours the visual designer and the visual checker said ten times "当前
@@ -3348,6 +3381,7 @@ def _sc_recap(name: str) -> str:
     owner = str(room_settings.get("username") or "Lu")
     import mcp_bridge
     out = []
+    mine = []
     board = mcp_bridge.BOARD
     if board is not None:
         with board.lock:
@@ -3378,7 +3412,12 @@ def _sc_recap(name: str) -> str:
         if ok:
             out.append(f"{owner} said these are right. Do not change them unless she asks: " + " ; ".join(
                 f"result #{v['done_msg']} in #{v['ch']} for「{_sc_said_mod.body_of(v['text'])[:60]}」" for v in ok[-6:]))
-    return " || ".join(out)[:4200]
+    for ch in list(dict.fromkeys(c for c, _ in (mine if board is not None else [])))[:2]:
+        d = _sc_decisions(ch, 7, 8)
+        if d:
+            out.append(f"{owner} decided in #{ch} (oldest first; a later line overrides an earlier one; do not undo any of these because of an "
+                       f"older message): " + " ; ".join(f"{x['time']} #{x['msg']}「{x['decided'][:90]}」(asked: {x['asked'][:60]})" for x in d))
+    return " || ".join(out)[:5600]
 
 
 @app.get("/api/scranton/recap/{name}")

@@ -173,3 +173,23 @@ def test_two_things_in_one_message_to_her_get_a_hint(monkeypatch):
     assert "one reply box" in mcp_bridge._two_asks_hint(two)
     assert mcp_bridge._two_asks_hint("@Lu 行 146：Marco 的视频往右移了，图左改前右改后。") == ""
     assert mcp_bridge._two_asks_hint("@dev 1. 先修边距？ 2. 再修翻页？") == ""       # not to her
+
+
+def test_her_answers_to_cards_are_the_decisions(monkeypatch):
+    import threading, time, app
+    now = time.time()
+    msgs = [
+        {"id": 1, "sender": "pm", "channel": "p", "timestamp": now - 500, "type": "decision", "text": "@Lu Team setup 标签要不要跟着动？", "metadata": {"choices": ["A 跟着动", "B 不动"]}},
+        {"id": 2, "sender": "Lu", "channel": "p", "timestamp": now - 400, "reply_to": 1, "text": "@pm A：跟着动"},
+        {"id": 3, "sender": "Lu", "channel": "p", "timestamp": now - 300, "reply_to": 1, "text": "> 项目经理: …\n@pm B：不动，只有圆圈漂"},
+        {"id": 4, "sender": "Lu", "channel": "p", "timestamp": now - 200, "text": "@pm 响应式做完了吗"},
+        {"id": 5, "sender": "Lu", "channel": "q", "timestamp": now - 100, "reply_to": 1, "text": "@pm A"},
+    ]
+
+    class S:
+        _lock = threading.Lock(); _messages = msgs
+        def get_by_id(self, i): return next((m for m in msgs if m["id"] == i), None)
+    monkeypatch.setattr(app, "store", S())
+    monkeypatch.setattr(app, "room_settings", {**app.room_settings, "username": "Lu"})
+    d = app._sc_decisions("p")
+    assert len(d) == 1 and d[0]["msg"] == 3 and d[0]["decided"] == "B：不动，只有圆圈漂" and d[0]["asked"].startswith("Team setup")

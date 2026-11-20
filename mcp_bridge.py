@@ -1334,6 +1334,10 @@ def chat_said(sender: str, action: str = "open", channel: str = "", q: str = "",
               or change a page, and paste her lines and picture paths into the assignment.
       open  — what she said here that nobody has taken yet.
       skip  — these `ids` won't be done; `note` says why (she can see it).
+      decided — what she decided in this channel (her answers to cards with options), oldest first.
+              Read it BEFORE you change or undo something she has an opinion on, and before you tell her
+              "you are right, we did it wrong": if what she says now goes against a line here, show her
+              that line (its # number and her words) and ask which one stands. Do not just switch.
       shown — your message `msg` (it carries the picture) is the result for these `ids`; she then
               checks it against her own words. Only needed when that message did not cite them.
     You take one by putting its number (#15247) in the message where you assign or do it, or by
@@ -1356,12 +1360,17 @@ def chat_said(sender: str, action: str = "open", channel: str = "", q: str = "",
         if not ids or not str(note or "").strip():
             return "Error: skip needs ids and a note saying why."
         return json.dumps({"skipped": SAID.skip(ids, sender, note)})
+    if action == "decided":
+        import app as _app_mod
+        return json.dumps({"channel": channel, "decided": _app_mod._sc_decisions(channel or "general", 30, 60),
+                           "note": "Her answers to cards, oldest first. A later line overrides an earlier one about the same thing."},
+                          ensure_ascii=False)
     if action == "shown":
         m = store.get_by_id(int(msg or 0)) if msg else None
         if not ids or not m or not m.get("attachments") or m.get("sender") != sender:
             return "Error: shown needs ids (her message numbers) and msg = the id of YOUR message that carries the picture."
         return json.dumps({"to_check": SAID.mark_done(ids, m["id"], sender)})
-    return "Error: action must be find, open, skip or shown."
+    return "Error: action must be find, open, skip, decided or shown."
 
 
 TEAM_MOVE = None   # set by run.py: app.sc_lead_move
