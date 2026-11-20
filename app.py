@@ -3969,6 +3969,8 @@ async def scranton_teammate_update(name: str, request: Request):
             res = await asyncio.to_thread(_scranton_ops.ensure_running, [name], config)
             if name in res.get("failed", {}):
                 return JSONResponse({"ok": False, "error": res["failed"][name]})
+            if action == "restart":
+                asyncio.get_running_loop().create_task(_sc_resume_soon(name))
         if action not in ("start", "stop", "restart"):
             return JSONResponse({"ok": False, "error": "unknown action"}, status_code=400)
         return JSONResponse({"ok": True})
@@ -4876,8 +4878,48 @@ def _sc_mark_fresh(name: str) -> None:
     _save_settings()
 
 
+RESUME_AFTER = 40     # seconds for a restarted teammate to come up before it is handed its work back
+
+
+def _sc_resume_text(name: str) -> tuple[str, str, int | None] | None:
+    """What a restarted teammate goes back to: the row it had in 在做 (newest first; then one with a
+    promised time). None when it holds nothing, so an idle teammate is not woken for nothing."""
+    import mcp_bridge, scranton_board
+    board = mcp_bridge.BOARD
+    if board is None:
+        return None
+    with board.lock:
+        mine = [(ch, dict(r)) for ch, rows in board.data.items() if not _quiet_channel(ch) for r in rows
+                if str(r.get("who") or "").lower() == name and r.get("state") in ("doing", "todo")]
+    doing = sorted([x for x in mine if x[1]["state"] == "doing"], key=lambda x: -float(x[1].get("at") or 0))
+    promised = sorted([x for x in mine if x[1]["state"] == "todo" and scranton_board.due_ts(x[1])], key=lambda x: scranton_board.due_ts(x[1]))
+    pick = (doing or promised)[:1]
+    if not pick:
+        return None
+    ch, r = pick[0]
+    rest = [f"行 {x[1].get('id')}" + (f"（#{x[0]}）" if x[0] != ch else "") for x in (doing + promised) if x[1] is not r][:4]
+    return (ch, f"@{name} 你刚被重启，手上的活没有丢：接着做行 {r.get('id')}「{str(r.get('ask') or '')[:50]}」"
+                + (f"（交 {r.get('due')}）" if r.get("due") else "")
+                + "。先看这条消息开头 Scranton 给你的记录和你工作目录里没提交的改动，从停下的地方继续，不要从头重做；已经做完就把看板改掉。"
+                + (f"之后是 {'、'.join(rest)}。" if rest else ""),
+            r.get("msg") if isinstance(r.get("msg"), int) else None)
+
+
+async def _sc_resume_soon(name: str) -> None:
+    """Lu, 11-20: "重启以后自动 resume task". A restart used to leave the teammate empty at its
+    prompt until someone @-ed it; at night nobody did."""
+    await asyncio.sleep(RESUME_AFTER)
+    try:
+        got = _sc_resume_text(name)
+        if got:
+            store.add("Scranton", got[1], channel=got[0], reply_to=got[2])
+    except Exception:
+        _log_rate_limited("resume after restart failed")
+
+
 async def _sc_restart_quiet(name: str) -> None:
     _sc_mark_fresh(name)
+    asyncio.get_running_loop().create_task(_sc_resume_soon(name))
     await asyncio.to_thread(_sc_team.stop, name, config, _scranton_ops.RUN_DIR)
     _scranton_ops._starting.pop(name, None)
     import mcp_bridge

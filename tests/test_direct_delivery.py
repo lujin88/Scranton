@@ -141,3 +141,16 @@ def test_a_promised_time_on_the_board_is_a_real_time(tmp_path):
     assert B.due_ts(b.upsert("p", "pm", ask="没有钟点", who="dev", due="今晚")) == 0
     again = b.upsert("p", "pm", id=r["id"], note="在做", now=at + 7200)                          # touching the row keeps the promise
     assert B.due_ts(again) == B.due_ts(r)
+
+
+def test_a_restarted_teammate_is_handed_its_row_back(tmp_path, monkeypatch):
+    import app, mcp_bridge, scranton_board as B
+    b = B.Board(tmp_path / "board.json")
+    monkeypatch.setattr(mcp_bridge, "BOARD", b)
+    monkeypatch.setattr(app, "_quiet_channel", lambda ch: ch == "paused")
+    b.upsert("p", "pm", ask="响应式：所有页铺满", who="dev", state="doing", due="18:00")
+    b.upsert("p", "pm", ask="Trading menu 重排", who="dev", state="todo", due="09:00")
+    b.upsert("paused", "pm", ask="别的项目", who="dev", state="doing")
+    ch, text, _ = app._sc_resume_text("dev")
+    assert ch == "p" and "接着做行 1「响应式：所有页铺满」" in text and "行 2" in text and "别的项目" not in text
+    assert app._sc_resume_text("copy") is None            # holds nothing: not woken
