@@ -5737,6 +5737,44 @@ def _sc_idle_pokes(board, now: float) -> list[tuple[str, str, int | None, str]]:
     return out
 
 
+def _sc_due_pokes(board, now: float) -> list[tuple[str, str, int | None, str]]:
+    """A row's promised time has passed and whoever holds it sits at its prompt: wake it. 11-20
+    night: the developer finished one row at 03:12 and stopped; the next one, promised for 03:00,
+    was not started until 07:05, when something unrelated woke it. Nothing watched a promised
+    time on the board, and the notes that do go to the project manager are held from 23:00 to
+    07:00. Runs at night too: a time the team gave Lu is the one thing worth a wake-up.
+    At most twice per promised time, 30 minutes apart."""
+    import mcp_bridge, scranton_board
+    out = []
+    with board.lock:
+        for ch, rows in board.data.items():
+            if _quiet_channel(ch):
+                continue
+            for r in rows:
+                h = str(r.get("who") or "")
+                if r.get("state") not in ("todo", "doing") or h not in (config or {}).get("agents", {}):
+                    continue
+                t = scranton_board.due_ts(r)
+                if not t or not (600 <= now - t <= 8 * 3600):
+                    continue
+                names = [n for n in list(mcp_bridge._presence) if n.split("-")[0] == h]
+                if not names or any(mcp_bridge._activity.get(n) for n in names):
+                    continue
+                if not any(now - mcp_bridge._presence.get(n, 0) < 90 for n in names):
+                    continue
+                quiet = min((_sc_idle_since.get(n, now) for n in names), default=now)
+                if now - quiet < 600 or int(r.get("due_pokes") or 0) >= 2 or now - float(r.get("due_poked") or 0) < 1800:
+                    continue
+                r["due_poked"] = now
+                r["due_pokes"] = int(r.get("due_pokes") or 0) + 1
+                out.append((ch, h, r.get("msg") if isinstance(r.get("msg"), int) else None,
+                            f"@{h} 行 {r.get('id')}「{str(r.get('ask', ''))[:50]}」说好交 {r.get('due')}，已经过了 {int((now - t) // 60)} 分钟，"
+                            f"你现在停着。现在接着做这一行，做完照常交；做不了就一句话说卡在哪。"))
+        if out:
+            board._save()
+    return out
+
+
 CHECK_WAIT_MIN = 30      # a row that waits this long for a check wakes the checker
 _CHECKERS = ("visualqa", "qa", "legal")
 
@@ -5791,7 +5829,8 @@ async def _sc_board_tick() -> None:
     import mcp_bridge, scranton_board
     if mcp_bridge.BOARD is None:
         return
-    for ch, h, reply_to, text in _sc_idle_pokes(mcp_bridge.BOARD, time.time()) + _sc_check_pokes(mcp_bridge.BOARD, time.time()):
+    for ch, h, reply_to, text in (_sc_idle_pokes(mcp_bridge.BOARD, time.time()) + _sc_check_pokes(mcp_bridge.BOARD, time.time())
+                                  + _sc_due_pokes(mcp_bridge.BOARD, time.time())):
         store.add("Scranton", text, channel=ch, reply_to=reply_to)
     for ch, text in _sc_lessons_tick():
         store.add("Scranton", text, channel=ch)

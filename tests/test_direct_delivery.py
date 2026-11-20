@@ -128,3 +128,16 @@ def test_pm_does_not_retell_what_she_told_a_teammate_herself(monkeypatch):
     assert app.sc_retold("pm", "@visual #20387 先做这个，22:40 前") == ""          # order and time only
     assert app.sc_retold("pm", "@dev Lu #20300：第三页翻到才加载导致空白，改回一次加载全部，交改前改后图给我，我转 Lu，22:20 前") == ""   # she told the PM, not dev
     assert app.sc_retold("visual", long) == ""
+
+
+def test_a_promised_time_on_the_board_is_a_real_time(tmp_path):
+    import time, scranton_board as B
+    b = B.Board(tmp_path / "board.json")
+    at = time.mktime((2026, 11, 20, 0, 51, 0, 0, 0, -1))
+    r = b.upsert("p", "pm", ask="Team setup 重排", who="dev", due="03:00", now=at)
+    assert time.strftime("%m-%d %H:%M", time.localtime(B.due_ts(r))) == "11-20 03:00"
+    late = b.upsert("p", "pm", ask="明天的事", who="dev", due="交 10:00", now=time.mktime((2026, 11, 20, 14, 0, 0, 0, 0, -1)))
+    assert time.strftime("%m-%d %H:%M", time.localtime(B.due_ts(late))) == "11-21 10:00"     # 10:00 already gone: tomorrow's
+    assert B.due_ts(b.upsert("p", "pm", ask="没有钟点", who="dev", due="今晚")) == 0
+    again = b.upsert("p", "pm", id=r["id"], note="在做", now=at + 7200)                          # touching the row keeps the promise
+    assert B.due_ts(again) == B.due_ts(r)

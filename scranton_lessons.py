@@ -170,7 +170,9 @@ class Lessons:
 
 def request_text(ch: str, items: list[dict], kept: list[dict], handle: str) -> str:
     """Asks a teammate to turn a day's corrections into at most 3 short preferences."""
-    said = "\n".join(f"· #{it['id']} {str(it.get('text') or '')[:180]}" for it in items[-25:])
+    # Her words are quoted, so their @names must not wake anyone (11-20 07:03: this note woke the
+    # visual designer, the visual checker, motion and the developer, who each replied "not for me").
+    said = "\n".join(f"· #{it['id']} {re.sub(r'@(?=[A-Za-z])', '', str(it.get('text') or ''))[:180]}" for it in items[-25:])
     have = "\n".join(f"· {x['text']}" for x in kept) or "（还没有）"
     return (f"@{handle} 学习任务，只做这一件，不要改任何文件。下面是 Lu 昨天在这个项目里纠正团队的原话。"
             f"把其中会再次发生的归纳成最多 3 条「偏好」：每条一句话、规则本身 30 字以内、写成做事的人能直接照做的样子"

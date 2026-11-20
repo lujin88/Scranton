@@ -64,6 +64,9 @@ class Board:
                 row = {"id": max([int(r.get("id") or 0) for r in rows] + [0]) + 1, "ask": "", "state": "todo",
                        "who": "", "due": "", "link": "", "note": "", "since": now}
                 rows.append(row)
+            if due and str(due).strip()[:200] != row.get("due"):
+                row["due_at"] = now          # when this time was promised, so "past it" can be told
+                row["due_pokes"] = 0
             for k, v in (("ask", ask), ("state", state), ("who", who), ("due", due), ("link", link), ("note", note)):
                 if v:
                     row[k] = str(v).strip()[:200 if k != "ask" else 120]
@@ -189,3 +192,16 @@ PARKED_RE = re.compile(r"暂停|面试后|以后再|先不做|先放|不做[；;
 def is_parked(row: dict) -> bool:
     """A 卡住 row whose own note says it was put aside or waits for other work."""
     return row.get("state") == "blocked" and bool(PARKED_RE.search(str(row.get("note") or "")))
+
+
+def due_ts(row: dict) -> float:
+    """The moment a row's 交 HH:MM falls on: the first HH:MM after the time was set. 0 when the
+    row has no clock time or it is not known when it was set."""
+    import re
+    m = re.search(r"(?<!\d)([01]?\d|2[0-3])[:：]([0-5]\d)(?!\d)", str(row.get("due") or ""))
+    at = float(row.get("due_at") or 0)
+    if not m or not at:
+        return 0.0
+    lt = time.localtime(at)
+    t = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, int(m.group(1)), int(m.group(2)), 0, 0, 0, -1))
+    return t if t >= at - 60 else t + 86400
