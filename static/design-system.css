@@ -2057,3 +2057,6 @@ body.sc-report-open #scroll-anchor { display: none !important; }
     body.sc-inbox-open #sc-banners:not(.in-sidebar), body.sc-report-open #sc-banners:not(.in-sidebar),
     body.sc-info-open #sc-banners:not(.in-sidebar) { display: none !important; }
 }
+
+/* One result for several things she said: each line of hers has its own pair of buttons. */
+.sc-check-each { display: flex; gap: 6px; margin: 6px 0 10px; }

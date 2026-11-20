@@ -1395,6 +1395,9 @@ _ROW_RE = _re.compile(r"(?:\brow|行)\s*#?\s*(\d{1,3})(?!\d)", _re.I)
 _ROW_LIST_RE = _re.compile(r"(?:\brow|行)\s*#?\s*(\d{1,3}(?:\s*[、,，/和&]\s*#?\d{1,3})*)(?!\d)", _re.I)
 
 
+_ACK_RE = _re.compile(r"^\W*(?:(?:row|行)\s*#?\d{1,3}\W*)?(?:（[^）]{0,20}）\W*)?(?:收到|已读|明白|了解|好的|noted|got it)", _re.I)
+
+
 def _row_ids(text: str) -> set[int]:
     """Row numbers a message names, also as a list: "行 61、48、67"."""
     return {int(n) for grp in _ROW_LIST_RE.findall(text or "") for n in _re.findall(r"\d{1,3}", grp)}
@@ -1437,7 +1440,13 @@ def _sc_board_follow(msg: dict, sender: str, text: str, channel: str, msg_type: 
             return
         if mcp_bridge.STILL_GOING_RE.search(text or ""):
             return   # a picture with "接着做，15:00 交" is progress: the row stays where it is
-        ids = _row_ids(text or "")
+        # Only the row the message opens with, and not an acknowledgement. 11-20: QA's "@Lu 行 146
+        # 收到：… @dev … 你手上的行 144 交完再做" put row 144 on her list with row 146's text and
+        # picture: every row number anywhere in the message was linked, and "收到" counted as work.
+        body = (text or "")[len(lead.group(0)):]
+        if _ACK_RE.match(body):
+            return
+        ids = _row_ids(_re.split(r"[：:。\n]", body, maxsplit=1)[0][:40])
         for r in board.rows(channel):
             if int(r.get("id") or 0) in ids and r.get("state") not in ("live", "waiting_lu"):
                 board.upsert(channel, "Scranton", id=r["id"], state="waiting_lu", msg=msg["id"],
@@ -5482,7 +5491,14 @@ def _sc_said_note(msg: dict, sender: str, text: str, channel: str, msg_type: str
             # 12 cards on her list were these).
             if (isinstance(msg.get("id"), int) and msg.get("attachments") and _is_delivery(msg)
                     and not mcp_bridge.STILL_GOING_RE.search(text or "") and _for_owner(text)):
-                said.mark_done(ids, msg["id"], sender)
+                # The instructions it opens with are the ones it answers; numbers further down are
+                # context. 11-20: "@Lu 找到了：你 #20282 发的…  #21436 已记下… #21433 按 A" became
+                # one card with three unrelated instructions and one pair of buttons.
+                _m = _LEAD_RE.match(text or "")
+                _body = (text or "")[len(_m.group(0)) if _m else 0:]
+                first = _sc_said_mod.cited_ids(_re.split(r"[。\n]", _body, maxsplit=1)[0][:80])
+                if not _ACK_RE.match(_body):
+                    said.mark_done([i for i in ids if i in first] or (ids if not first else []), msg["id"], sender)
 
 
 def _owner_told_directly(text: str) -> list[str]:
@@ -5583,7 +5599,13 @@ def _sc_checks() -> list[dict]:
                                                         "at": it.get("done_ts", 0), "asks": []})
         g["asks"].append({"id": it["id"], "text": str(it.get("text") or "")[:600], "rounds": int(it.get("rounds") or 0),
                           "files": (_msg_card(it["id"]) or {}).get("files", [])})
-    return sorted((g for g in by_result.values() if g["result"] and _for_owner(g["result"].get("text") or "")),
+    import mcp_bridge
+    on_board = set()
+    if mcp_bridge.BOARD is not None:
+        with mcp_bridge.BOARD.lock:
+            on_board = {int(r.get("msg") or 0) for rows in mcp_bridge.BOARD.data.values() for r in rows if r.get("state") == "waiting_lu"}
+    return sorted((g for g in by_result.values() if g["result"] and _for_owner(g["result"].get("text") or "")
+                   and int(g["result"].get("id") or 0) not in on_board),
                   key=lambda g: -float(g["at"] or 0))
 
 

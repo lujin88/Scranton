@@ -657,28 +657,41 @@
             el.innerHTML = `<div class="sc-check-cols">`
                 + `<div class="sc-check-said"><div class="sc-lesson-kicker">You said · ${esc(c.channel)}</div>`
                 + c.asks.map((a) => `<div class="sc-check-ask"><button type="button" class="sc-lesson-jump" data-id="${a.id}" data-tip="Open your message">「${esc(String(a.text).replace(/^@\S+\s*/, '').slice(0, 400))}」</button>`
-                    + (a.rounds ? `<span class="sc-check-round">sent back ${a.rounds === 1 ? 'once' : a.rounds + ' times'}</span>` : '') + picsOf(a.files) + `</div>`).join('')
+                    + (a.rounds ? `<span class="sc-check-round">sent back ${a.rounds === 1 ? 'once' : a.rounds + ' times'}</span>` : '') + picsOf(a.files)
+                    // Several things you said, one result: each gets its own answer (Lu, 11-20:
+                    // "有两段内容讲的是两件事情，但只给了一个回复框").
+                    + (c.asks.length > 1 ? `<span class="sc-check-each"><button type="button" class="sc-btn sm" data-one="no" data-id="${a.id}">Not right</button><button type="button" class="sc-btn sm" data-one="ok" data-id="${a.id}">Right</button></span>` : '')
+                    + `</div>`).join('')
                 + `</div>`
                 + `<div class="sc-check-made"><div class="sc-lesson-kicker">${esc(window.scLabelOf && who ? window.scLabelOf(who) : c.result.sender)} made</div>`
                 + `<div class="sc-inbox-q-text">${body}</div><div class="sc-inbox-q-pics">${picsOf(c.result.files)}</div></div></div>`
                 + `<div class="sc-typebox sc-check-why" hidden><textarea rows="1" maxlength="400" placeholder="What is not right…" aria-label="What is not right"></textarea>`
                 + `<button type="button" class="sc-typebox-send" disabled data-tip="Send back (Enter)" aria-label="Send back">${ic('enter', 18)}</button></div>`
                 + `<div class="sc-lesson-foot"><button type="button" class="sc-lesson-link" data-open="${c.result.id}">Open in #${esc(c.channel)}</button>`
-                + `<span class="sc-lesson-btns"><button type="button" class="sc-btn sm" data-v="no">Not right</button><button type="button" class="sc-btn sm primary" data-v="ok">Right</button></span></div>`;
+                + `<span class="sc-lesson-btns"><button type="button" class="sc-btn sm" data-v="no">${c.asks.length > 1 ? 'None right' : 'Not right'}</button><button type="button" class="sc-btn sm primary" data-v="ok">${c.asks.length > 1 ? 'All right' : 'Right'}</button></span></div>`;
+            let target = null;   // the one instruction being answered, or null for all of them
             const send = async (ok, note) => {
-                checkGone.add(c.result.id);
+                const ids = target ? [target] : c.asks.map((a) => a.id);
+                const whole = ids.length === c.asks.length;
+                if (whole) checkGone.add(c.result.id);
+                else c.asks = c.asks.filter((a) => a.id !== target);
                 renderInboxBadge(); renderInbox();
                 try {
                     await fetch('/api/scranton/said/verdict', { method: 'POST', headers: { 'X-Session-Token': window.SESSION_TOKEN, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ids: c.asks.map((a) => a.id), ok, note: note || '' }) });
-                } catch (_) { checkGone.delete(c.result.id); renderInbox(); if (window.scToast) window.scToast('Not saved. Try again in a moment.'); }
+                        body: JSON.stringify({ ids, ok, note: note || '' }) });
+                } catch (_) { checkGone.delete(c.result.id); if (window.scToast) window.scToast('Not saved. Try again in a moment.'); if (window.scLoadAttention) window.scLoadAttention(); }
             };
             const why = el.querySelector('.sc-check-why'), ta = why.querySelector('textarea'), go = why.querySelector('button');
             ta.addEventListener('input', () => { go.disabled = !ta.value.trim(); ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; });
             ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && ta.value.trim()) { e.preventDefault(); send(false, ta.value.trim()); } });
             go.addEventListener('click', () => send(false, ta.value.trim()));
-            el.querySelector('[data-v=ok]').addEventListener('click', () => send(true));
-            el.querySelector('[data-v=no]').addEventListener('click', () => { why.hidden = false; ta.focus(); });
+            el.querySelector('[data-v=ok]').addEventListener('click', () => { target = null; send(true); });
+            el.querySelector('[data-v=no]').addEventListener('click', () => { target = null; ta.placeholder = 'What is not right…'; why.hidden = false; ta.focus(); });
+            el.querySelectorAll('[data-one]').forEach((b) => b.addEventListener('click', () => {
+                target = Number(b.dataset.id);
+                if (b.dataset.one === 'ok') return send(true);
+                ta.placeholder = 'What is not right about this one…'; why.hidden = false; ta.focus();
+            }));
             el.querySelectorAll('.sc-inbox-q-pic').forEach((b) => b.addEventListener('click', () => { if (typeof openImageModal === 'function') openImageModal(b.dataset.url); }));
             const jump = (id) => { window.scCloseInbox(); if (window.channelList.includes(c.channel) && c.channel !== window.activeChannel && typeof switchChannel === 'function') switchChannel(c.channel); if (window.scFocusMessage) window.scFocusMessage({ id: Number(id), channel: c.channel }, {}); };
             el.querySelectorAll('.sc-lesson-jump').forEach((b) => b.addEventListener('click', () => jump(b.dataset.id)));

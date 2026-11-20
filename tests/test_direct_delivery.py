@@ -154,3 +154,13 @@ def test_a_restarted_teammate_is_handed_its_row_back(tmp_path, monkeypatch):
     ch, text, _ = app._sc_resume_text("dev")
     assert ch == "p" and "接着做行 1「响应式：所有页铺满」" in text and "行 2" in text and "别的项目" not in text
     assert app._sc_resume_text("copy") is None            # holds nothing: not woken
+
+
+def test_only_the_row_a_delivery_opens_with_and_not_an_acknowledgement():
+    import app
+    assert app._ACK_RE.match("行 146 收到：Marco 视频往右移，让男人整个露出来。")
+    assert app._ACK_RE.match("收到，接着做")
+    assert not app._ACK_RE.match("行 146（#21442）：Marco 的视频往右移了，男人整个在画面里")
+    body = "行 146（#21442）：Marco 的视频往右移了。另外行 144 的边距没动。"
+    import re
+    assert app._row_ids(re.split(r"[：:。\n]", body, maxsplit=1)[0][:40]) == {146}
