@@ -5992,6 +5992,8 @@ async def scranton_board_get(channel: str = "general"):
     if mcp_bridge.BOARD is None:
         return JSONResponse({"rows": [], "summary": ""})
     rows = mcp_bridge.board_view(channel)
+    moved = _row_moved(channel)
+    rows = [dict(r, moved=max(float(r.get("at") or 0), moved.get(int(r.get("id") or 0), 0.0))) for r in rows]
     return JSONResponse({"rows": rows, "summary": scranton_board.summary(rows) if rows else "",
                          "states": scranton_board.STATE_ZH, "paused": channel in _paused_channels(),
                          # minutes each teammate has been quiet, so "idle" is said only when it is true
@@ -6343,6 +6345,22 @@ def _row_question(r: dict) -> dict | None:
             "time": m.get("timestamp"), "files": files[:8]}
 
 
+def _row_moved(channel: str) -> dict[int, float]:
+    """When the team last spoke about each row in this channel (a message from a teammate that names
+    it: "行 54"). 11-20: row 54 was shown as "No update · 7 hours" on a day the developer handed
+    in a page of it every half hour; only the row's own note counted as an update."""
+    owner = str(room_settings.get("username") or "Lu").lower()
+    with store._lock:
+        msgs = [m for m in store._messages[-6000:] if m.get("channel") == channel]
+    out: dict[int, float] = {}
+    for m in msgs[-1500:]:
+        if str(m.get("sender") or "").lower() in (owner, "scranton", "system"):
+            continue
+        for i in _row_ids(str(m.get("text") or "")):
+            out[i] = max(out.get(i, 0.0), float(m.get("timestamp") or 0))
+    return out
+
+
 @app.get("/api/scranton/attention")
 async def scranton_attention():
     """Board rows that wait for Lu or are stuck, from every project that is not paused (Activity)."""
@@ -6353,9 +6371,11 @@ async def scranton_attention():
         for ch in _project_channels():
             if ch in paused:
                 continue
+            moved = _row_moved(ch)
             for r in mcp_bridge.board_view(ch):
                 # no change for 4 hours while it says someone is on it: that is stuck too, said or not
-                quiet = time.time() - float(r.get("at") or 0) > scranton_board.STALE_H * 3600
+                last = max(float(r.get("at") or 0), moved.get(int(r.get("id") or 0), 0.0))
+                quiet = time.time() - last > scranton_board.STALE_H * 3600
                 if r.get("yours"):
                     r = dict(r, state="waiting_lu", note=f"你说这件自己做 · {r.get('note', '')}".strip(" ·"))
                 elif r.get("state") in ("doing", "in_pr", "waiting_qa") and quiet:
@@ -6363,7 +6383,7 @@ async def scranton_attention():
                 if r.get("state") in ("waiting_lu", "blocked", "stalled"):
                     out.append({"channel": ch, "id": r.get("id"), "state": r.get("state"),
                                 "ask": r.get("ask", ""), "who": r.get("who", ""), "note": r.get("note", ""),
-                                "msg": r.get("msg") or 0, "at": r.get("updated") or r.get("at") or 0,
+                                "msg": r.get("msg") or 0, "at": last if r.get("state") == "stalled" else (r.get("updated") or r.get("at") or 0),
                                 "since": r.get("since") or r.get("at") or 0, "by": r.get("by", ""),
                                 "link": r.get("link", ""), "due": r.get("due", ""), "q": _row_question(r)})
     out.sort(key=lambda r: -float(r["at"] or 0))

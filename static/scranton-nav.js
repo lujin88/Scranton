@@ -556,6 +556,8 @@
                     + `<div class="sc-inbox-answer-foot">`
                     // one-click answers for the common cases, so finished work does not need typing
                     + (r.state === 'waiting_lu' ? `<button type="button" class="sc-btn sm" data-quick="可以，就这样。">Looks good</button><button type="button" class="sc-btn sm" data-quick="还不行，我在这个 channel 里说哪里要改。">Not yet</button>` : '')
+                    // a row nobody has touched for hours: one click asks whoever holds it
+                    + (r.state === 'stalled' ? `<button type="button" class="sc-btn sm" data-quick="还在做吗？一句话说做到哪、卡在哪。">Still on it?</button>` : '')
                     + `<button type="button" class="sc-btn sm sc-inbox-go">Open #${esc(r.channel)}</button></div></div>` : '');
             el.querySelector('.sc-read-toggle').addEventListener('click', (e) => {
                 e.stopPropagation(); e.preventDefault();
@@ -765,7 +767,7 @@
             const tiles = document.createElement('div');
             tiles.className = 'sc-ov-tiles sc-inbox-tiles';
             tiles.innerHTML = `<button type="button" class="sc-ov-tile${actKind === 'wait' ? ' on' : ''}" data-state="waiting_lu" data-kind="wait" aria-pressed="${actKind === 'wait'}"><b>${nWait}</b><span>Needs your answer</span></button>`
-                + `<button type="button" class="sc-ov-tile${actKind === 'stuck' ? ' on' : ''}" data-state="blocked" data-kind="stuck" aria-pressed="${actKind === 'stuck'}"><b>${nStuck}</b><span>Stuck</span></button>`
+                + `<button type="button" class="sc-ov-tile${actKind === 'stuck' ? ' on' : ''}" data-state="blocked" data-kind="stuck" aria-pressed="${actKind === 'stuck'}"><b>${nStuck}</b><span>Stuck or no update</span></button>`
                 + (checks.length ? `<button type="button" class="sc-ov-tile${actKind === 'check' ? ' on' : ''}" data-kind="check" aria-pressed="${actKind === 'check'}"><b>${checks.length}</b><span>Done, to check</span></button>` : '')
                 + (rules.length ? `<button type="button" class="sc-ov-tile${actKind === 'rules' ? ' on' : ''}" data-kind="rules" aria-pressed="${actKind === 'rules'}"><b>${rules.length}</b><span>Rules to confirm</span></button>` : '');
             tiles.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { actKind = actKind === b.dataset.kind ? '' : b.dataset.kind; renderInbox(); }));

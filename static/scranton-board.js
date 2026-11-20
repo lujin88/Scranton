@@ -158,10 +158,11 @@
         const free = people.filter((h) => !byWho[h] && st(h) === 'available');
         const off = people.filter((h) => !byWho[h] && st(h) !== 'working' && st(h) !== 'available');
         // Rows nobody touched for 4 h may be out of date (Lu, 11-12: most were 17–20 h old).
-        const staleH = (r) => { const h = Math.floor((Date.now() / 1000 - (r.at || 0)) / 3600); return h >= 4 ? h : 0; };
+        // the same test and the same words as Activity (Lu, 11-20: Activity said Stuck, this page said nothing she could match it to)
+        const staleH = (r) => { if (!['doing', 'in_pr', 'waiting_qa'].includes(r.state)) return 0; const h = Math.floor((Date.now() / 1000 - (r.moved || r.at || 0)) / 3600); return h >= 4 ? h : 0; };
         const askLi = (r) => `<li class="sc-board-row" data-state="${esc(r.state)}" data-row="${r.id}" tabindex="0" role="button" aria-label="Open the chat for ${esc(r.ask)}">
                 <span class="sc-board-chip">${esc((data.states || {})[r.state] || r.state)}</span>
-                <span class="sc-board-ask"><span class="sc-board-t">${esc(r.ask)}${r.not_asked ? '<small> · not sent to you yet</small>' : ''}${r.due ? `<small> · 交 ${esc(r.due)}</small>` : ''}${staleH(r) ? `<small class="sc-board-stale"> · ${staleH(r)} h 没更新</small>` : ''}</span>${r.note ? `<small class="sc-board-note" title="${esc(r.note)}">${esc(r.note)}</small>` : ''}${(r.check || []).length ? `<small class="sc-board-note sc-board-check" title="${esc(r.check.join('\n'))}">Right when: ${esc(r.check.join(' · '))}</small>` : ''}</span>
+                <span class="sc-board-ask"><span class="sc-board-t">${esc(r.ask)}${r.not_asked ? '<small> · not sent to you yet</small>' : ''}${r.due ? `<small> · 交 ${esc(r.due)}</small>` : ''}${staleH(r) ? `<small class="sc-board-stale"> · No update · ${staleH(r)} hours</small>` : ''}</span>${r.note ? `<small class="sc-board-note" title="${esc(r.note)}">${esc(r.note)}</small>` : ''}${(r.check || []).length ? `<small class="sc-board-note sc-board-check" title="${esc(r.check.join('\n'))}">Right when: ${esc(r.check.join(' · '))}</small>` : ''}</span>
                 ${r.link && /^https?:\/\//.test(r.link) ? `<a class="sc-board-link" href="${esc(r.link)}" target="_blank" rel="noopener" aria-label="Open link for ${esc(r.ask)}">Open</a>` : ''}
             </li>`;
         // "在做" on the board is what the PM wrote down; Working / Online is what the teammate is doing
