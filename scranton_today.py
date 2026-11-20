@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import re
+from difflib import SequenceMatcher
 import threading
 import time
 from pathlib import Path
@@ -24,6 +25,7 @@ _ALL_RE = re.compile(r"全部|所有|都做|\ball\b", re.I)
 _NONE_RE = re.compile(r"不做|都不|休息|安静|别提醒|不要提醒|停|\bnone\b", re.I)
 _ADD_RE = re.compile(r"加上|再加|也做|还做|\badd\b", re.I)
 MENTION_RE = re.compile(r"@scranton(?![\w-])", re.I)
+_QUESTION_RE = re.compile(r"[?？]|怎么|为什么|吗\s*$|呢\s*$")
 
 
 def day_of(now: float | None = None) -> str:
@@ -98,6 +100,9 @@ def parse(text: str, channels) -> tuple[str, list[str]]:
     advisory slides，然后来得及的话做 MAN screen" matched nothing). So compare without spaces and
     hyphens, then by the first words of the name when only one channel starts that way."""
     raw = MENTION_RE.sub(" ", str(text or "")).lower()
+    if _QUESTION_RE.search(raw):       # 11-20 "lu's portfolio 怎么没有呢…第三位的吗？" is a question, not a new list
+        return "", []
+    raw = re.sub(r"['’]s\b", "", raw)  # "lu's portfolio" is lu-portfolio
     t = _norm(raw)
     words = set(re.findall(r"[a-z0-9]+", raw))
     found = []
@@ -118,6 +123,15 @@ def parse(text: str, channels) -> tuple[str, list[str]]:
         if (len(toks) >= 2 and len(two) >= 6 and two in t and len(same_two) == 1) \
                 or (len(toks[0]) >= 3 and toks[0] in words and len(same_one) == 1):
             found.append(c)
+    if True:                           # also after exact hits: last resort: she says "lumi storytelling", the channel is lumin-sotry-telling
+        for c in channels:
+            n = _norm(c)
+            if c in found or len(n) < 12:
+                continue
+            for w in range(len(n) - 2, len(n) + 3):
+                if any(SequenceMatcher(None, n, t[i:i + w]).ratio() >= 0.88 for i in range(max(0, len(t) - w + 1))):
+                    found.append(c)
+                    break
     if found:
         return ("add" if _ADD_RE.search(raw) else "set"), [c for c in channels if c in found]
     if re.search(r"别的|其他|其它|剩下", raw):

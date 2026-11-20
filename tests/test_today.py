@@ -103,3 +103,11 @@ def test_until_she_answers_a_channel_she_is_working_in_counts(tmp_path, monkeypa
     assert app._quiet_channel("paused-one") is True       # paused wins
     app._sc_today().choose(["portfolio"])                 # once she answers, her answer decides
     assert app._quiet_channel("slides") is True and app._quiet_channel("portfolio") is False
+
+
+def test_lu_says_apostrophes_and_typo_names_and_questions_do_not_set():     # 11-20 #21794 / #21806
+    ch = ["lu-portfolio", "client-advisory-slid", "agent-monitor", "lumin-sotry-telling", "contour-slide", "contour"]
+    assert T.parse("顺序还是那个 client-advisory-slide，lu's portfolio，agent-monitor，最后是那个 lumi storytelling", ch) == \
+        ("set", ["lu-portfolio", "client-advisory-slid", "agent-monitor", "lumin-sotry-telling"])
+    assert T.parse("lu's portfolio 怎么没有呢…agent-monitor 不是第三位的吗？", ch) == ("", [])
+    assert T.parse("今天做 contour", ch) == ("set", ["contour"])
