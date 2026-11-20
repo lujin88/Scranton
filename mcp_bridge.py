@@ -412,7 +412,8 @@ def chat_send(
     _update_cursor(sender, [msg], channel)
     with _presence_lock:
         _presence[sender] = time.time()
-    return f"Sent (id={msg['id']})" + moved + _length_note(message, clean_choices) + _shown_hint(msg) + _direct_hint(sender, msg, clean_choices)
+    return (f"Sent (id={msg['id']})" + moved + _length_note(message, clean_choices) + _shown_hint(msg)
+            + _direct_hint(sender, msg, clean_choices) + _two_asks_hint(message))
 
 
 def _picture_check(sender: str, message: str, choices, image_path: str, channel: str):
@@ -1270,6 +1271,21 @@ def _one_at_a_time(channel: str, row_id, state: str, who: str) -> str:
     return (f"Error: {target} does one thing at a time and is already doing row {r.get('id')} in #{ch}（{str(r.get('ask') or '')[:40]}）. "
             f"Let that finish, or put it aside first (set it to todo or later, with why), then set this one to doing. "
             f"Until then this row stays todo.")
+
+
+def _two_asks_hint(message: str) -> str:
+    """One message to the owner that puts two or more separate things to her: she gets one reply box
+    for all of them (Lu, 11-20: "有两段内容讲的是两件事情，但只给了一个回复框")."""
+    text = message or ""
+    if not _re_mod.match(r"\s*(?:@[\w-]+[\s,，、]*)*@" + _re_mod.escape(_owner_name()) + r"(?![\w-])", text, _re_mod.I):
+        return ""
+    points = _re_mod.findall(r"(?m)^\s*(?:\d{1,2}[.、)）]|[①②③④⑤])\s*\S", text)
+    inline = _re_mod.findall(r"[①②③④⑤]|(?<![\d#])\b[1-5][.、)）]\s*(?=\S)", text)
+    asks = len(_re_mod.findall(r"[?？]|选一个|你定|你选|要不要|还是", text))
+    if max(len(points), len(inline)) < 2 or asks < 2:
+        return ""
+    return (f"\nThis puts several separate things to {_owner_name()} in one message; she has one reply box for all of it. "
+            f"Next time: one message (or one card with choices) per thing she has to answer, each with its own picture.")
 
 
 def _direct_hint(sender: str, msg: dict, choices) -> str:

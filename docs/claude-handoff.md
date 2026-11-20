@@ -36,6 +36,19 @@ Shipped today, none of it yet proven in real work:
 - Models: webdev on Claude Sonnet 5.5 (not moved back to Cursor automatically); interns on
   Gemini 4 Argon; Claude default Sonnet 5.5; Cursor default Auto.
 
+## Added on 2026-11-20
+
+- A promised time on a board row wakes whoever holds it once it has passed, at night too; a
+  restarted teammate is handed its row back after 40 s (seen working with dev at 10:12).
+- `asks_owner = [visual, dev, motion]`, `one_at_a_time = [visual, dev]`. In Lu's DM with the visual
+  designer the two work alone (her test of whether fewer hands gives better first drafts).
+- Activity: a delivery links only the row it opens with; an acknowledgement is not a delivery; a
+  result answers the instructions it opens with; several instructions get a pair of buttons each.
+- Numbers on 11-20, 07:00–16:40, two channels: project manager 183 messages, 60 of them to Lu;
+  Lu 125 messages; "no record of the last round" 3 times (10 the day before); right the first
+  time 6 of 27 (partly judged from keywords, so rough).
+- All teammates were restarted on the new wrapper by 10:15.
+
 ## Open
 
 1. After her presentation on 11-20: restart pm, dev, qa and the others so they get the recap and

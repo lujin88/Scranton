@@ -164,3 +164,12 @@ def test_only_the_row_a_delivery_opens_with_and_not_an_acknowledgement():
     body = "行 146（#21442）：Marco 的视频往右移了。另外行 144 的边距没动。"
     import re
     assert app._row_ids(re.split(r"[：:。\n]", body, maxsplit=1)[0][:40]) == {146}
+
+
+def test_two_things_in_one_message_to_her_get_a_hint(monkeypatch):
+    import mcp_bridge
+    monkeypatch.setattr(mcp_bridge, "_owner_name", lambda: "Lu")
+    two = "@Lu #20625–#20628：\n1. 静态图：第 14 页换成你批过的那张，可以吗？\n2. 叹气：这次先不重生成，还是现在重做？"
+    assert "one reply box" in mcp_bridge._two_asks_hint(two)
+    assert mcp_bridge._two_asks_hint("@Lu 行 146：Marco 的视频往右移了，图左改前右改后。") == ""
+    assert mcp_bridge._two_asks_hint("@dev 1. 先修边距？ 2. 再修翻页？") == ""       # not to her
