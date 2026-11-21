@@ -1174,6 +1174,16 @@ def main():
     extra = [*extra, *_subagent_args(agent_cfg, command),
              *(_CODEX_ARGS if _provider_from_command(command) == "codex" else [])]
     data_dir = ROOT / config.get("server", {}).get("data_dir", "./data")
+    # only the skills this teammate is allowed ([team.skills]); a failure here must not stop the launch
+    try:
+        import scranton_skills
+        _sk = scranton_skills.launch_args(config, agent, _provider_from_command(command), data_dir)
+        extra = [*extra, *_sk]
+        if scranton_skills.allowed(config, agent) is not None:
+            print(f"  Skills: {', '.join(scranton_skills.allowed(config, agent)) or 'none'}"
+                  + ("" if _sk else " (this app has no switch: by the brief only)"))
+    except Exception as exc:
+        print(f"  Warning: skill limit not applied ({exc})")
     _HANDOVER["command"] = command
     _HANDOVER["handoff_dir"] = data_dir / "handoffs"
     _HANDOVER["cwd"] = str((ROOT / cwd).expanduser().resolve()) if not str(cwd).startswith("~") else str(Path(cwd).expanduser().resolve())
@@ -1408,6 +1418,13 @@ def main():
         _extra = str(_parts.get(_k, "") or "").strip()
         if _extra:
             _team_brief = f"{_team_brief} {_extra}".strip()
+    try:
+        import scranton_skills as _sks
+        _line = _sks.brief_line(config, agent)
+        if _line:
+            _team_brief = f"{_team_brief} {_line}".strip()
+    except Exception:
+        pass
     _hc = str(config.get("team", {}).get("harness_core", "") or "").strip()
     _team_brief = _team_brief.replace("{harness_core}", os.path.expanduser(_hc) if _hc else "harness-core")
     _OWNER_DEFAULT[0] = str(config.get("team", {}).get("owner", "") or "the owner")

@@ -56,6 +56,28 @@ brief = "Address {owner} as {owner}. {owner} is not online all day, so nobody wa
 
 # Project folders and where to get them. If a teammate's folder is missing, Scranton
 # clones it once (with this Mac's own GitHub login) before starting them.
+# Which installed skills each teammate may see (Lu, 2026-11-21: ~50 third-party skills in
+# ~/.agents/skills were loading into every session). Everything not listed for a teammate is switched
+# off when Scranton launches it (Claude Code and Codex); for Cursor and Gemini only the sentence in
+# the brief applies. A teammate not listed here gets none. grill-me is Lu's own: nobody has it.
+[team.skills]
+limit = true
+updater = "harness"       # the only one who may run `npx skills update`, after Lu approves the summary
+dirs = ["~/.agents/skills", "~/.claude/skills", "~/.codex/skills"]
+
+[team.skills.allow]
+visual = ["impeccable", "unslop", "prototype"]
+visintern = ["impeccable", "unslop", "prototype"]
+visualqa = ["break-ui", "review-animations"]
+motion = ["animate", "choreograph", "animation-performance"]
+motionintern = ["animate", "choreograph", "animation-performance"]
+webdev = ["emil-design-eng", "mobile-native", "pick-ui-library"]
+dev = ["code-review", "tdd", "diagnosing-bugs"]
+qa = ["code-review", "diagnosing-bugs"]
+pm = ["handoff", "to-questionnaire"]
+harness = ["writing-for-agents", "retro", "learn-taste"]
+research = ["research"]
+
 [team.projects]
 "~/LuJin-Portfolio" = "https://github.com/lujin88/LuJin-Portfolio.git"
 "~/.buzz/REPOS/harness-core" = "https://github.com/lujin88/harness-core.git"
