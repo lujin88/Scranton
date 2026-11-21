@@ -63,3 +63,8 @@ Shipped today, none of it yet proven in real work:
    not confused with 视觉设计师 (needs Lu); a monthly read-only audit of the rules.
 6. Lu's side: mini prevent-sleep, Cursor app login, `gh auth login` for `lujinixdbot88`, delete
    `lu-migrate.tgz` on both machines after checking, Tailscale Serve if the ts.net address fails.
+
+## 11-21 skills
+- Skill limit by role is live (`[team.skills]` in config.toml, `scranton_skills.py`); all teammates restarted on it, pm and visual last (about 16:00).
+- Composer shows the skills of whoever the message @mentions (`static/scranton-skills.js`), commit 8018a51.
+- Open: plugin/account skills (figma, product-management, design, critique, pdf-viewer on Claude; figma, google-drive, documents, presentations, sites, spreadsheets on Codex) still load for everyone; waiting for Lu to say which role keeps which plugin. How to switch a plugin off per teammate is not verified yet.
