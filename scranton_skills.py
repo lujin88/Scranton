@@ -8,6 +8,8 @@ that is installed is switched off for that teammate when Scranton launches it:
 - Claude Code: a settings file passed with --settings: skillOverrides "off" (hidden from the model
   and from the / menu) plus a Skill(name) deny rule as a second guard.
 - Codex: -c skills.config=[{path=…, enabled=false}, …], nothing written to ~/.codex.
+- Plugins (Claude Code only): enabledPlugins false in the same settings file for every plugin the
+  teammate is not given in [team.skills.plugins]. Codex ignores per-session plugin switches.
 - Cursor, Gemini and others have no per-session switch: for them only the sentence in the brief.
 
 Allow-list semantics: a skill installed later is off for the team until someone lists it.
@@ -79,6 +81,31 @@ def claude_settings(allow: list[str], found: dict[str, list[str]], may_update: b
     return {"skillOverrides": {n: "off" for n in off}, "permissions": {"deny": deny}}
 
 
+def claude_plugins(home: str = "~/.claude") -> list[str]:
+    """Ids ("name@marketplace") of the Claude Code plugins on this Mac: installed ones plus any
+    the user's settings mention."""
+    ids: set[str] = set()
+    root = Path(os.path.expanduser(home))
+    for f, key in ((root / "plugins" / "installed_plugins.json", "plugins"), (root / "settings.json", "enabledPlugins")):
+        try:
+            got = json.loads(f.read_text("utf-8")).get(key) or {}
+        except (OSError, ValueError, AttributeError):
+            continue
+        if isinstance(got, dict):
+            ids.update(str(k) for k in got)
+    return sorted(i for i in ids if i.strip())
+
+
+def plugins_off(cfg: dict, agent: str, ids: list[str]) -> dict[str, bool]:
+    """Plugins bring their own skills, which skillOverrides does not reach. A teammate keeps only
+    the plugins [team.skills.plugins] gives it; with no such table plugins are left alone."""
+    table = settings(cfg).get("plugins")
+    if not isinstance(table, dict):
+        return {}
+    keep = {str(x).strip().lower() for x in (table.get(agent) or [])}
+    return {i: False for i in ids if i.split("@", 1)[0].lower() not in keep and i.lower() not in keep}
+
+
 def codex_args(allow: list[str], found: dict[str, list[str]]) -> list[str]:
     paths = sorted({p for ps in off_for(allow, found).values() for p in ps})
     if not paths:
@@ -96,7 +123,11 @@ def launch_args(cfg: dict, agent: str, provider: str, data_dir: Path) -> list[st
         d = Path(data_dir) / "provider-config"
         d.mkdir(parents=True, exist_ok=True)
         f = d / f"{agent}-skills.json"
-        f.write_text(json.dumps(claude_settings(allow, found, agent == str(s.get("updater") or "")), ensure_ascii=False, indent=1), "utf-8")
+        body = claude_settings(allow, found, agent == str(s.get("updater") or ""))
+        off = plugins_off(cfg, agent, claude_plugins())
+        if off:
+            body["enabledPlugins"] = off
+        f.write_text(json.dumps(body, ensure_ascii=False, indent=1), "utf-8")
         return ["--settings", str(f)]
     if provider == "codex":
         return codex_args(allow, found)
@@ -109,7 +140,8 @@ def brief_line(cfg: dict, agent: str) -> str:
         return ""
     s = settings(cfg)
     owner = str(((cfg or {}).get("team") or {}).get("owner") or "the owner")
-    use = ("Skills: use only " + ", ".join(allow) + "; ignore every other installed skill, even if you can see it."
+    use = ("Skills: yours are " + ", ".join(allow) + ". At the start of each task check whether one fits and use it without being asked; "
+           "name the skill you used in your hand-in. Ignore every other installed skill, even if you can see it."
            if allow else "Skills: you have none; ignore every installed skill, even if you can see it.")
     if agent == str(s.get("updater") or ""):
         upd = (f" Only you may run `npx skills update` (or add/remove), and only after {owner} approved your summary of what changes; "

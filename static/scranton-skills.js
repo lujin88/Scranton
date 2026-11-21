@@ -7,6 +7,7 @@
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const team = () => (window.scGetTeam && window.scGetTeam()) || {};
     const phrase = (n) => `用 ${n} skill`;
+    const have = (v) => ((v && v.skills) || []).filter((s) => s.installed !== false);   // on the list but not on this Mac: not shown
 
     function targets(text) {
         const t = team(), out = [];
@@ -18,7 +19,7 @@
         }
         const ch = String(window.activeChannel || '');
         if (!out.length && ch.startsWith('dm-') && t[ch.slice(3)]) out.push(ch.slice(3));   // a DM needs no @
-        return out.filter((h) => (t[h].skills || []).length);
+        return out.filter((h) => have(t[h]).length);
     }
 
     function render() {
@@ -44,7 +45,7 @@
         const t = team();
         row.hidden = false;
         row.innerHTML = who.map((h) => `<span class="sc-skill-who">${esc(t[h].label || h)} can use</span>`
-            + (t[h].skills || []).map((s) => `<button type="button" class="mention-toggle sc-skill-chip${input.value.includes(phrase(s.name)) ? ' active' : ''}${s.installed === false ? ' missing' : ''}" data-skill="${esc(s.name)}" data-tip="${esc(s.installed === false ? 'Not installed on this Mac yet' : (s.about || s.name))}" aria-pressed="${input.value.includes(phrase(s.name))}">${esc(s.name)}</button>`).join('')).join('');
+            + have(t[h]).map((s) => `<button type="button" class="mention-toggle sc-skill-chip${input.value.includes(phrase(s.name)) ? ' active' : ''}${s.installed === false ? ' missing' : ''}" data-skill="${esc(s.name)}" data-tip="${esc(s.installed === false ? 'Not installed on this Mac yet' : (s.about || s.name))}" aria-pressed="${input.value.includes(phrase(s.name))}">${esc(s.name)}</button>`).join('')).join('');
     }
 
     let timer = 0;

@@ -46,7 +46,8 @@ def test_launch_arguments_per_app(tmp_path):
 
 def test_the_sentence_in_the_brief(tmp_path):
     cfg = _cfg(tmp_path, pm=["handoff", "to-questionnaire"], harness=["retro"])
-    assert S.brief_line(cfg, "pm").startswith("Skills: use only handoff, to-questionnaire; ignore every other installed skill")
+    line = S.brief_line(cfg, "pm")
+    assert line.startswith("Skills: yours are handoff, to-questionnaire.") and "without being asked" in line and "Ignore every other installed skill" in line
     assert "Never run `npx skills add`" in S.brief_line(cfg, "pm")
     assert "Only you may run `npx skills update`" in S.brief_line(cfg, "harness") and "after Lu approved" in S.brief_line(cfg, "harness")
     assert S.brief_line(cfg, "copy").startswith("Skills: you have none")
@@ -64,3 +65,12 @@ def test_for_team_lists_each_teammates_skills_with_what_they_do(tmp_path):
     got = {s["name"]: s for s in out["motion"]}
     assert got["animate"]["installed"] is True and "motion" in got["animate"]["about"]
     assert got["choreograph"]["installed"] is False
+
+
+def test_plugins_not_given_to_a_teammate_are_switched_off():
+    import scranton_skills as sk
+    cfg = {"team": {"skills": {"limit": True, "plugins": {"pm": ["product-management"]}}}}
+    ids = ["figma@claude-plugins-official", "product-management@knowledge-work-plugins"]
+    assert sk.plugins_off(cfg, "pm", ids) == {"figma@claude-plugins-official": False}
+    assert set(sk.plugins_off(cfg, "dev", ids)) == set(ids)
+    assert sk.plugins_off({"team": {"skills": {"limit": True}}}, "pm", ids) == {}

@@ -78,6 +78,18 @@ pm = ["handoff", "to-questionnaire"]
 harness = ["writing-for-agents", "retro", "learn-taste"]
 research = ["research"]
 
+[team.skills.plugins]
+# Plugins bring their own skills. A teammate keeps only the plugins listed for it; every other
+# installed plugin is off for that teammate (Claude Code teammates only). Lu, 2026-11-21.
+visual = ["figma", "design"]
+visintern = ["figma"]
+webdev = ["figma"]
+visualqa = ["design", "critique"]
+copy = ["design"]
+pm = ["product-management"]
+research = ["product-management"]
+qa = ["critique"]
+
 [team.projects]
 "~/LuJin-Portfolio" = "https://github.com/lujin88/LuJin-Portfolio.git"
 "~/.buzz/REPOS/harness-core" = "https://github.com/lujin88/harness-core.git"
