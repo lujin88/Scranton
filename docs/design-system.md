@@ -132,3 +132,6 @@ Every screen is walked at 1024, 768, 390 and 320 wide, the last three as touch s
 - Chips are one line each and shorten with …; they never wrap.
 - On a phone, status cards show on the home list and in a conversation, not over a full page.
 - Static files are sent compressed and kept by the browser; first content on slow 3G went from 19.7 s to 3.9 s.
+
+### Skill chips in the composer (11-21)
+`#sc-skill-row` sits between the text box and the tool row. It shows the allow-listed skills of whoever the message @mentions (in a DM: that teammate), at most two teammates. Chips reuse `.mention-toggle`; a click adds or removes `用 <skill> skill：`. Greyed chip = on the list but not installed on this Mac. Hover text is the skill's own description. One scrolling line on phones. Main composer only.

@@ -2060,3 +2060,12 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 
 /* One result for several things she said: each line of hers has its own pair of buttons. */
 .sc-check-each { display: flex; gap: 6px; margin: 6px 0 10px; }
+
+/* Skills of whoever the message is for (11-21): the same chip as the quick @, one row under it. */
+#sc-skill-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 2px 0 6px; order: 9; flex-basis: 100%; min-width: 0; }
+#sc-skill-row[hidden] { display: none; }
+.sc-skill-who { color: var(--ds-text-3); font-size: var(--ds-fs-xs); margin-right: 2px; }
+.sc-skill-who:not(:first-child) { margin-left: 10px; }
+.sc-skill-chip.missing { opacity: .5; }
+#sc-skill-row .sc-skill-chip { max-width: none; flex: none; }
+@media (max-width: 720px) { #sc-skill-row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .sc-skill-who { flex: none; } }

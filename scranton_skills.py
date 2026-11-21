@@ -117,3 +117,39 @@ def brief_line(cfg: dict, agent: str) -> str:
     else:
         upd = " Never run `npx skills add`, `update` or `remove`."
     return use + upd
+
+
+_DESC_RE = re.compile(r"(?ms)^description:\s*(?:[>|][+-]?\s*\n)?(.*?)(?=^\w[\w-]*:\s|\Z)")
+_about_cache: dict = {"at": 0.0, "v": {}}
+
+
+def about(dirs=None, ttl: float = 300.0) -> dict[str, str]:
+    """name -> one line saying what the skill is for (its own description), so Lu can pick one
+    without remembering fifty names."""
+    import time
+    key = tuple(dirs or ())
+    if time.time() - _about_cache["at"] < ttl and _about_cache["v"] and _about_cache.get("key") == key:
+        return _about_cache["v"]
+    out: dict[str, str] = {}
+    for name, paths in installed(dirs).items():
+        try:
+            head = Path(paths[0]).read_text("utf-8", errors="ignore")[:3000]
+        except OSError:
+            continue
+        fm = head[3:].split("\n---", 1)[0] if head.startswith("---") else ""
+        m = _DESC_RE.search(fm)
+        text = " ".join((m.group(1) if m else "").strip().strip("\"'").split())
+        out[name] = text[:200]
+    _about_cache.update(at=time.time(), v=out, key=key)
+    return out
+
+
+def for_team(cfg: dict) -> dict[str, list[dict]]:
+    """teammate -> [{name, about}] for the composer."""
+    s = settings(cfg)
+    if not s.get("limit"):
+        return {}
+    info = about(s.get("dirs") or None)
+    found = {k.lower() for k in info}
+    return {a: [{"name": n, "about": info.get(n, ""), "installed": n.lower() in found} for n in allowed(cfg, a) or []]
+            for a in (s.get("allow") or {})}

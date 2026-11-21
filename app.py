@@ -3025,6 +3025,11 @@ def _scranton_team() -> dict:
     avatar: a file name inside static/avatars/ (e.g. "pm-bear.jpg"); anything
     with a path separator or an unknown extension is ignored.
     """
+    try:
+        import scranton_skills
+        _team_skills = scranton_skills.for_team(config)
+    except Exception:
+        _team_skills = {}
     out = {}
     avatar_dir = Path(__file__).parent / "static" / "avatars"
     for name, cfg in (config or {}).get("agents", {}).items():
@@ -3052,6 +3057,7 @@ def _scranton_team() -> dict:
             "effort": str(cfg.get("effort", "") or ""),
             "mentions_owner": name.lower() == _mentions_from(),
             "asks_owner": name.lower() in _asks_direct(),
+            "skills": _team_skills.get(name, []),
         }
     return out
 

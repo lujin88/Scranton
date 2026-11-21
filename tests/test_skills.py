@@ -51,3 +51,16 @@ def test_the_sentence_in_the_brief(tmp_path):
     assert "Only you may run `npx skills update`" in S.brief_line(cfg, "harness") and "after Lu approved" in S.brief_line(cfg, "harness")
     assert S.brief_line(cfg, "copy").startswith("Skills: you have none")
     assert S.brief_line({"team": {}}, "pm") == ""
+
+
+def test_for_team_lists_each_teammates_skills_with_what_they_do(tmp_path):
+    import scranton_skills as sk
+    d = tmp_path / "skills" / "animate"
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text("---\nname: animate\ndescription: Add motion to a page.\n---\nbody\n")
+    cfg = {"team": {"skills": {"limit": True, "dirs": [str(tmp_path / "skills")],
+                               "allow": {"motion": ["animate", "choreograph"]}}}}
+    out = sk.for_team(cfg)
+    got = {s["name"]: s for s in out["motion"]}
+    assert got["animate"]["installed"] is True and "motion" in got["animate"]["about"]
+    assert got["choreograph"]["installed"] is False
