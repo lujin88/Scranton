@@ -97,14 +97,14 @@
         return `<div class="sc-lessons">${head}<div class="sc-ch-card">
             <p class="sc-lessons-note">Handed to every teammate who works here. Up to 15; a new one past that pushes the oldest out.</p>
             ${p.map((x) => `<div class="sc-lessons-item pending"><span>${esc(x.text)}</span><button type="button" class="sc-btn sm" data-lesson="drop" data-id="${x.id}">Drop</button><button type="button" class="sc-btn sm primary" data-lesson="keep" data-id="${x.id}">Keep</button></div>`).join('')}
-            ${k.map((x, i) => `<div class="sc-lessons-item"><span>${i + 1}. ${esc(x.text)}</span><button type="button" class="sc-btn sm" data-lesson="remove" data-id="${x.id}">Remove</button></div>`).join('') || (p.length ? '' : '<p class="sc-lessons-note">None yet. They come from what you correct, once you confirm them; or add one yourself.</p>')}
+            ${k.map((x, i) => `<div class="sc-lessons-item"><span>${i + 1}. ${esc(x.text)}</span><button type="button" class="sc-btn sm${x.all ? ' on' : ''}" data-lesson="everywhere" data-on="${x.all ? '' : '1'}" data-id="${x.id}" aria-pressed="${!!x.all}" data-tip="${x.all ? 'Goes to every project. Click to keep it to this one.' : 'Hand this one to every project, not only this one'}">${x.all ? 'All projects' : 'This project'}</button><button type="button" class="sc-btn sm" data-lesson="remove" data-id="${x.id}">Remove</button></div>`).join('') || (p.length ? '' : '<p class="sc-lessons-note">None yet. They come from what you correct, once you confirm them; or add one yourself.</p>')}
             <form class="sc-lessons-add"><input type="text" maxlength="140" placeholder="Add one yourself, for example: titles sit in the same place on every slide" aria-label="Add a preference"><button type="submit" class="sc-btn sm">Add</button></form>
         </div></div>`;
     }
     document.addEventListener('click', (e) => {
         if (e.target.closest('#sc-ch-board .sc-lessons-toggle')) { lessonsOpen = !lessonsOpen; fill(); return; }
         const b = e.target.closest('#sc-ch-board [data-lesson]');
-        if (b) { b.disabled = true; post('/api/scranton/lessons', { channel: ch(), action: b.dataset.lesson, id: Number(b.dataset.id) }).then((d) => { if (d && d.kept) lessons = d; fill(); if (window.scLoadAttention) window.scLoadAttention(); }); }
+        if (b) { b.disabled = true; post('/api/scranton/lessons', { channel: ch(), action: b.dataset.lesson, id: Number(b.dataset.id), on: !!b.dataset.on }).then((d) => { if (d && d.kept) lessons = d; fill(); if (window.scLoadAttention) window.scLoadAttention(); }); }
     });
     document.addEventListener('submit', (e) => {
         const f = e.target.closest && e.target.closest('#sc-ch-board .sc-lessons-add');

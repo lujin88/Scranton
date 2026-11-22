@@ -23,7 +23,9 @@ from pathlib import Path
 
 MAX_KEPT = 15
 MAX_PENDING = 6
-MIN_CORRECTIONS = 3          # fewer than this in a day: nothing to learn from yet
+MIN_CORRECTIONS = 2          # Lu, 11-23: the same kind of thing said twice within a week is enough
+WINDOW_DAYS = 7              # was one day: corrections spread over several days never reached three
+MAX_EVERYWHERE = 8           # preferences that go to every project: a short list, or it is skimmed
 MAX_LEN = 140
 CORRECTION_RE = re.compile(
     r"不是|不对|错了|搞错|理解错|我说过|说过了|讲过|怎么又|又是|还是没|怎么还|为什么|为啥|不要|别再|别用|太大|太小|太多|太挤|太丑|丑|难看|"
@@ -104,8 +106,31 @@ class Lessons:
     def set_batch(self, ch: str, ids: list[int]) -> None:
         """The corrections a request was made from: the source of proposals that name none."""
         with self.lock:
-            self._ch(ch)["batch"] = [int(i) for i in ids][-25:]
+            c = self._ch(ch)
+            c["batch"] = [int(i) for i in ids][-25:]
+            c["asked"] = (list(c.get("asked", [])) + [int(i) for i in ids])[-300:]   # not asked about twice
             self._save()
+
+    def asked(self, ch: str) -> set[int]:
+        with self.lock:
+            return set((self.data.get(ch) or {}).get("asked", []))
+
+    def everywhere(self, ch: str, lid: int, on: bool) -> bool:
+        """A kept preference that holds in every project ("show the whole page, not the first
+        screen"), not only where she first said it. At most MAX_EVERYWHERE in all."""
+        with self.lock:
+            item = next((x for x in self._ch(ch)["kept"] if x["id"] == int(lid)), None)
+            if item is None:
+                return False
+            if on and not item.get("all"):
+                n = sum(1 for c in self.data.values() for x in c.get("kept", []) if x.get("all"))
+                if n >= MAX_EVERYWHERE:
+                    return False
+            item["all"] = bool(on)
+            for c in self.data.values():
+                c["ver"] = int(c.get("ver", 0)) + 1
+            self._save()
+            return True
 
     def decide(self, ch: str, lid: int, keep: bool, now: float | None = None, text: str = "") -> bool:
         now = time.time() if now is None else now
@@ -152,6 +177,12 @@ class Lessons:
         """What a teammate reading this channel is handed."""
         with self.lock:
             kept = list((self.data.get(ch) or {}).get("kept", []))
+            have = {_norm(x["text"]) for x in kept}
+            for other, c in self.data.items():      # the ones she marked for every project
+                for x in c.get("kept", []) if other != ch else []:
+                    if x.get("all") and _norm(x["text"]) not in have:
+                        kept.append(x)
+                        have.add(_norm(x["text"]))
         if not kept:
             return ""
         lines = "\n".join(f"{i}. {x['text']}" for i, x in enumerate(kept, 1))
@@ -174,8 +205,8 @@ def request_text(ch: str, items: list[dict], kept: list[dict], handle: str) -> s
     # visual designer, the visual checker, motion and the developer, who each replied "not for me").
     said = "\n".join(f"· #{it['id']} {re.sub(r'@(?=[A-Za-z])', '', str(it.get('text') or ''))[:180]}" for it in items[-25:])
     have = "\n".join(f"· {x['text']}" for x in kept) or "（还没有）"
-    return (f"@{handle} 学习任务，只做这一件，不要改任何文件。下面是 Lu 昨天在这个项目里纠正团队的原话。"
-            f"把其中会再次发生的归纳成最多 3 条「偏好」：每条一句话、规则本身 30 字以内、写成做事的人能直接照做的样子"
+    return (f"@{handle} 学习任务，只做这一件，不要改任何文件。下面是 Lu 最近 7 天在这个项目里纠正团队的原话。"
+            f"只归纳她说过两次以上的同一类问题（说过一次的不算），归纳成最多 3 条「偏好」：每条一句话、规则本身 30 字以内、写成做事的人能直接照做的样子"
             f"（例：主视觉不用缩小的界面截图；每页标题的位置和字号一致）。每条后面用「，因为…」带上原因：Lu 说过原因就用她的，没说过就写你推测的并标「（原因是推测）」，让她确认时改。只针对某一页某一次的不要写，已有的不要重复。"
             f"每条末尾必须写上它出自哪几条原话的编号，例如「（#18127 #18136）」：Lu 要对照自己的原话才能判断，没写编号的那条不会被收下。没有值得归纳的就回「没有」。用 chat_lessons(action=\"propose\", channel=\"{ch}\", lessons=\"一行一条\") 提交，"
             f"Lu 确认后才生效。\n已有的偏好：\n{have}\nLu 的原话：\n{said}")

@@ -66,3 +66,43 @@ def test_old_proposals_without_her_words_are_taken_out_and_asked_again(tmp_path)
     c = L._ch("p"); c["pending"] = [{"id": 1, "text": "没有出处", "by": "harness", "at": 1}, {"id": 2, "text": "有出处", "by": "harness", "at": 1, "from": [7]}]
     c["ran_day"] = "2026-11-19"
     assert L.drop_unsourced() == ["p"] and [x["id"] for x in L.get("p")["pending"]] == [2] and L.due("p", "2026-11-19")
+
+
+def test_two_corrections_spread_over_a_week_are_enough_and_not_asked_about_twice(tmp_path, monkeypatch):
+    L = sl.Lessons(tmp_path / "l.json")
+    said = scranton_said.Said(tmp_path / "said.json")
+    t = time.localtime()
+    now = time.mktime((t.tm_year, t.tm_mon, t.tm_mday, 9, 0, 0, 0, 0, -1))     # the store drops what is older than 14 real days
+    said.add({"id": 300, "sender": "Lu", "text": "@dev 这页的字号太大了，我说过了", "channel": "eon", "timestamp": now - 5 * 86400})
+    said.add({"id": 301, "sender": "Lu", "text": "@dev 怎么又是这么大的字，重新做", "channel": "eon", "timestamp": now - 2 * 86400})
+    said.add({"id": 302, "sender": "Lu", "text": "@dev 这个不对，不是我要的", "channel": "old", "timestamp": now - 9 * 86400})
+    said.add({"id": 303, "sender": "Lu", "text": "@dev 还是没改对，重新做", "channel": "old", "timestamp": now - 8 * 86400})
+    monkeypatch.setattr(mcp_bridge, "LESSONS", L)
+    monkeypatch.setattr(app, "_sc_said", lambda: said)
+    monkeypatch.setattr(app, "_project_channels", lambda: ["eon", "old"])
+    monkeypatch.setattr(app, "_paused_channels", lambda: set())
+    monkeypatch.setattr(app, "config", {"agents": {"harness": {}}, "team": {}})
+    got = app._sc_lessons_tick(now)
+    assert all(str(i) in said.items for i in (300, 301))
+    assert [ch for ch, _ in got] == ["eon"] and "#300" in got[0][1] and "#301" in got[0][1] and "两次以上" in got[0][1]
+    assert app._sc_lessons_tick(now + 86400) == []             # next day, nothing new: not asked again
+    said.add({"id": 304, "sender": "Lu", "text": "@dev 这里间距太挤了，不要这样", "channel": "eon", "timestamp": now + 86400 + 60})
+    assert [ch for ch, _ in app._sc_lessons_tick(now + 86400 + 3600)] == []   # same day already ran
+    assert [ch for ch, _ in app._sc_lessons_tick(now + 2 * 86400)] == ["eon"]
+
+
+def test_a_preference_marked_for_every_project_reaches_the_others(tmp_path):
+    L = sl.Lessons(tmp_path / "l.json")
+    a = L.add("portfolio", "给 Lu 看页面要发整页上下图")
+    L.add("portfolio", "背景图案要放大")
+    L.add("deck", "标题位置每页一致")
+    assert "整页" not in L.text_for("deck")
+    assert L.everywhere("portfolio", a["id"], True) and not L.everywhere("portfolio", 999, True)
+    assert "整页" in L.text_for("deck") and "背景图案" not in L.text_for("deck") and "整页" in L.text_for("brand-new")
+    assert L.text_for("portfolio").count("整页") == 1
+    assert L.get("portfolio")["kept"][0]["all"] is True
+    assert L.everywhere("portfolio", a["id"], False) and "整页" not in L.text_for("deck")
+    for i in range(sl.MAX_EVERYWHERE):
+        x = L.add("p2", f"通用偏好第 {i} 条")
+        assert L.everywhere("p2", x["id"], True)
+    assert not L.everywhere("portfolio", a["id"], True)        # the list for every project stays short

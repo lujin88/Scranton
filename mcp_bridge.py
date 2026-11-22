@@ -384,6 +384,9 @@ def chat_send(
     message, why_not = _picture_check(sender, message, choices, image_path, channel)
     if why_not:
         return why_not
+    why_not = _merge_in_batch(sender, message, choices) or _motion_needs_motion(sender, message, choices, image_path)
+    if why_not:
+        return why_not
     moved = ""
     if reply_id is not None:
         # A reply belongs with the message it answers, whatever channel was passed.
@@ -1271,6 +1274,55 @@ def _one_at_a_time(channel: str, row_id, state: str, who: str) -> str:
     return (f"Error: {target} does one thing at a time and is already doing row {r.get('id')} in #{ch}（{str(r.get('ask') or '')[:40]}）. "
             f"Let that finish, or put it aside first (set it to todo or later, with why), then set this one to doing. "
             f"Until then this row stays todo.")
+
+
+_MERGE_OPT_RE = _re_mod.compile(r"(?m)^\s*[A-Da-d][.．、:：)）]\s*(?:合并?|merge)(?![\w一-鿿]*(?:成|到|为|在一起))", _re_mod.I)
+
+
+def _merge_in_batch(sender: str, message: str, choices) -> str:
+    """Lu, 11-22 17:29: she answered "1A 合, 2A 合, 4A 合" to one message that listed eight things,
+    and two minutes later was asked to press 合 again on a card per pull request, because the merge
+    script takes her approval only from a reply under a message about that one pull request (its
+    link, its current HEAD, its picture). A merge question in a list makes her decide twice."""
+    owner = _owner_name()
+    text = str(message or "")
+    if not owner or sender.lower() in ("scranton", "system", owner.lower()):
+        return ""
+    if not _re_mod.search(r"@" + _re_mod.escape(owner) + r"(?![\w-])", text, _re_mod.I):
+        return ""
+    numbered = _re_mod.findall(r"(?m)^\s*\d{1,2}[.、)）]\s*\S", text)
+    if len(numbered) < 2 or not _MERGE_OPT_RE.search(text):
+        return ""
+    return (f"Not sent. This list asks {owner} whether to merge, next to other questions. Her answer here cannot be used to merge: "
+            f"an approval counts only as her reply under a message about that ONE pull request, and she would have to answer twice "
+            f"(11-22: she did). Take the merge questions out of the list. Send each as its own card: choices=[\"合 (推荐)\", \"先不合\"], "
+            f"the pull request link, its current HEAD (7 characters), and the picture. The other questions can stay in the list.")
+
+
+_MOTION_RE = _re_mod.compile(r"视频|动效|动画|录屏|\bvideo\b|\banimation\b|\bmp4\b", _re_mod.I)
+_ACCEPT_RE = _re_mod.compile(r"合并?(?![\w一-鿿]*(?:成|到|为))|接受|上线|通过|accept|merge|ship", _re_mod.I)
+
+
+def _motion_needs_motion(sender: str, message: str, choices, image_path: str) -> str:
+    """Lu, 11-22: "我没看到视频长什么样，我怎么决定合不合？" A still does not show speed, easing or a
+    jump. A card that asks her to accept something that moves has to carry it moving."""
+    owner = _owner_name()
+    text = str(message or "")
+    opts = [c for c in (choices or []) if isinstance(c, str) and c.strip()]
+    if not owner or not opts or sender.lower() in ("scranton", "system", owner.lower()):
+        return ""
+    if not _re_mod.search(r"@" + _re_mod.escape(owner) + r"(?![\w-])", text, _re_mod.I):
+        return ""
+    if _re_mod.search(r"(?m)^\s*静图[：:]\s*\S{2,}", text):
+        return ""                                  # said why a still is enough (which frame, a poster image)
+    if not _MOTION_RE.search(text) or not _ACCEPT_RE.search(text + "\n" + "\n".join(opts)):
+        return ""
+    paths = [p.strip().lower() for p in str(image_path or "").splitlines() if p.strip()]
+    if any(p.endswith((".gif", ".webp")) for p in paths):
+        return ""
+    return (f"Not sent. You are asking {owner} to accept something that moves, with only still pictures: she cannot see its speed "
+            f"or whether it jumps. Record it as a .gif (the real speed, 10 seconds at most) and put it first in image_path. "
+            f"If the question really is about one frame, add a line 「静图：<why a still is enough>」.")
 
 
 def _two_asks_hint(message: str) -> str:

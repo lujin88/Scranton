@@ -35,3 +35,26 @@ def test_teammates_talking_to_each_other_and_lu_herself_are_untouched(monkeypatc
 def test_a_question_mark_inside_a_report_is_not_a_question(monkeypatch):
     _setup(monkeypatch)
     assert B._picture_check("pm", "@Lu 你看到的可能是旧缓存？刷新后就是新版。20:30 发整套。", [], "", "slides")[1] == ""
+
+
+def test_a_merge_question_inside_a_list_is_not_sent(monkeypatch):
+    _setup(monkeypatch)
+    batch = ("@Lu 你离开这段时间要你定的 3 件：\n1. 行 70 首页时间线 PR #204：qa、visualqa 都过了\nA. 合，上线（推荐）\nB. 先不合\n"
+             "2. 行 6 用哪张图\nA. 派对静物\nB. 礼物盒")
+    err = B._merge_in_batch("pm", batch, [])
+    assert err.startswith("Not sent.") and "ONE pull request" in err
+    assert B._merge_in_batch("pm", "@Lu 定 2 件：\n1. 用哪张图\nA. 派对静物\nB. 礼物盒\n2. 标题\nA. 合并成一行\nB. 两行", []) == ""
+    assert B._merge_in_batch("pm", "@Lu 行 56 PR #197，HEAD 9c78b0e（图左现在｜右旋转）。点合后 pm 合并。", ["合 (推荐)", "先不合"]) == ""
+    assert B._merge_in_batch("pm", batch.replace("@Lu", "@dev"), []) == ""
+    assert B._merge_in_batch("Lu", batch, []) == ""
+
+
+def test_a_card_about_something_that_moves_needs_it_moving(monkeypatch):
+    _setup(monkeypatch)
+    card = "@Lu 行 36 CA07 曲线卡 PR #223，HEAD 194cc4c：视频停住那帧比原图偏蓝。"
+    opts = ["接受现在的视频，合上线 (推荐)", "先用静图"]
+    assert B._motion_needs_motion("pm", card, opts, "/tmp/left-right.png").startswith("Not sent.")
+    assert B._motion_needs_motion("pm", card, opts, "/tmp/play.gif\n/tmp/left-right.png") == ""
+    assert B._motion_needs_motion("pm", "静图：只问停住那一帧的颜色\n" + card, opts, "/tmp/left-right.png") == ""
+    assert B._motion_needs_motion("pm", "@Lu 行 12 BMW 整页 PR #224，HEAD 2de6b4c。", ["A. 合 (推荐)", "B. 先不合"], "/tmp/page.png") == ""
+    assert B._motion_needs_motion("pm", card, [], "/tmp/left-right.png") == ""      # not a card: the picture rule already covers questions

@@ -6014,8 +6014,8 @@ def _sc_lessons():
 
 
 def _sc_lessons_tick(now: float | None = None) -> list[tuple[str, str]]:
-    """Once a day per project, after 07:00: when she corrected the team at least three times there
-    in the last day, ask one teammate to turn those into at most three preferences for her to keep."""
+    """Once a day per project, after 07:00: when she corrected the team at least twice there
+    in the last week and at least one of those is new, ask one teammate to turn those into at most three preferences for her to keep."""
     import scranton_lessons
     L, said = _sc_lessons(), _sc_said()
     now = time.time() if now is None else now
@@ -6030,9 +6030,12 @@ def _sc_lessons_tick(now: float | None = None) -> list[tuple[str, str]]:
             continue
         L.mark_ran(ch, day)
         with said.lock:
-            items = [dict(v) for v in said.items.values() if v.get("ch") == ch and now - float(v.get("ts") or 0) < 86400
+            items = [dict(v) for v in said.items.values() if v.get("ch") == ch
+                     and now - float(v.get("ts") or 0) < scranton_lessons.WINDOW_DAYS * 86400
                      and scranton_lessons.is_correction(str(v.get("text") or ""))]
-        if len(items) < scranton_lessons.MIN_CORRECTIONS:
+        # Asked only when there is something new: corrections it was already asked about don't count again.
+        fresh = [v for v in items if int(v["id"]) not in L.asked(ch)]
+        if len(items) < scranton_lessons.MIN_CORRECTIONS or not fresh:
             continue
         items.sort(key=lambda v: v["ts"])
         L.set_batch(ch, [int(v["id"]) for v in items])
@@ -6065,8 +6068,10 @@ async def scranton_lessons_post(request: Request):
         ok = bool(str(body.get("text") or "").strip()) and L.add(ch, str(body.get("text"))) is not None
     elif action == "remove":
         ok = L.remove(ch, int(body.get("id") or 0))
+    elif action == "everywhere":
+        ok = L.everywhere(ch, int(body.get("id") or 0), bool(body.get("on")))
     else:
-        return JSONResponse({"error": "action is keep, drop, add or remove"}, status_code=400)
+        return JSONResponse({"error": "action is keep, drop, add, remove or everywhere"}, status_code=400)
     return JSONResponse({"ok": bool(ok), "channel": ch, **L.get(ch)})
 
 

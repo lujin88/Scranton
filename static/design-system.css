@@ -1974,6 +1974,11 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-board-acts .sc-ch-edit { min-height: 28px; padding: 2px 6px; margin-left: -6px; }
 /* 4. The preferences line was centred, bold and wrapped. One quiet row, count as a pill. */
 .sc-lessons-toggle { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0 6px; margin-left: -2px; text-align: left; font-weight: 500; }
+.sc-lessons-item button.sc-btn.sm.on { color: var(--ds-accent) !important; font-weight: 600; }
+/* The panel is about 270px wide: two buttons beside the sentence left it four characters per line (11-23). Sentence on its own line, actions under it. */
+.sc-lessons-item { flex-wrap: wrap; row-gap: 2px; padding: 8px 0 4px; }
+.sc-lessons-item span { flex: 1 1 100%; }
+.sc-lessons-item span + button { margin-left: auto; }
 .sc-lessons-n { padding: 1px 8px; border-radius: var(--ds-r-pill); background: var(--ds-accent-fill); color: #fff; font-size: var(--ds-fs-xs); font-weight: 600; }
 /* 5. In Activity every status line was the same blue. Stuck is red like its tile, "no update" is quiet. */
 .sc-inbox-status.todo.stuck { color: var(--ds-danger); }

@@ -135,3 +135,6 @@ Every screen is walked at 1024, 768, 390 and 320 wide, the last three as touch s
 
 ### Skill chips in the composer (11-21)
 `#sc-skill-row` sits between the text box and the tool row. It shows the allow-listed skills of whoever the message @mentions (in a DM: that teammate), at most two teammates. Chips reuse `.mention-toggle`; a click adds or removes `用 <skill> skill：`. Greyed chip = on the list but not installed on this Mac. Hover text is the skill's own description. One scrolling line on phones. Main composer only.
+
+### Preferences list (11-23)
+In the channel panel each preference is the sentence on its own line, actions on the line under it, right-aligned. `This project` / `All projects` is a toggle (accent colour when on): an all-projects preference is handed to every channel, at most 8 in total.
