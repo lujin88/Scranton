@@ -670,7 +670,7 @@
                 + `<div class="sc-typebox sc-check-why" hidden><textarea rows="1" maxlength="400" placeholder="What is not right…" aria-label="What is not right"></textarea>`
                 + `<button type="button" class="sc-typebox-send" disabled data-tip="Send back (Enter)" aria-label="Send back">${ic('enter', 18)}</button></div>`
                 + `<div class="sc-lesson-foot"><button type="button" class="sc-lesson-link" data-open="${c.result.id}">Open in #${esc(c.channel)}</button>`
-                + `<span class="sc-lesson-btns"><button type="button" class="sc-btn sm" data-v="no">${c.asks.length > 1 ? 'None right' : 'Not right'}</button><button type="button" class="sc-btn sm primary" data-v="ok">${c.asks.length > 1 ? 'All right' : 'Right'}</button></span></div>`;
+                + `<span class="sc-lesson-btns"><button type="button" class="sc-btn sm" data-v="no">${c.asks.length > 1 ? 'All wrong' : 'Not right'}</button><button type="button" class="sc-btn sm primary" data-v="ok">${c.asks.length > 1 ? 'All correct' : 'Right'}</button></span></div>`;
             let target = null;   // the one instruction being answered, or null for all of them
             const send = async (ok, note) => {
                 const ids = target ? [target] : c.asks.map((a) => a.id);
