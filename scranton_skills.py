@@ -113,6 +113,18 @@ def codex_args(allow: list[str], found: dict[str, list[str]]) -> list[str]:
     return ["-c", "skills.config=[" + ",".join("{path=" + json.dumps(p) + ",enabled=false}" for p in paths) + "]"]
 
 
+def stop_hook(cfg: dict, agent: str) -> dict:
+    """The check a Claude teammate has to pass before it can finish a turn (tools/stop_check.py),
+    for the teammates named in [team.stop_checks] agents. In the teammate's own settings file, so
+    the user's ~/.claude/settings.json is not touched."""
+    names = [str(x) for x in ((((cfg or {}).get("team") or {}).get("stop_checks") or {}).get("agents") or [])]
+    if agent not in names:
+        return {}
+    script = Path(__file__).resolve().parent / "tools" / "stop_check.py"
+    cmd = f'python3 "{script}" --agent {agent}'
+    return {"Stop": [{"hooks": [{"type": "command", "command": cmd, "timeout": 200}]}]}
+
+
 def launch_args(cfg: dict, agent: str, provider: str, data_dir: Path) -> list[str]:
     allow = allowed(cfg, agent)
     if allow is None:
@@ -127,6 +139,9 @@ def launch_args(cfg: dict, agent: str, provider: str, data_dir: Path) -> list[st
         off = plugins_off(cfg, agent, claude_plugins())
         if off:
             body["enabledPlugins"] = off
+        hook = stop_hook(cfg, agent)
+        if hook:
+            body["hooks"] = hook
         f.write_text(json.dumps(body, ensure_ascii=False, indent=1), "utf-8")
         return ["--settings", str(f)]
     if provider == "codex":

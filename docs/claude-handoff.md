@@ -68,3 +68,7 @@ Shipped today, none of it yet proven in real work:
 - Skill limit by role is live (`[team.skills]` in config.toml, `scranton_skills.py`); all teammates restarted on it, pm and visual last (about 16:00).
 - Composer shows the skills of whoever the message @mentions (`static/scranton-skills.js`), commit 8018a51.
 - Open: plugin/account skills (figma, product-management, design, critique, pdf-viewer on Claude; figma, google-drive, documents, presentations, sites, spreadsheets on Codex) still load for everyone; waiting for Lu to say which role keeps which plugin. How to switch a plugin off per teammate is not verified yet.
+
+## 11-24 stop check
+- `tools/stop_check.py` runs as a Claude Code Stop hook for `[team.stop_checks] agents` (dev, webdev), written into each teammate's own settings file by `scranton_skills.launch_args`. Checks the branch's change: tsc errors in touched files, font sizes new to that top-level folder. Sent back at most twice per change. Log: `data/stop-check/log.jsonl`.
+- Not yet seen working in a real Claude Code session on the mini: after Update + restart of dev and webdev, look at the log.

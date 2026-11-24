@@ -78,6 +78,12 @@ pm = ["handoff", "to-questionnaire"]
 harness = ["writing-for-agents", "retro", "learn-taste"]
 research = ["research"]
 
+[team.stop_checks]
+# Claude teammates that cannot finish a turn until tools/stop_check.py passes on what their branch
+# changed: type errors in files they touched, and new raw font sizes where the project has size
+# tokens. Lu, 2026-11-24: start with two, look at data/stop-check/log.jsonl after a week.
+agents = ["dev", "webdev"]
+
 [team.skills.plugins]
 # Plugins bring their own skills. A teammate keeps only the plugins listed for it; every other
 # installed plugin is off for that teammate (Claude Code teammates only). Lu, 2026-11-21.
