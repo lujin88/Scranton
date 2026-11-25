@@ -58,3 +58,19 @@ def test_a_card_about_something_that_moves_needs_it_moving(monkeypatch):
     assert B._motion_needs_motion("pm", "静图：只问停住那一帧的颜色\n" + card, opts, "/tmp/left-right.png") == ""
     assert B._motion_needs_motion("pm", "@Lu 行 12 BMW 整页 PR #224，HEAD 2de6b4c。", ["A. 合 (推荐)", "B. 先不合"], "/tmp/page.png") == ""
     assert B._motion_needs_motion("pm", card, [], "/tmp/left-right.png") == ""      # not a card: the picture rule already covers questions
+
+
+def test_a_merge_card_says_how_to_undo_and_what_was_not_checked(monkeypatch):
+    _setup(monkeypatch)
+    card = "@Lu 行 16 Gratula PR #237，HEAD 06e7909：qa、legal、visualqa 都签了。图左 A 稿｜右我们。"
+    opts = ["合 (推荐)", "先不合"]
+    err = B._merge_card_gaps("dev", card, opts)
+    assert err.startswith("Not sent.") and "撤回" in err and "没验" in err
+    one = B._merge_card_gaps("dev", card + "\n撤回：revert 这个 PR，约 5 分钟重新部署", opts)
+    assert "没验" in one and "「撤回：" not in one
+    full = card + "\n撤回：revert 这个 PR，约 5 分钟重新部署\n没验：尾线的实时观感，visualqa 只签了静态"
+    assert B._merge_card_gaps("dev", full, opts) == ""
+    assert B._merge_card_gaps("dev", full.replace("没验：尾线的实时观感，visualqa 只签了静态", "没验：无"), ["A. 合 (推荐)", "B. 先不合"]) == ""
+    assert B._merge_card_gaps("pm", "@Lu 行 6 用哪张图（PR #12 里两版都有）", ["派对静物", "礼物盒"]) == ""      # not a merge card
+    assert B._merge_card_gaps("pm", "@Lu 标题要不要合并成一行？", ["合并成一行", "保持两行"]) == ""             # no pull request
+    assert B._merge_card_gaps("dev", card.replace("@Lu", "@qa"), opts) == ""

@@ -384,7 +384,8 @@ def chat_send(
     message, why_not = _picture_check(sender, message, choices, image_path, channel)
     if why_not:
         return why_not
-    why_not = _merge_in_batch(sender, message, choices) or _motion_needs_motion(sender, message, choices, image_path)
+    why_not = (_merge_in_batch(sender, message, choices) or _motion_needs_motion(sender, message, choices, image_path)
+               or _merge_card_gaps(sender, message, choices))
     if why_not:
         return why_not
     moved = ""
@@ -1296,7 +1297,37 @@ def _merge_in_batch(sender: str, message: str, choices) -> str:
     return (f"Not sent. This list asks {owner} whether to merge, next to other questions. Her answer here cannot be used to merge: "
             f"an approval counts only as her reply under a message about that ONE pull request, and she would have to answer twice "
             f"(11-22: she did). Take the merge questions out of the list. Send each as its own card: choices=[\"合 (推荐)\", \"先不合\"], "
-            f"the pull request link, its current HEAD (7 characters), and the picture. The other questions can stay in the list.")
+            f"the pull request link, its current HEAD (7 characters), the picture, and the lines 撤回：… and 没验：…. The other questions can stay in the list.")
+
+
+_MERGE_CHOICE_RE = _re_mod.compile(r"^\s*(?:[A-Da-d][.．、:：)）]\s*)?合(?:并|，|,|\s|（|\(|$)")
+
+
+def _merge_card_gaps(sender: str, message: str, choices) -> str:
+    """Lu, 11-25, from a note on what to show a person before a risky action is approved: what
+    happens, whether it can be undone, how sure, why, the evidence. Her merge cards already carry
+    the picture and who signed. Two things were missing: how she gets back if it is wrong, and
+    what nobody checked ("visualqa signed the still, the motion was not tested" was said in the
+    thread, not on the card)."""
+    owner = _owner_name()
+    text = str(message or "")
+    opts = [c for c in (choices or []) if isinstance(c, str) and c.strip()]
+    if not owner or not opts or sender.lower() in ("scranton", "system", owner.lower()):
+        return ""
+    if not _re_mod.search(r"@" + _re_mod.escape(owner) + r"(?![\w-])", text, _re_mod.I):
+        return ""
+    if not any(_MERGE_CHOICE_RE.match(c) for c in opts) or not _re_mod.search(r"/pull/\d+|\bPR\s*#?\d+", text, _re_mod.I):
+        return ""
+    missing = []
+    if not _re_mod.search(r"(?m)^\s*撤回[：:]\s*\S{2,}", text):
+        missing.append("「撤回：<合错了怎么回到现在这样，要多久；撤不回就写撤不回>」")
+    if not _re_mod.search(r"(?m)^\s*没验[：:]\s*\S", text):
+        missing.append("「没验：<这次谁都没检查的东西，例如动效实时观感、Safari、真机；都验了写 无>」")
+    if not missing:
+        return ""
+    return (f"Not sent. A merge card tells {owner} what she is approving, in this order: what goes live, how to undo it, "
+            f"what was not checked, who signed, the picture. Add on their own lines: " + " and ".join(missing)
+            + ". Write what is true, not what sounds safe: an honest 没验 line is the point.")
 
 
 _MOTION_RE = _re_mod.compile(r"视频|动效|动画|录屏|\bvideo\b|\banimation\b|\bmp4\b", _re_mod.I)
