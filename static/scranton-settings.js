@@ -401,7 +401,7 @@
         return `<button type="button" class="sc-back" data-a="back">${icon('back', 18)}<span>All agents</span></button>
             <header class="sc-agh">
                 <button type="button" class="sc-agh-av" data-a="pick-avatar" aria-label="Change picture" title="Change picture">${avatar(p.handle)}<span class="sc-dot ${esc(st)}"></span><span class="sc-agh-edit">${icon('edit', 14)}</span></button>
-                <div class="sc-agh-txt"><h2><label class="sc-agh-name" title="Click to rename"><input type="text" data-set-text="label" maxlength="40" value="${esc(p.label)}" size="${Math.max(4, Math.min(28, Array.from(p.label || '').reduce((n, c) => n + (c.charCodeAt(0) > 255 ? 2 : 1), 0) + 1))}" aria-label="Name" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape'){this.value=this.defaultValue;this.blur()}">${icon('pencil', 16)}</label></h2><p>${esc((p.role || '').split(':')[0])} · <span class="sc-pill ${esc(st)}">${stText(p.handle)}</span></p></div>
+                <div class="sc-agh-txt"><h2><label class="sc-agh-name" title="Click to rename"><input type="text" data-set-text="label" maxlength="40" value="${esc(p.label)}" size="${Math.max(4, Math.min(28, Array.from(p.label || '').reduce((n, c) => n + (c.charCodeAt(0) > 255 ? 2 : 1), 0) + 1))}" aria-label="Name" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape'){this.value=this.defaultValue;this.blur()}">${icon('pencil', 16)}</label></h2><p><label class="sc-agh-name sc-agh-sub" title="Click to change the title under the name"><input type="text" data-role-title maxlength="60" value="${esc((p.role || '').split(':')[0].trim())}" data-rest="${esc((p.role || '').includes(':') ? (p.role || '').slice((p.role || '').indexOf(':') + 1) : '')}" size="${Math.max(6, Math.min(40, (p.role || '').split(':')[0].trim().length + 1))}" placeholder="Title" aria-label="Title" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape'){this.value=this.defaultValue;this.blur()}">${icon('pencil', 14)}</label> · <span class="sc-pill ${esc(st)}">${stText(p.handle)}</span></p></div>
                 <div class="sc-agh-act">
                     <button type="button" class="sc-btn" data-a="message">Message</button>
                     ${p.running ? `<button type="button" class="sc-btn" data-agent-act="restart">Restart</button><button type="button" class="sc-btn" data-agent-act="stop">Stop</button>`
@@ -882,11 +882,27 @@
             flash('sc-ag-saved', 'Saved.');
             return;
         }
+        const sub = e.target.closest('[data-role-title]');
+        if (sub) {
+            // The line under the name is the part of the instructions before the first colon: change that part only.
+            const title = sub.value.replace(/[:：]/g, ' ').trim();
+            if (!title) { sub.value = sub.defaultValue; return; }
+            const rest = (sub.dataset.rest || '').trim();
+            const role = rest ? `${title}: ${rest}` : title;
+            const r = await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}`, { action: 'set', key: 'role', value: role });
+            flash('sc-ag-saved', r.error ? r.error : 'Saved.');
+            if (r.error) { sub.value = sub.defaultValue; return; }
+            sub.value = title; sub.defaultValue = title;
+            const ta = root.querySelector('textarea[data-set-text="role"]'); if (ta) ta.value = role;
+            window.scReloadTeam && window.scReloadTeam();
+            return;
+        }
         const txt = e.target.closest('[data-set-text]');
         if (txt) {
             if (txt.dataset.setText === 'label' && !txt.value.trim()) { txt.value = txt.defaultValue; return; }   // a name can't be empty
             const r = await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}`, { action: 'set', key: txt.dataset.setText, value: txt.value });
             flash('sc-ag-saved', r.error ? r.error : 'Saved.');
+            if (!r.error && txt.dataset.setText === 'role') { const sb = root.querySelector('[data-role-title]'); if (sb) { const v = txt.value; sb.value = v.split(':')[0].trim(); sb.defaultValue = sb.value; sb.dataset.rest = v.includes(':') ? v.slice(v.indexOf(':') + 1) : ''; } }
             if (!r.error && txt.dataset.setText === 'label') { window.scReloadTeam && window.scReloadTeam(); txt.value = txt.value.trim(); txt.defaultValue = txt.value; }
             return;
         }
