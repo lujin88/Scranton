@@ -359,8 +359,7 @@
                 <textarea data-set-text="role" rows="4" maxlength="300" placeholder="What this agent does, in one or two sentences.">${esc(p.role)}</textarea>
                 <small>Added to every task it gets. Its full rules are in the Role card tab.</small></label>
             <div class="sc-id-card">
-                <div class="sc-id-row"><span>Name</span><label class="sc-id-edit" title="Rename"><input type="text" class="sc-id-input" data-set-text="label" maxlength="40" value="${esc(p.label)}" aria-label="Name" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur()">${icon('pencil', 16)}</label></div>
-                <div class="sc-id-row top"><span>Channels</span><div class="sc-ch-picks">${chans.map((c) => `<label class="sc-ch-pick"><input type="checkbox" data-channel="${esc(c)}"${inCh.has(c) ? ' checked' : ''}><span>#${esc(c)}</span></label>`).join('')}</div></div>
+                                <div class="sc-id-row top"><span>Channels</span><div class="sc-ch-picks">${chans.map((c) => `<label class="sc-ch-pick"><input type="checkbox" data-channel="${esc(c)}"${inCh.has(c) ? ' checked' : ''}><span>#${esc(c)}</span></label>`).join('')}</div></div>
                 <div class="sc-id-row"><span>Works in</span><code>${esc(p.folder)}</code></div>
                 <div class="sc-id-row"><span>@handle</span><code>@${esc(p.handle)}</code></div>
             </div>`;
@@ -402,7 +401,7 @@
         return `<button type="button" class="sc-back" data-a="back">${icon('back', 18)}<span>All agents</span></button>
             <header class="sc-agh">
                 <button type="button" class="sc-agh-av" data-a="pick-avatar" aria-label="Change picture" title="Change picture">${avatar(p.handle)}<span class="sc-dot ${esc(st)}"></span><span class="sc-agh-edit">${icon('edit', 14)}</span></button>
-                <div class="sc-agh-txt"><h2>${esc(p.label)}</h2><p>${esc((p.role || '').split(':')[0])} · <span class="sc-pill ${esc(st)}">${stText(p.handle)}</span></p></div>
+                <div class="sc-agh-txt"><h2><label class="sc-agh-name" title="Click to rename"><input type="text" data-set-text="label" maxlength="40" value="${esc(p.label)}" size="${Math.max(4, Math.min(28, Array.from(p.label || '').reduce((n, c) => n + (c.charCodeAt(0) > 255 ? 2 : 1), 0) + 1))}" aria-label="Name" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape'){this.value=this.defaultValue;this.blur()}">${icon('pencil', 16)}</label></h2><p>${esc((p.role || '').split(':')[0])} · <span class="sc-pill ${esc(st)}">${stText(p.handle)}</span></p></div>
                 <div class="sc-agh-act">
                     <button type="button" class="sc-btn" data-a="message">Message</button>
                     ${p.running ? `<button type="button" class="sc-btn" data-agent-act="restart">Restart</button><button type="button" class="sc-btn" data-agent-act="stop">Stop</button>`
@@ -885,9 +884,10 @@
         }
         const txt = e.target.closest('[data-set-text]');
         if (txt) {
+            if (txt.dataset.setText === 'label' && !txt.value.trim()) { txt.value = txt.defaultValue; return; }   // a name can't be empty
             const r = await api(`/api/scranton/teammate/${encodeURIComponent(agentOpen)}`, { action: 'set', key: txt.dataset.setText, value: txt.value });
             flash('sc-ag-saved', r.error ? r.error : 'Saved.');
-            if (!r.error && txt.dataset.setText === 'label') { window.scReloadTeam && window.scReloadTeam(); const h = root.querySelector('.sc-agh-txt h2'); if (h) h.textContent = txt.value.trim(); }
+            if (!r.error && txt.dataset.setText === 'label') { window.scReloadTeam && window.scReloadTeam(); txt.value = txt.value.trim(); txt.defaultValue = txt.value; }
             return;
         }
         const sel = e.target.closest('[data-set]');

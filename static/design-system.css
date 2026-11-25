@@ -2104,3 +2104,12 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-group-new input { flex: 1; min-width: 0; height: 32px; padding: 0 10px; border: 0; border-radius: var(--ds-r-row); background: var(--ds-hover); color: var(--ds-text); font: inherit; font-size: var(--ds-fs-md); outline: 0; }
 .sc-group-err { padding: 0 10px; color: var(--ds-danger, #ed8796); font-size: var(--ds-fs-xs); }
 .sc-group-err:empty { display: none; }
+
+/* Teammate page: the title is the name field (11-25: Lu selected the title to rename it; the
+   Name row was further down the page). Looks like a heading until hovered or focused. */
+.sc-agh-name { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; margin-left: -8px; padding: 2px 8px; border-radius: var(--ds-r-control); color: var(--ds-text-3); cursor: text; }
+.sc-agh-name input { min-width: 0; max-width: 100%; border: 0; background: none; padding: 0; color: var(--ds-text); font: inherit; outline: 0; text-overflow: ellipsis; }
+.sc-agh-name .ri { flex: none; opacity: 0; }
+.sc-agh-name:hover, .sc-agh-name:focus-within { background: var(--ds-hover); }
+.sc-agh-name:hover .ri, .sc-agh-name:focus-within .ri { opacity: 1; }
+@media (hover: none) { .sc-agh-name .ri { opacity: 1; } }
