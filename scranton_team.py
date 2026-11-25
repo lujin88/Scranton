@@ -337,7 +337,8 @@ def _model_ids(pid: str) -> list[list[str]]:
     # The app's own short menu, not every effort and speed of every model: a card saying
     # "New model: Gemini 4 Neon Low, use as default?" for each of 285 variants is noise, and one
     # tap on it changes every teammate on that app (Lu's phone, 11-19).
-    return [[m[0], m[1]] for m in models_for(pid) if m and m[0]]
+    # An older model that only now shows up in the list is not news.
+    return [[m[0], m[1]] for m in models_for(pid) if m and m[0] and (m[2] if len(m) > 2 else "") != "Older"]
 
 
 def new_models() -> dict:
@@ -546,8 +547,44 @@ def cursor_menu(models: list[list[str]]) -> list[list[str]]:
     return menu if len(menu) >= 5 else cursor_short(models)
 
 
+CODEX_CACHE = Path.home() / ".codex" / "models_cache.json"
+
+
+def codex_models(path: Path | None = None) -> list[list[str]]:
+    """What ChatGPT (Codex) offers this account right now, from the list the Codex CLI itself keeps
+    up to date on this Mac (Lu, 11-25: "不要每次都要我来给它更新"). Newest first, as Codex orders
+    them; the ones Codex calls previous generation or legacy go under Older. Empty when the file
+    isn't there or can't be read: the built-in list is used then."""
+    try:
+        data = json.loads((path or CODEX_CACHE).read_text("utf-8"))
+    except (OSError, ValueError):
+        return []
+    rows = []
+    for m in (data.get("models") if isinstance(data, dict) else None) or []:
+        if not isinstance(m, dict) or m.get("visibility") != "list":
+            continue
+        slug = str(m.get("slug") or "")
+        if not MODEL_RE.match(slug):
+            continue
+        desc = str(m.get("description") or "")
+        old = bool(re.match(r"\s*(previous generation|legacy)\b", desc, re.I))
+        name = re.sub(r"^GPT-(\d[\d.]*)-", r"GPT-\1 ", str(m.get("display_name") or slug))   # "GPT-6.2-Astra" -> "GPT-6.2 Astra"
+        try:
+            pr = int(m.get("priority"))
+        except (TypeError, ValueError):
+            pr = 999
+        rows.append((pr, [slug, name, "Older" if old else ""]))
+    return [r for _, r in sorted(rows, key=lambda x: x[0])]
+
+
 def models_for(pid: str, current: str = "", full: bool = False) -> list[list[str]]:
     base = [list(m) + [""] * (3 - len(m)) for m in PROVIDERS.get(pid, {}).get("models", [["", "Default", ""]])]
+    if pid == "codex":
+        live = codex_models()
+        if live:                                   # Codex's own list wins; ours is only the fallback
+            base = [["", "Default", ""]] + live
+            if current and current not in {m[0] for m in base}:
+                base.append([current, model_label(pid, current), "In use"])
     if pid == "cursor":
         every = cursor_models()
         seen = {m[0] for m in base}

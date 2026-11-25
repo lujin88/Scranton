@@ -74,3 +74,20 @@ def test_plugins_not_given_to_a_teammate_are_switched_off():
     assert sk.plugins_off(cfg, "pm", ids) == {"figma@claude-plugins-official": False}
     assert set(sk.plugins_off(cfg, "dev", ids)) == set(ids)
     assert sk.plugins_off({"team": {"skills": {"limit": True}}}, "pm", ids) == {}
+
+
+def test_chatgpt_models_come_from_the_list_codex_keeps_on_this_mac(tmp_path, monkeypatch):
+    import json
+    import scranton_team as T
+    f = tmp_path / "models_cache.json"
+    f.write_text(json.dumps({"models": [
+        {"slug": "gpt-6-astra", "display_name": "GPT-6-Astra", "visibility": "list", "priority": 6, "description": "Previous generation model for complex coding."},
+        {"slug": "gpt-7-nova", "display_name": "GPT-7-Nova", "visibility": "list", "priority": 1, "description": "Newest."},
+        {"slug": "gpt-reserve", "display_name": "GPT-Reserve", "visibility": "hide", "priority": 2, "description": "x"},
+        {"slug": "bad slug!", "display_name": "x", "visibility": "list", "priority": 3}]}))
+    assert T.codex_models(f) == [["gpt-7-nova", "GPT-7 Nova", ""], ["gpt-6-astra", "GPT-6 Astra", "Older"]]
+    monkeypatch.setattr(T, "CODEX_CACHE", f)
+    assert [m[0] for m in T.models_for("codex")] == ["", "gpt-7-nova", "gpt-6-astra"]
+    assert T.models_for("codex", current="gpt-5.5")[-1][0] == "gpt-5.5"            # what a teammate runs on stays selectable
+    monkeypatch.setattr(T, "CODEX_CACHE", tmp_path / "missing.json")
+    assert any(m[0] == "gpt-6.2-astra" for m in T.models_for("codex"))               # no file: the built-in list
