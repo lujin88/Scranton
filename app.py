@@ -6039,11 +6039,12 @@ def _sc_lessons_tick(now: float | None = None) -> list[tuple[str, str]]:
                      and scranton_lessons.is_correction(str(v.get("text") or ""))]
         # Asked only when there is something new: corrections it was already asked about don't count again.
         fresh = [v for v in items if int(v["id"]) not in L.asked(ch)]
-        if len(items) < scranton_lessons.MIN_CORRECTIONS or not fresh:
+        if len(fresh) < scranton_lessons.MIN_CORRECTIONS:      # two new ones, not one new one beside thirty old
             continue
         items.sort(key=lambda v: v["ts"])
         L.set_batch(ch, [int(v["id"]) for v in items])
-        out.append((ch, scranton_lessons.request_text(ch, items, L.get(ch)["kept"], handle)))
+        L.mark_asked(ch, day)
+        out.append((ch, scranton_lessons.request_text(ch, items, L.get(ch)["kept"], handle, L.dropped(ch))))
     return out
 
 

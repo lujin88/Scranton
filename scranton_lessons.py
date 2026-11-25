@@ -23,6 +23,8 @@ from pathlib import Path
 
 MAX_KEPT = 15
 MAX_PENDING = 6
+RUN_EVERY_DAYS = 3           # Lu, 11-25: "已经回复过了还在不断出现": she was asked every day
+MAX_DROPPED = 80             # what she said no to, so the same idea is not put to her again
 MIN_CORRECTIONS = 2          # Lu, 11-23: the same kind of thing said twice within a week is enough
 WINDOW_DAYS = 7              # was one day: corrections spread over several days never reached three
 MAX_EVERYWHERE = 8           # preferences that go to every project: a short list, or it is skimmed
@@ -34,6 +36,19 @@ CORRECTION_RE = re.compile(
 
 def is_correction(text: str) -> bool:
     return bool(CORRECTION_RE.search(text or ""))
+
+
+def similar(a: str, b: str) -> bool:
+    """The same idea in other words: enough shared character pairs of the rule itself (the part
+    before "，因为")."""
+    def pairs(t: str) -> set[str]:
+        t = _norm(re.split(r"[，,]\s*因为", str(t or ""))[0])
+        return {t[i:i + 2] for i in range(len(t) - 1)} or {t}
+    x, y = pairs(a), pairs(b)
+    if not x or not y:
+        return False
+    both = len(x & y)
+    return both / len(x | y) >= 0.4 or both / min(len(x), len(y)) >= 0.7
 
 
 def _norm(t: str) -> str:
@@ -70,6 +85,7 @@ class Lessons:
         with self.lock:
             c = self._ch(ch)
             have = {_norm(x["text"]) for x in c["kept"] + c["pending"]}
+            known = [x["text"] for x in c["kept"] + c["pending"] + c.get("dropped", [])]
             for t in texts:
                 t = re.sub(r"^\s*(?:[-*•]|\d+[.、)])\s*", "", str(t or "")).strip()
                 # the messages it was drawn from ("…（#18127 #18136）"): kept apart, so she can see them
@@ -79,10 +95,13 @@ class Lessons:
                     continue    # no source, no proposal: she cannot judge a rule without her own words beside it
                 if len(t) < 4 or _norm(t) in have or len(c["pending"]) >= MAX_PENDING:
                     continue
+                if need_source and any(similar(t, k) for k in known):
+                    continue    # she already kept it, is being asked it, or said no to it
                 c["seq"] += 1
                 item = {"id": c["seq"], "text": t, "by": by, "at": now, "from": src}
                 c["pending"].append(item)
                 have.add(_norm(t))
+                known.append(t)
                 added.append(item)
             if added:
                 self._save()
@@ -108,7 +127,7 @@ class Lessons:
         with self.lock:
             c = self._ch(ch)
             c["batch"] = [int(i) for i in ids][-25:]
-            c["asked"] = (list(c.get("asked", [])) + [int(i) for i in ids])[-300:]   # not asked about twice
+            c["asked"] = (list(c.get("asked", [])) + [int(i) for i in ids])[-3000:]   # 300 was reached in a week, and what fell off was asked about again   # not asked about twice
             self._save()
 
     def asked(self, ch: str) -> set[int]:
@@ -146,6 +165,8 @@ class Lessons:
                 c["kept"].append({**item, "kept_at": now})
                 c["kept"] = c["kept"][-MAX_KEPT:]
                 c["ver"] += 1
+            else:
+                c["dropped"] = (c.get("dropped", []) + [{"text": item["text"], "at": now}])[-MAX_DROPPED:]
             self._save()
             return True
 
@@ -189,9 +210,28 @@ class Lessons:
         return (f"[Lu 对 #{ch} 这个项目的偏好，都是她纠正过的事。动手前读一遍，交之前逐条对照；"
                 f"哪条做不到，在交付里说明是哪条、为什么]\n{lines}")
 
+    def dropped(self, ch: str) -> list[dict]:
+        with self.lock:
+            return list((self.data.get(ch) or {}).get("dropped", []))
+
     def due(self, ch: str, day: str) -> bool:
         with self.lock:
-            return (self.data.get(ch) or {}).get("ran_day") != day
+            c = self.data.get(ch) or {}
+            if str(c.get("ran_day") or "") == day:
+                return False
+            last = str(c.get("asked_day") or "")       # counted from the last time she was asked, not the last look
+            if not last:
+                return True
+            try:
+                gap = (time.mktime(time.strptime(day, "%Y-%m-%d")) - time.mktime(time.strptime(last, "%Y-%m-%d"))) / 86400
+            except ValueError:
+                return True
+            return gap >= RUN_EVERY_DAYS - 0.5
+
+    def mark_asked(self, ch: str, day: str) -> None:
+        with self.lock:
+            self._ch(ch)["asked_day"] = day
+            self._save()
 
     def mark_ran(self, ch: str, day: str) -> None:
         with self.lock:
@@ -199,14 +239,16 @@ class Lessons:
             self._save()
 
 
-def request_text(ch: str, items: list[dict], kept: list[dict], handle: str) -> str:
+def request_text(ch: str, items: list[dict], kept: list[dict], handle: str, dropped: list[dict] | None = None) -> str:
     """Asks a teammate to turn a day's corrections into at most 3 short preferences."""
     # Her words are quoted, so their @names must not wake anyone (11-20 07:03: this note woke the
     # visual designer, the visual checker, motion and the developer, who each replied "not for me").
     said = "\n".join(f"· #{it['id']} {re.sub(r'@(?=[A-Za-z])', '', str(it.get('text') or ''))[:180]}" for it in items[-25:])
     have = "\n".join(f"· {x['text']}" for x in kept) or "（还没有）"
+    no = "\n".join(f"· {x['text']}" for x in (dropped or [])[-20:])
     return (f"@{handle} 学习任务，只做这一件，不要改任何文件。下面是 Lu 最近 7 天在这个项目里纠正团队的原话。"
             f"只归纳她说过两次以上的同一类问题（说过一次的不算），归纳成最多 3 条「偏好」：每条一句话、规则本身 30 字以内、写成做事的人能直接照做的样子"
             f"（例：主视觉不用缩小的界面截图；每页标题的位置和字号一致）。每条后面用「，因为…」带上原因：Lu 说过原因就用她的，没说过就写你推测的并标「（原因是推测）」，让她确认时改。只针对某一页某一次的不要写，已有的不要重复。"
             f"每条末尾必须写上它出自哪几条原话的编号，例如「（#18127 #18136）」：Lu 要对照自己的原话才能判断，没写编号的那条不会被收下。没有值得归纳的就回「没有」。用 chat_lessons(action=\"propose\", channel=\"{ch}\", lessons=\"一行一条\") 提交，"
-            f"Lu 确认后才生效。\n已有的偏好：\n{have}\nLu 的原话：\n{said}")
+            f"Lu 确认后才生效。已有的和 Lu 否掉的，意思相同或相近的都不要再提；提不出新的就回一句「没有新的」。\n已有的偏好：\n{have}\n"
+            + (f"Lu 否掉的：\n{no}\n" if no else "") + f"Lu 的原话：\n{said}")

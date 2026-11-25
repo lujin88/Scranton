@@ -85,10 +85,12 @@ def test_two_corrections_spread_over_a_week_are_enough_and_not_asked_about_twice
     got = app._sc_lessons_tick(now)
     assert all(str(i) in said.items for i in (300, 301))
     assert [ch for ch, _ in got] == ["eon"] and "#300" in got[0][1] and "#301" in got[0][1] and "两次以上" in got[0][1]
-    assert app._sc_lessons_tick(now + 86400) == []             # next day, nothing new: not asked again
+    assert app._sc_lessons_tick(now + 86400) == []             # next day: not asked again
     said.add({"id": 304, "sender": "Lu", "text": "@dev 这里间距太挤了，不要这样", "channel": "eon", "timestamp": now + 86400 + 60})
-    assert [ch for ch, _ in app._sc_lessons_tick(now + 86400 + 3600)] == []   # same day already ran
-    assert [ch for ch, _ in app._sc_lessons_tick(now + 2 * 86400)] == ["eon"]
+    said.add({"id": 305, "sender": "Lu", "text": "@dev 怎么又挤在一起了，重新做", "channel": "eon", "timestamp": now + 2 * 86400})
+    assert app._sc_lessons_tick(now + 2 * 86400 + 3600) == []   # two new ones, but she was asked two days ago
+    got = app._sc_lessons_tick(now + 3 * 86400 + 60)
+    assert [ch for ch, _ in got] == ["eon"]
 
 
 def test_a_preference_marked_for_every_project_reaches_the_others(tmp_path):
@@ -106,3 +108,34 @@ def test_a_preference_marked_for_every_project_reaches_the_others(tmp_path):
         x = L.add("p2", f"通用偏好第 {i} 条")
         assert L.everywhere("p2", x["id"], True)
     assert not L.everywhere("portfolio", a["id"], True)        # the list for every project stays short
+
+
+def test_what_she_dropped_or_kept_is_not_put_to_her_again_in_other_words(tmp_path):
+    L = sl.Lessons(tmp_path / "l.json")
+    a, b = L.propose("p", ["给 Lu 看页面要发整页上下图，不只发首屏（#101 #102）", "动效先发定帧给 Lu 点头再生成（#103 #104）"])
+    L.decide("p", a["id"], True)
+    L.decide("p", b["id"], False)
+    assert L.dropped("p")[0]["text"].startswith("动效先发定帧")
+    again = L.propose("p", ["发给 Lu 的页面要整页上下图，不能只有首屏，因为她说看不全（#201 #202）",
+                            "动效要先发定帧给 Lu 点头，再用即梦生成（#203 #204）",
+                            "相邻页同类文字位置和字号一致（#205 #206）"])
+    assert [x["text"] for x in again] == ["相邻页同类文字位置和字号一致"]
+    assert "Lu 否掉的" in sl.request_text("p", [{"id": 1, "text": "x"}], L.get("p")["kept"], "harness", L.dropped("p"))
+    assert L.add("p", "动效先发定帧给 Lu 点头再生成") is not None            # what she writes herself is always taken
+
+
+def test_one_new_correction_is_not_enough_to_ask_again(tmp_path, monkeypatch):
+    L = sl.Lessons(tmp_path / "l.json")
+    said = scranton_said.Said(tmp_path / "said.json")
+    t = time.localtime()
+    now = time.mktime((t.tm_year, t.tm_mon, t.tm_mday, 9, 0, 0, 0, 0, -1))
+    for i, txt in enumerate(("@dev 这页的字号太大了，我说过了", "@dev 怎么又是这么大的字，重新做")):
+        said.add({"id": 400 + i, "sender": "Lu", "text": txt, "channel": "eon", "timestamp": now - (i + 1) * 3600})
+    monkeypatch.setattr(mcp_bridge, "LESSONS", L)
+    monkeypatch.setattr(app, "_sc_said", lambda: said)
+    monkeypatch.setattr(app, "_project_channels", lambda: ["eon"])
+    monkeypatch.setattr(app, "_paused_channels", lambda: set())
+    monkeypatch.setattr(app, "config", {"agents": {"harness": {}}, "team": {}})
+    assert len(app._sc_lessons_tick(now)) == 1
+    said.add({"id": 402, "sender": "Lu", "text": "@dev 这里间距太挤了，不要这样", "channel": "eon", "timestamp": now + 60})
+    assert app._sc_lessons_tick(now + 4 * 86400) == []
