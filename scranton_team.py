@@ -37,9 +37,10 @@ PROVIDERS = {
         "models": [
             ["", "Default", "Claude Code picks"],
             # Specific versions, newest first (no "latest" aliases: you see exactly what runs).
-            ["claude-fable-5-1", "Fable 5.1", ""], ["claude-opus-5-5", "Opus 5.5", ""],
+            # 11-25: Fable 5.2 (9 Nov 2026, needs Claude Code 2.1.321+) replaces Fable 5.1.
+            ["claude-fable-5-2", "Fable 5.2", ""], ["claude-opus-5-5", "Opus 5.5", ""],
             ["claude-sonnet-5-5", "Sonnet 5.5", ""], ["claude-haiku-5-5", "Haiku 5.5", ""],
-            ["claude-opus-5", "Opus 5", "Older"], ["claude-sonnet-5", "Sonnet 5", "Older"],
+            ["claude-fable-5-1", "Fable 5.1", "Older"], ["claude-opus-5", "Opus 5", "Older"], ["claude-sonnet-5", "Sonnet 5", "Older"],
             ["claude-opus-4-8", "Opus 4.8", "Older"], ["claude-opus-4-7", "Opus 4.7", "Older"],
             ["claude-opus-4-6", "Opus 4.6", "Older"], ["claude-haiku-4-5", "Haiku 4.5", "Older"],
         ],
@@ -52,9 +53,12 @@ PROVIDERS = {
             ["", "Default", ""],
             # 11-19: GPT-6 Astra (in Codex since 3 Sep 2026, needs codex-cli 0.153.1+) and the GPT-5.6
             # family; GPT-5.4 left Codex on 31 Aug 2026 and 5.2 / 5.3-codex are deprecated.
-            ["gpt-6-astra", "GPT-6 Astra", "Recommended"], ["gpt-5.6-sol", "GPT-5.6 Sol", "Recommended"],
+            # 11-25: GPT-6.2 Astra and Sol (17 Nov 2026, in the CLI's list from codex-cli 0.171.0):
+            # Astra for the hardest work, Sol for everyday coding. They replace GPT-6 Astra and GPT-6.1 Sol.
+            ["gpt-6.2-astra", "GPT-6.2 Astra", "Recommended"], ["gpt-6.2-sol", "GPT-6.2 Sol", "Recommended"],
             ["gpt-5.6-terra", "GPT-5.6 Terra", "Everyday"], ["gpt-5.6-luna", "GPT-5.6 Luna", "Everyday"],
-            ["gpt-5.5", "GPT-5.5", "Older"],
+            ["gpt-6-astra", "GPT-6 Astra", "Older"], ["gpt-6.1-sol", "GPT-6.1 Sol", "Older"],
+            ["gpt-5.6-sol", "GPT-5.6 Sol", "Older"], ["gpt-5.5", "GPT-5.5", "Older"],
         ],
     },
     "cursor": {
