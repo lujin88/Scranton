@@ -25,7 +25,8 @@ def test_what_is_refused():
     gs, _ = G.apply([], CH, "create", {"name": "Archive"})
     assert G.apply(gs, CH, "create", {"name": "archive"})[1]                      # same name
     assert G.apply(gs, CH, "create", {"name": "  "})[1]
-    for ch in ("general", "dm-pm", "nope"):
+    assert not G.apply(gs, CH, "move", {"channel": "general", "id": 1})[1]     # Lu, 11-25: general can be grouped too
+    for ch in ("dm-pm", "nope"):
         assert G.apply(gs, CH, "move", {"channel": ch, "id": 1})[1]
     assert G.apply(gs, CH, "move", {"channel": "ai-pet", "id": 9})[1]
     assert G.apply(gs, CH, "rename", {"id": 9, "name": "x"})[1]

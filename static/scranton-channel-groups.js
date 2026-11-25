@@ -105,7 +105,7 @@
         if (!Array.from(e.dataTransfer?.types || []).includes(MIME)) return;
         const name = e.dataTransfer.getData(MIME);
         document.querySelectorAll('.sc-group-head.sc-drop').forEach((x) => x.classList.remove('sc-drop'));
-        if (!name || name === 'general') return;
+        if (!name) return;
         const h = e.target.closest && e.target.closest('.sc-group-head');
         const row = e.target.closest && e.target.closest('#channel-sidebar-list .channel-sidebar-row');
         if (!h && !row) return;

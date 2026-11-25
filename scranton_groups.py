@@ -27,7 +27,7 @@ def _name_ok(groups: list[dict], name: str, but: int = 0) -> bool:
 
 
 def can_group(channel: str, channels: list[str]) -> bool:
-    return channel in channels and channel != "general" and not channel.startswith("dm-")
+    return channel in channels and not channel.startswith("dm-")
 
 
 def apply(groups, channels: list[str], action: str, body: dict) -> tuple[list[dict], str]:

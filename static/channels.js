@@ -197,6 +197,17 @@ function renderChannelSidebar() {
             actions.appendChild(delBtn);
 
             row.appendChild(actions);
+        } else if (window.scGroupMenu) {
+            // general can't be renamed or deleted, but it can sit in a group like any other (Lu, 11-25)
+            const actions = document.createElement('span');
+            actions.className = 'channel-sidebar-row-actions';
+            const grpBtn = document.createElement('button');
+            grpBtn.title = 'Move to a group';
+            grpBtn.setAttribute('aria-label', 'Move to a group');
+            grpBtn.innerHTML = window.scIcon ? window.scIcon('folder-transfer', 16) : 'Group';
+            grpBtn.onclick = (e) => { e.stopPropagation(); window.scGroupMenu(name, grpBtn); };
+            actions.appendChild(grpBtn);
+            row.appendChild(actions);
         }
 
         row.onclick = (e) => {
