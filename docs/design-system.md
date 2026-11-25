@@ -138,3 +138,6 @@ Every screen is walked at 1024, 768, 390 and 320 wide, the last three as touch s
 
 ### Preferences list (11-23)
 In the channel panel each preference is the sentence on its own line, actions on the line under it, right-aligned. `This project` / `All projects` is a toggle (accent colour when on): an all-projects preference is handed to every channel, at most 8 in total.
+
+### Channel groups (11-25)
+Her own headings in the sidebar, below the ungrouped channels: `.sc-group-head` (chevron, name; when folded the channel count and an accent dot if something inside is unread). Channels in a group are `.channel-sidebar-row.sc-in-group`, one step further in. Rename and remove appear on hover, like row actions. A channel goes in through the folder button on its row (`.sc-group-menu`, a `.sc-pop`) or by dragging it onto a heading. Folded state is shared across her devices. Icons: Remix `folder`, `folder-transfer`.

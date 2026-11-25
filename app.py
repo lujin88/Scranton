@@ -2310,6 +2310,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 meta = room_settings.get("channel_meta") or {}
                 if old_name in meta:
                     meta[new_name] = meta.pop(old_name)
+                import scranton_groups
+                room_settings["channel_groups"] = scranton_groups.renamed(room_settings.get("channel_groups"), old_name, new_name)
                 store.rename_channel(old_name, new_name)
                 import mcp_bridge
                 mcp_bridge.migrate_cursors_rename(old_name, new_name)
@@ -2351,6 +2353,8 @@ def _remove_channel(name: str) -> None:
     (room_settings.get("channel_members") or {}).pop(name, None)
     (room_settings.get("channel_meta") or {}).pop(name, None)
     room_settings["paused_channels"] = [c for c in room_settings.get("paused_channels") or [] if c != name]
+    import scranton_groups
+    room_settings["channel_groups"] = scranton_groups.removed(room_settings.get("channel_groups"), name)
     store.delete_channel(name)
     import mcp_bridge
     mcp_bridge.migrate_cursors_delete(name)
@@ -6041,6 +6045,26 @@ def _sc_lessons_tick(now: float | None = None) -> list[tuple[str, str]]:
         L.set_batch(ch, [int(v["id"]) for v in items])
         out.append((ch, scranton_lessons.request_text(ch, items, L.get(ch)["kept"], handle)))
     return out
+
+
+@app.post("/api/scranton/channel-groups")
+async def sc_channel_groups(request: Request):
+    """Her own headings in the sidebar: create, rename, delete, move a channel in or out, fold."""
+    import scranton_groups
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not isinstance(body, dict):
+        body = {}
+    groups, err = scranton_groups.apply(room_settings.get("channel_groups"), list(room_settings.get("channels") or []),
+                                        str(body.get("action") or ""), body)
+    if err:
+        return JSONResponse({"ok": False, "error": err, "groups": groups}, status_code=400)
+    room_settings["channel_groups"] = groups
+    _save_settings()
+    await broadcast_settings()
+    return JSONResponse({"ok": True, "groups": groups})
 
 
 @app.get("/api/scranton/lessons")

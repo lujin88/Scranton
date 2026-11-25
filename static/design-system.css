@@ -2074,3 +2074,33 @@ body.sc-report-open #scroll-anchor { display: none !important; }
 .sc-skill-chip.missing { opacity: .5; }
 #sc-skill-row .sc-skill-chip { max-width: none; flex: none; }
 @media (max-width: 720px) { #sc-skill-row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .sc-skill-who { flex: none; } }
+
+/* Channel groups in the sidebar (11-25): her own headings under the ungrouped channels. A heading
+   looks like the section headers, one step in; its channels sit a little further in. */
+.sc-group-head { display: flex; align-items: center; min-height: 32px; margin-top: var(--ds-2); border-radius: var(--ds-r-row); }
+.sc-group-head.sc-drop { background: var(--ds-selected); }
+.sc-group-toggle { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px 0 12px; border: 0; background: none;
+    color: var(--ds-text-3); font: inherit; font-size: var(--ds-fs-xs); font-weight: 500; text-align: left; cursor: pointer; border-radius: var(--ds-r-row); }
+.sc-group-toggle:hover { color: var(--ds-text-2); }
+.sc-group-toggle .ri { flex: none; transition: transform .12s ease; }
+.sc-group-head.collapsed .sc-group-toggle .ri { transform: rotate(-90deg); }
+.sc-group-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-group-n { color: var(--ds-text-3); font-variant-numeric: tabular-nums; }
+.sc-group-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ds-accent); flex: none; }
+.sc-group-actions { display: none; align-items: center; gap: 2px; padding-right: 6px; }
+.sc-group-head:hover .sc-group-actions, .sc-group-head:focus-within .sc-group-actions { display: flex; }
+.sc-group-actions button { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: 0; background: none; color: var(--ds-text-3); border-radius: 6px; cursor: pointer; }
+.sc-group-actions button:hover { color: var(--ds-text); background: var(--ds-hover); }
+.sc-group-input { flex: 1; min-width: 0; height: 24px; padding: 0 6px; border: 0; border-radius: 6px; background: var(--ds-hover); color: var(--ds-text); font: inherit; font-size: var(--ds-fs-xs); outline: 0; }
+.channel-sidebar-row.sc-in-group { padding-left: 22px !important; }
+.sc-group-menu { position: fixed; z-index: 90; width: 240px; padding: 6px; background: var(--ds-overlay); border: 0; border-radius: var(--ds-r-card); box-shadow: var(--ds-shadow); }
+.sc-group-menu-title { padding: 6px 10px 4px; color: var(--ds-text-3); font-size: var(--ds-fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-group-menu > button { display: flex; align-items: center; gap: 10px; width: 100%; height: 36px; padding: 0 10px; border: 0; border-radius: var(--ds-r-row);
+    background: none; color: var(--ds-text); font: inherit; font-size: var(--ds-fs-md); text-align: left; cursor: pointer; }
+.sc-group-menu > button span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-group-menu > button:hover, .sc-group-menu > button:focus-visible { background: var(--ds-hover); outline: 0; }
+.sc-group-menu > button .ri { color: var(--ds-text-3); flex: none; }
+.sc-group-new { display: flex; gap: 6px; padding: 6px 4px 2px; }
+.sc-group-new input { flex: 1; min-width: 0; height: 32px; padding: 0 10px; border: 0; border-radius: var(--ds-r-row); background: var(--ds-hover); color: var(--ds-text); font: inherit; font-size: var(--ds-fs-md); outline: 0; }
+.sc-group-err { padding: 0 10px; color: var(--ds-danger, #ed8796); font-size: var(--ds-fs-xs); }
+.sc-group-err:empty { display: none; }

@@ -2092,6 +2092,7 @@ function applySettings(data) {
     if (Array.isArray(data.custom_roles)) {
         window.customRoles = data.custom_roles;
     }
+    if (Array.isArray(data.channel_groups)) window.scChannelGroups = data.channel_groups;   // before the list is drawn
     if (data.channels && Array.isArray(data.channels)) {
         channelList = data.channels;
         // If active channel was deleted, switch to general

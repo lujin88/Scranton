@@ -142,10 +142,15 @@ function renderChannelSidebar() {
     const keepFocus = _inlineFocusState(existingCreate);
     list.innerHTML = '';
 
-    for (const name of window.channelList) {
+    // Scranton: her own groups come after the ungrouped channels, each under a heading (scranton-channel-groups.js)
+    const plan = window.scChannelPlan ? window.scChannelPlan(window.channelList) : window.channelList.map((n) => ({ ch: n }));
+    for (const item of plan) {
+        if (item.head) { list.appendChild(item.head); continue; }
+        const name = item.ch;
         const row = document.createElement('button');
         row.className = 'channel-sidebar-row' + (name === window.activeChannel ? ' active' : '');
         row.dataset.channel = name;
+        if (item.group) { row.dataset.group = String(item.group); row.classList.add('sc-in-group'); }
 
         // Scranton: "#" as its own muted glyph; bold only when unread
         const hash = document.createElement('span');
@@ -175,6 +180,15 @@ function renderChannelSidebar() {
             editBtn.innerHTML = window.scIcon ? window.scIcon('edit', 16) : 'Rename';
             editBtn.onclick = (e) => { e.stopPropagation(); _showSidebarRenameDialog(name); };
             actions.appendChild(editBtn);
+
+            if (window.scGroupMenu) {
+                const grpBtn = document.createElement('button');
+                grpBtn.title = 'Move to a group';
+                grpBtn.setAttribute('aria-label', 'Move to a group');
+                grpBtn.innerHTML = window.scIcon ? window.scIcon('folder-transfer', 16) : 'Group';
+                grpBtn.onclick = (e) => { e.stopPropagation(); window.scGroupMenu(name, grpBtn); };
+                actions.appendChild(grpBtn);
+            }
 
             const delBtn = document.createElement('button');
             delBtn.title = 'Delete';
