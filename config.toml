@@ -29,9 +29,9 @@ mentions_from = "pm"
 # These teammates' own questions reach you directly, but only as a card with options
 # (Lu, 11-19: the visual designer asks her about design; the project manager no longer retells it.
 # 11-20: the developer and the motion designer too. That day the project manager sent 183 messages, 60 of them to her.)
-asks_owner = ["visual", "dev", "motion"]
+asks_owner = ["visual", "visual2", "dev", "motion"]
 # One row in 在做 at a time for these teammates, across projects; the rest of theirs waits as todo.
-one_at_a_time = ["visual", "dev"]   # dev since 11-20: five rows in 在做 at once, and the one promised for 03:00 was never started
+one_at_a_time = ["visual", "visual2", "dev"]   # dev since 11-20: five rows in 在做 at once, and the one promised for 03:00 was never started
 # "full": teammates never stop to ask for permission (Claude: bypassPermissions,
 # Codex: no approvals and no sandbox, Cursor: --force). Deny rules in a project's
 # .claude/settings.json still apply to Claude. "ask": the CLIs' normal prompts.
@@ -67,6 +67,7 @@ dirs = ["~/.agents/skills", "~/.claude/skills", "~/.codex/skills"]
 
 [team.skills.allow]
 visual = ["impeccable", "unslop", "prototype"]
+visual2 = ["impeccable", "unslop", "prototype"]
 visintern = ["impeccable", "unslop", "prototype"]
 visualqa = ["break-ui", "review-animations"]
 motion = ["animate", "choreograph", "animation-performance"]
@@ -89,6 +90,7 @@ agents = ["dev", "webdev"]
 # Plugins bring their own skills. A teammate keeps only the plugins listed for it; every other
 # installed plugin is off for that teammate (Claude Code teammates only). Lu, 2026-11-21.
 visual = ["figma", "design"]
+visual2 = ["figma", "design"]
 visintern = ["figma"]
 webdev = ["figma"]
 visualqa = ["design", "critique"]
@@ -209,6 +211,19 @@ color = "#f5bde6"
 role = "Visual Designer: designs and image assets from the project design system"
 avatar = "05-visual-designer-cat.jpg"
 role_card = "roles/visual-designer.md"
+
+[agents.visual2]          # Lu, 11-25: a second visual designer on ChatGPT. The first had seven rows queued in one
+                          # project, the Gemini intern lost four hours to limits that day, and ChatGPT's week stood at 6%.
+briefs = ["build", "design"]
+label = "视觉设计师 2"
+command = "codex"
+model = "gpt-6-astra"
+cwd = "~/LuJin-Portfolio"
+worktree = true          # own git worktree next to the project, so parallel edits never collide
+color = "#f5bde6"
+role = "Visual Designer 2: the same job and rules as the visual designer; takes whole pages or whole decks, never part of a page the other designer is working on"
+role_card = "roles/visual-designer.md"
+autostart = false        # starts when someone @s it
 
 [agents.visualqa]
 briefs = ["build", "design"]
