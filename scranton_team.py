@@ -75,7 +75,12 @@ PROVIDERS = {
         # every few hours. Pictures come from agy's own image tool (Nano Banana), whichever is picked.
         # (third field = the group in the menu)
         "models": [["", "Default", ""],
+                   # Neon, Carbon, Hydrogen (11-18, 11-11): ids as the Gemini API names them. Not yet seen
+                   # accepted by agy on Lu's plan; check the status line after picking one.
+                   ["gemini-4-neon", "Gemini 4 Neon", "Recommended"],
                    ["gemini-4-argon", "Gemini 4 Argon", "Recommended"],
+                   ["gemini-4-carbon", "Gemini 4 Carbon", "Recommended"],
+                   ["gemini-4-hydrogen", "Gemini 4 Hydrogen", "Recommended"],
                    ["gemini-3.8-flash", "Gemini 3.8 Flash", "Recommended"],
                    ["gemini-3.7-flash", "Gemini 3.7 Flash", "Older"],
                    ["gemini-3.1-pro", "Gemini 3.1 Pro", "Older"]],
