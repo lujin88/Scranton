@@ -80,6 +80,15 @@ pm = ["handoff", "to-questionnaire"]
 harness = ["writing-for-agents", "retro", "learn-taste"]
 research = ["research"]
 
+[team.low_priority]
+# Projects Lu runs on the cheaper plan (Lu, 2026-11-26). The work goes to the Gemini teammates
+# first; after a second failed round it moves to the Claude or ChatGPT one. The project manager,
+# code review and visual check stay as they are ("还是要让贵的盯，因为我不确定 Gemini 是否好用").
+# Only the project manager brings things to her there, once a day (the 18:00 schedule below),
+# unless she is in the channel herself.
+channels = ["lumin-sotry-telling", "ai-pet", "agent-monitor", "contour-slide"]
+first = { dev = "gemdev", webdev = "gemdev", visual = "visintern", visual2 = "visintern", motion = "motionintern", research = "scout" }
+
 [team.stop_checks]
 # Claude teammates that cannot finish a turn until tools/stop_check.py passes on what their branch
 # changed: type errors in files they touched, and new raw font sizes where the project has size
@@ -127,6 +136,14 @@ daily_at = "21:00"
 to = ["pm"]
 channel = "lu-portfolio"
 text = "每日备份：按 harness-core AGENTS.md「每日备份」做（GitHub backup 分支 + Obsidian 日志），跑 daily-backup.sh check，把表贴在这里。"
+
+# Low-priority projects ([team.low_priority]): what needs Lu there goes to her once a day, in one list.
+[[team.schedules]]
+id = "low-priority-list"
+daily_at = "18:00"
+to = ["pm"]
+channel = "dm-pm"
+text = "低优先级项目（lumin-sotry-telling、ai-pet、agent-monitor、contour-slide）今天攒下的、要 Lu 定或要 Lu 看的事：合成一条发给 Lu，每件一行、带图，选项写成 A/B。合并审批不放进这条，每个 PR 仍单独发一张卡。今天没有要她定的就不发，也不用回这条。这四个项目平时不 @Lu，除非她自己在那个频道里说话。"
 
 # Daily plan and summary from the PM. Lu can turn both off in Settings → Profile.
 [[team.schedules]]

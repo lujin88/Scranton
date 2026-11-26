@@ -384,7 +384,8 @@ def chat_send(
     message, why_not = _picture_check(sender, message, choices, image_path, channel)
     if why_not:
         return why_not
-    why_not = (_merge_in_batch(sender, message, choices) or _motion_needs_motion(sender, message, choices, image_path)
+    why_not = (_low_lane_hold(sender, message, channel, reply_id)
+               or _merge_in_batch(sender, message, choices) or _motion_needs_motion(sender, message, choices, image_path)
                or _merge_card_gaps(sender, message, choices))
     if why_not:
         return why_not
@@ -417,7 +418,7 @@ def chat_send(
     with _presence_lock:
         _presence[sender] = time.time()
     return (f"Sent (id={msg['id']})" + moved + _length_note(message, clean_choices) + _shown_hint(msg)
-            + _direct_hint(sender, msg, clean_choices) + _two_asks_hint(message))
+            + _direct_hint(sender, msg, clean_choices) + _two_asks_hint(message) + _low_lane_hint(sender, message, channel))
 
 
 def _picture_check(sender: str, message: str, choices, image_path: str, channel: str):
@@ -1369,6 +1370,72 @@ def _two_asks_hint(message: str) -> str:
         return ""
     return (f"\nThis puts several separate things to {_owner_name()} in one message; she has one reply box for all of it. "
             f"Next time: one message (or one card with choices) per thing she has to answer, each with its own picture.")
+
+
+LOW_QUIET_MINUTES = 60
+
+
+def _low_lane() -> dict:
+    """[team.low_priority]: the projects Lu runs on the cheaper plan (Lu, 11-26: lumin, ai-pet,
+    agent-monitor, contour-slide). The work goes to the Gemini teammates first, the reviewers and
+    the project manager stay the same, and she is asked once a day."""
+    cfg = ((config or {}).get("team") or {}).get("low_priority") or {}
+    return cfg if isinstance(cfg, dict) and cfg.get("channels") else {}
+
+
+def _owner_spoke(channel: str, minutes: int = LOW_QUIET_MINUTES) -> bool:
+    owner = _owner_name().lower()
+    try:
+        recent = store.get_recent(60, channel=channel)
+    except Exception:
+        return True                                  # can't tell: don't hold anything back
+    cut = time.time() - minutes * 60
+    return any(str(m.get("sender") or "").lower() == owner and float(m.get("timestamp") or 0) > cut for m in recent)
+
+
+def _low_lane_hold(sender: str, message: str, channel: str, reply_id) -> str:
+    """In a low-priority project only the project manager brings things to her, once a day. While
+    she is in the channel herself (spoke there within the hour) or a teammate is answering her
+    message, it goes through as usual."""
+    lane = _low_lane()
+    owner = _owner_name()
+    base = _re_mod.sub(r"-\d+$", "", str(sender or "").lower())
+    if not lane or channel not in lane.get("channels", []) or base in ("scranton", "system", owner.lower()):
+        return ""
+    lead = str(((config or {}).get("team") or {}).get("lead") or "pm").lower()
+    if base == lead or not _re_mod.search(r"@" + _re_mod.escape(owner) + r"(?![\w-])", str(message or ""), _re_mod.I):
+        return ""
+    if reply_id is not None:
+        try:
+            if str((store.get_by_id(reply_id) or {}).get("sender") or "").lower() == owner.lower():
+                return ""
+        except Exception:
+            return ""
+    if _owner_spoke(channel):
+        return ""
+    return (f"Not sent. #{channel} is a low-priority project: {owner} is asked about it once a day, by @{lead}, in one list. "
+            f"Send this to @{lead} instead (same text and pictures, without @{owner}); it goes into today's list. "
+            f"If {owner} is in the channel herself or you are answering her message, write to her as usual.")
+
+
+def _low_lane_hint(sender: str, message: str, channel: str) -> str:
+    """The project manager hands a task in a low-priority project to a Claude or ChatGPT teammate:
+    remind it who goes first there. A hint, not a refusal: the second failed round and the final
+    sign-off rightly go to them."""
+    lane = _low_lane()
+    first = lane.get("first") or {}
+    lead = str(((config or {}).get("team") or {}).get("lead") or "pm").lower()
+    text = str(message or "")
+    if not lane or channel not in lane.get("channels", []) or _re_mod.sub(r"-\d+$", "", str(sender or "").lower()) != lead:
+        return ""
+    if not _re_mod.search(r"照做｜|探索｜", text) or _re_mod.search(r"第\s*2\s*次|两轮|转给|转你|转 dev", text):
+        return ""
+    hit = [(h, g) for h, g in first.items() if _re_mod.search(r"@" + _re_mod.escape(h) + r"(?![\w-])", text)]
+    if not hit:
+        return ""
+    return ("\nThis project is low priority: " + ", ".join(f"@{g} before @{h}" for h, g in hit)
+            + ". Give the task to the Gemini teammate first; the Claude or ChatGPT one takes it after a second failed round. "
+              "If you had a reason to skip that, say it in the row's note.")
 
 
 def _direct_hint(sender: str, msg: dict, choices) -> str:
