@@ -1,7 +1,104 @@
 # Handoff for Claude (the chat assistant that develops Scranton with Lu)
 
 Read this first in a new chat. Lu writes "继续 Scranton" and nothing else.
-Updated: 2026-11-19 22:25. Last commit when written: `8be6041`.
+Updated: 2026-11-26 23:15. Last commit when written: `111a190`. Older sections below are history.
+
+## Handover to Claude Code, 2026-11-26 23:15
+
+Lu is moving this work from the claude.ai chat to Claude Code. Everything below this section is
+the record up to now; this section is what you need to carry on.
+
+### If you run on the Mac mini itself
+
+- Do not edit `~/Scranton` in place: it is the running install and updates itself with `git pull`.
+  Work in a separate clone (for example `~/Scranton-dev`), run the full `pytest`, push to `main`,
+  then update the running copy: `POST /api/scranton/update/check` and `/update/apply` on
+  `http://localhost:8300` with header `X-Session-Token` (the token is `window.SESSION_TOKEN` in the
+  page), wait about 45 s, and check `/api/scranton/status` shows `update.behind == 0`.
+- To look at a design change, run `python3 run.py` in the clone on another port and take
+  screenshots with Playwright; stop it afterwards. Never take port 8300 or 3000.
+- Posting in Scranton for Lu: send through the page's websocket with `via: "claude"` and start the
+  text with 「（Claude 代 Lu 发）」. Check the channel exists first.
+- Still off limits: Agent Monitor's `token.txt`, `data/keys`, `data/grok-token`, `preview.key`,
+  `~/.codex/auth.json`; entering any password; repeating any token; installing software updates
+  (the Codex CLI "Update now" prompt: choose Skip); changing `~/.claude/settings.json` hooks.
+  File cleanup means moving to `_to_delete`, never deleting. Vault: append to
+  `~/Documents/lu-vault/03-side-projects/scranton/scranton-handoff.md` only; a nightly script
+  pushes it, never commit or push the vault by hand.
+- A PR that changes `.claude/`, `AGENTS.md`, `CLAUDE.md`, `.github/workflows/`, `.design-paths` in
+  the team's repos is Lu's to merge. Do not tell teammates you will merge one for her.
+
+### What shipped on 11-26 (none of it proven in real work yet)
+
+- Low-priority projects (`[team.low_priority]`): lumin-sotry-telling, ai-pet, agent-monitor,
+  contour-slide. Gemini teammates first, reviewers unchanged, only the PM takes things to Lu,
+  once a day at 18:00.
+- Model limit: a restart no longer loses the job (`_AUTO_NOTE`); `[team.model_limit] hold =
+  ["gemdev"]` waits for the quota instead of moving to Flash.
+- 接回: the Catch up button and `/接回` (`scranton_catchup.py`).
+- 探索 work starts with two lines to whoever handed it out (`_restate_first`).
+- `review`, first code review before QA, on Claude Sonnet (`[team.first_review]`,
+  `_first_review_gate`, `roles/first-review.md`). Started once and answered correctly; has not
+  reviewed a real PR.
+- Role cards: QA and visual QA do not hold a PR for problems already on main; PM splits designers
+  by project (visual: portfolio and interview work; visual2: Gratula, man-screen, the rest;
+  visintern: low-priority projects).
+- Effort set to high for dev, webdev, qa, review. Takes effect at their next restart. Lu agreed to
+  a restart on the morning of 11-27.
+- harness-core #116 media-check, #117 match-final, #118 ledger file names: merged by the team.
+- LuJin-Portfolio #246 (AGENTS.md says the 11-13 merge rule): merged with Lu's say-so.
+
+### Due on Friday 11-27 (two reminders are set in the claude.ai chat; do them here if Lu has moved)
+
+1. 09:00 Count per PR for 11-25 to 11-27: Gemini (gemdev; Argon and Flash apart) against Claude
+   (dev, webdev). Passed, returned, merged. A rough count on 11-26 evening from message headers:
+   webdev 10 merged / 8 returned, dev 2 / 5, gemdev 3 / 6, and 2 of gemdev's 6 were problems
+   already on main. visintern had 28 messages and no verdict from visual QA; scout and
+   motionintern one message each. Lu asked whether Gemini is worth paying for; the answer so far
+   is "not for the team", pending this count.
+2. In the same count: for each PR, time from opened to merged, split into waiting for review,
+   waiting for a fix, waiting for Lu. Lu says the team is slow; nothing has been measured.
+3. `data/stop-check/log.jsonl`: webdev passed once, was sent back twice, then let through five
+   times with the same 8 findings. Find out whether the 8 are real or false, then either fix the
+   check or drop the "two send-backs, then let through" rule.
+4. 09:10 First weekly spot check: 5 random 「视觉通过」 for Lu to judge. Blind: do not show her
+   visual QA's verdict or reasons until she has judged.
+5. Restart dev, webdev, qa so the effort change applies; check each gets its row back.
+6. Append the evening's changes to the vault note (first review, pre-existing problems, designers
+   by project, effort). The note is current up to the 接回 and 探索 changes.
+
+### Waiting for Lu
+
+- 「装」 under #25295 in #general for the two pstack verification skills, and which project
+  (PM pointed out Lumi is Gemini-first, so the Claude-only skill may never run there; Gratula was
+  suggested). She said "你可以装" in chat but has not posted it; the PR touching `.claude/` is hers
+  to merge.
+- Row 91 (font size and spacing table, portfolio). Once approved the PM schedules the design-system
+  linter: hard-coded colours and one-off values first, portfolio first, CI PR for Lu to merge.
+- Second visual QA or a third designer: she asked twice; the advice was a second visual QA first
+  (options A to D, unanswered).
+- Harness changes that only she can merge, offered and not yet asked for: merge conclusions are
+  on an honour system because all teammates share one GitHub account; the "returned twice, no
+  auto-merge" rule blocked a PR she had already approved; AGENTS.md carries sources and dates
+  inline and has stale temporary clauses.
+- Cursor comes back on 11-29: webdev stays on Claude or returns to Cursor (PM row 77).
+- Ten of the fourteen test-set tasks.
+
+### Numbers on 11-26 22:44
+
+Claude week 42% (resets Sat 11-28 about 13:00), ChatGPT 18% (resets Tue 12-01 evening), Grok 82%
+(Lu's own use, résumé and search), Cursor 100% (resets 11-29). Lu wants Claude used more before
+the reset and ChatGPT kept for her own work this week; the PM was told to keep Claude teammates
+busy with work that needs no decision from her, and not to produce more for her to look at.
+
+### What to watch
+
+- The first review adds a step. If QA rarely writes 「初审漏了」 and PRs take longer, send docs and
+  few-line PRs straight to QA again.
+- 探索 restating wakes the PM (Opus) every time. Drop it if it catches nothing in a week.
+- motionintern still moves down to Flash at the limit although its motion code goes into PRs.
+- Phones cannot put channels into groups (hover only). Claude and Gemini model lists are still
+  written by hand; only Codex reads the live list.
 
 ## How we work
 
