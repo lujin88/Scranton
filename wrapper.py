@@ -580,6 +580,7 @@ def _replied_since(msgs, name: str, at: float) -> bool:
     return any(isinstance(m, dict) and float(m.get("timestamp") or 0) > at
                and str(m.get("sender", "")).split("-")[0] == base
                and not str(m.get("text", "")).startswith(AUTO_POSTS)
+               and not (m.get("metadata") or {}).get("auto")   # Scranton speaking under its name (limit notices)
                for m in msgs)
 
 

@@ -5017,7 +5017,7 @@ async def scranton_api_fallback(request: Request):
     store.add(inst["name"], f"My {app_name} plan has hit its limit, so I'm carrying on with the backup API key "
                             f"(pay per use) and will go back to the plan in about 5 hours.",
               channel=str(body.get("channel") or "general"),
-              reply_to=body.get("thread") if isinstance(body.get("thread"), int) else None)
+              reply_to=body.get("thread") if isinstance(body.get("thread"), int) else None, metadata=_AUTO_NOTE)
     asyncio.create_task(_sc_restart_quiet(base))
     return JSONResponse({"switching": True})
 
@@ -5028,6 +5028,29 @@ async def scranton_api_fallback(request: Request):
 # (Cursor's "Other models", Gemini Argon), it carries on with a model that still has room and goes
 # back when that quota resets. Only then the backup API key, and only then "I stopped".
 _MODEL_FB = Path(__file__).parent / "data" / "model_fallback.json"
+# Scranton says these under the teammate's name. They are not the teammate answering its request:
+# 11-25 13:11 visintern was handed a job, hit the Argon limit 14 s later, and after the restart
+# nothing gave the job back because this notice counted as its reply.
+_AUTO_NOTE = {"auto": True}
+
+
+def _limit_holds(base: str) -> bool:
+    """[team.model_limit] hold: teammates whose work goes into a PR do not carry on with a weaker
+    model when theirs is out (Lu, 11-26: a returned PR costs more reviewer quota than it saves).
+    They wait for the reset; the project manager is told once and may hand the row to someone else."""
+    cfg = (((config or {}).get("team") or {}).get("model_limit") or {})
+    return base in [str(x).lower() for x in (cfg.get("hold") or [])]
+
+
+def _held_row(base: str) -> str:
+    try:
+        got = _sc_resume_text(base)
+    except Exception:
+        got = None
+    if not got:
+        return ""
+    m = _re.search(r"行 (\d+)「([^」]*)」", got[1])
+    return f"手上是行 {m.group(1)}「{m.group(2)}」。" if m else ""
 import time  # noqa: E402  (used by the limit check below)
 
 
@@ -5114,7 +5137,7 @@ async def scranton_limit_check(request: Request):
             _sc_keys.end_api(base)
             store.add(inst["name"], "The backup API key has no credit left, so I'm going back to the plan. "
                                     "Add funds with the provider, or remove the key in Settings → Connections.",
-                      channel=place["channel"], reply_to=place["reply_to"])
+                      channel=place["channel"], reply_to=place["reply_to"], metadata=_AUTO_NOTE)
             asyncio.create_task(_sc_restart_quiet(base))
             return JSONResponse({"action": "switched"})
         return JSONResponse({"action": "report"})
@@ -5135,13 +5158,23 @@ async def scranton_limit_check(request: Request):
     if fb and fb != model and base in (config or {}).get("agents", {}):
         until = _sc_quota.reset_from_text(screen) or (usage or {}).get("resets") or (time.time() + 5 * 3600)
         d = _model_fb_load()
+        if _limit_holds(base):
+            if not (d.get(base) or {}).get("held"):
+                d[base] = {"from": model, "to": model, "held": True, "since": time.time(), "until": float(until)}
+                _model_fb_save(d)
+                when = time.strftime("%H:%M", time.localtime(float(until)))
+                store.add("Scranton", f"@pm {base} 的 {_model_label(model)} 额度用完了，约 {when} 恢复。它的代码要进 PR，"
+                                      f"所以不换到低一档的模型，先停着。{_held_row(base)}急就把这行转给别的开发；"
+                                      f"不急不用管，恢复后 Scranton 会让它接着做。",
+                          channel=place["channel"], reply_to=place["reply_to"])
+            return JSONResponse({"action": "switched", "held": True})
         d[base] = {"from": model, "to": fb, "since": time.time(), "until": float(until)}
         _model_fb_save(d)
         _sc_team.set_override(base, "model", fb, config)
         when = time.strftime("%m-%d %H:%M", time.localtime(float(until)))
         store.add(inst["name"], f"{_model_label(model)} has used up its quota, but the plan still has room on other models: "
                                 f"I'm carrying on with {_model_label(fb)} and will switch back after it resets ({when}).",
-                  channel=place["channel"], reply_to=place["reply_to"])
+                  channel=place["channel"], reply_to=place["reply_to"], metadata=_AUTO_NOTE)
         await broadcast_team_changed()
         asyncio.create_task(_sc_restart_quiet(base))
         return JSONResponse({"action": "switched", "model": fb})
@@ -5166,6 +5199,10 @@ async def _sc_model_back_once(now: float | None = None) -> list[str]:
         if now < float(r.get("until") or 0):
             continue
         d.pop(name, None)
+        if r.get("held"):          # it waited instead of moving: same model, just start it again
+            if name in (config or {}).get("agents", {}):
+                back.append(name)
+            continue
         if name in (config or {}).get("agents", {}) and _current_model(name)[1] == r.get("to"):
             _sc_team.set_override(name, "model", r.get("from") or "", config)
             back.append(name)
@@ -5279,7 +5316,7 @@ async def _sc_qa_move(base: str, to: str, until: float, channel: str, why: str) 
         st.moved.pop(base, None); st.save()
         return False
     when = time.strftime("%m-%d %H:%M", time.localtime(float(until)))
-    store.add(base, f"{why}，换到 {_sc_qask.APP_NAMES.get(to, to)} 接着干，{when} 换回来。", channel=channel)
+    store.add(base, f"{why}，换到 {_sc_qask.APP_NAMES.get(to, to)} 接着干，{when} 换回来。", channel=channel, metadata=_AUTO_NOTE)
     await broadcast_team_changed()
     asyncio.create_task(_sc_restart_quiet(base))
     return True
@@ -5349,7 +5386,7 @@ async def _sc_qa_tick(now: float | None = None) -> None:
                 _sc_team.set_override(base, "effort", rec["effort"], config)
         except ValueError:
             pass
-        store.add(base, "额度重置了，换回原来的应用。", channel=_pm_channel())
+        store.add(base, "额度重置了，换回原来的应用。", channel=_pm_channel(), metadata=_AUTO_NOTE)
         await broadcast_team_changed()
         asyncio.create_task(_sc_restart_quiet(base))
     for p, a in list(st.approved.items()):

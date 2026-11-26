@@ -80,6 +80,12 @@ pm = ["handoff", "to-questionnaire"]
 harness = ["writing-for-agents", "retro", "learn-taste"]
 research = ["research"]
 
+[team.model_limit]
+# Lu, 11-26: when a model's quota is out, research / first drafts / rough prototypes carry on with
+# the next model down. Teammates listed here write code that goes into a PR: they wait for the
+# reset instead, and the project manager is told once so the row can be handed to someone else.
+hold = ["gemdev"]
+
 [team.low_priority]
 # Projects Lu runs on the cheaper plan (Lu, 2026-11-26). The work goes to the Gemini teammates
 # first; after a second failed round it moves to the Claude or ChatGPT one. The project manager,

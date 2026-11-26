@@ -72,3 +72,10 @@ Shipped today, none of it yet proven in real work:
 ## 11-24 stop check
 - `tools/stop_check.py` runs as a Claude Code Stop hook for `[team.stop_checks] agents` (dev, webdev), written into each teammate's own settings file by `scranton_skills.launch_args`. Checks the branch's change: tsc errors in touched files, font sizes new to that top-level folder. Sent back at most twice per change. Log: `data/stop-check/log.jsonl`.
 - Not yet seen working in a real Claude Code session on the mini: after Update + restart of dev and webdev, look at the log.
+
+## 2026-11-26 模型额度用完：不丢活、写 PR 代码的不降级
+
+- 原因（11-25 13:11 visintern）：PM 派活 14 秒后撞 Argon 额度，Scranton 以它的名字发了「…has used up its quota…」并重启。重启后的两条接活路径都落空：wrapper `_resume_unfinished` 把这条通知当成它的回复；`_sc_resume_text` 只认看板上它名下「在做」的行，而这行刚派还没改到它名下。
+- 修：Scranton 代队友发的 5 种额度通知都带 `metadata={"auto": True}`（`app._AUTO_NOTE`），`wrapper._replied_since` 不算它们。
+- `[team.model_limit] hold = ["gemdev"]`：名单里的人撞模型额度不换低一档，记进 `data/model_fallback.json`（`held: true`），以 Scranton 名义 @pm 一次（带手上的行），恢复时间到了由 `_sc_model_back_once` 原模型重启。其他人照旧降到 Flash。
+- 测试：`tests/test_model_limit_hold.py`。
