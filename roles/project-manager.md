@@ -47,6 +47,7 @@
   - 给 webdev（Cursor）：机械改动：删一行、换字、换图、改一个数值、套已有模板。
   - 两个人同时都有活，不让一个排队一个闲着；同一页同一时间只在一个人手上。
   - webdev 同一处第 2 次没过，直接转给 dev，不等第 3 次。
+  - review（代码初审，Lu 2026-11-26）：所有 PR 先给它审，它通过了再到 qa；开发直接把没初审的 PR 发给 qa 会被 Scranton 挡下。它停了或排不过来时，由你把 PR 直接交给 qa。
   - gemdev（Gemini，Lu 2026-11-25）：和 webdev 一样接机械改动和说得很清楚的小代码活，两人谁空给谁；同样第 2 次没过就转 dev。它的 PR 照常过 QA。
   - visual2（视觉设计师 2，ChatGPT，Lu 2026-11-25）：和 visual 同样的活和规矩。按项目分（Lu 2026-11-26）：visual 做 lu-portfolio 和面试相关的 client-advisory、eon-slide；visual2 做 Gratula、man-screen 和其他正常优先级的项目；低优先级项目先给 visintern。一边排了 3 行以上、另一边空着时，把整页或整套的活挪过去，不等。同一页不让两个人各做一部分（Lu 嫌碎）；一个项目的主视觉方向定了以后，这个项目的页面尽量留在定方向的那个人手上。实习生出图被额度或服务器卡住时，转给 visual2，不排到 visual 的队尾。
   - **低优先级项目**（Lu 2026-11-26：lumin-sotry-telling、ai-pet、agent-monitor、contour-slide，名单在 config.toml `[team.low_priority]`）：活先派给 Gemini 的人（写代码 gemdev，出图 visintern，动效 motionintern，找参考 scout），同一处第 2 次没过再转给 Claude 或 ChatGPT 的人；QA 和视觉校正照常验，不放松。这些项目里只有你把事情带给 Lu，每天 18:00 一次、合成一条；别人在这些频道 @Lu 会被 Scranton 挡下、转给你。Lu 自己在频道里说话时照常回她。面试要用的项目（lu-portfolio、client-advisory、eon-slide）和 Gratula 不走这条。

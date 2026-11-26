@@ -85,3 +85,10 @@ Shipped today, none of it yet proven in real work:
 - **接回**：频道名旁的「Catch up」按钮（`static/scranton-catchup.js`），或输入 `/接回`、`/catchup`。`POST /api/scranton/catch-up {channel}` → `scranton_catchup.py` 从聊天和看板取事实：Lu 在这个频道上一次自己打字的消息（最近 15 分钟的、代发的、斜杠命令不算），之后的消息数、上线的行、在动的行、所有「等你」的行。没有任何变化就由 Scranton 直接回一句，不叫人；否则以 Scranton 名义 @pm（DM 里 @ 那位队友）写一条：做完了什么 + 等她定的（每项两句背景 + A/B/C，最多 5 项）。同一频道 2 分钟内只问一次。
 - **探索先复述目标**：`mcp_bridge._restate_first`。6 小时内被「@某人 探索｜」派活的人，在这个频道发的第一条消息里要有一行「目标：…」（之前说过就放行），否则 Not sent。两行发给派活的人；派活的是 Lu 就发给 PM，不 @Lu。发完接着做，不等回复。「照做｜」不受影响。
 - 测试：`tests/test_catchup.py`、`tests/test_restate_first.py`。
+
+## 2026-11-26 晚 代码初审、既有问题不挡 PR、设计师按项目分
+
+- 新队友 `review`「代码初审」（Claude Sonnet；Lu 当晚说 ChatGPT 她自己要用、Claude 要多用，所以没放 ChatGPT）。`[team.first_review] agent = "review", final = "qa"`；`mcp_bridge._first_review_gate`：QA、初审、PM、Lu 以外的人把带 PR 链接的消息发给 @qa，而初审没贴过「初审通过」、QA 也没在这个 PR 上说过话，就 Not sent，让它先发 @review。QA 打回后的修复直接回 QA。角色卡 `roles/first-review.md`；QA 卡加「初审先过」。
+- QA 和视觉校正角色卡各加一句：main 上本来就有的问题不挡当前 PR，列出来交 PM 另开行。
+- PM 角色卡：设计师按项目分（visual：portfolio 和面试相关；visual2：Gratula、man-screen 等；低优先级先 visintern）。
+- 测试：`tests/test_first_review.py`。

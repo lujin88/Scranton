@@ -76,9 +76,17 @@ webdev = ["emil-design-eng", "mobile-native", "pick-ui-library"]
 gemdev = ["code-review", "tdd", "diagnosing-bugs"]
 dev = ["code-review", "tdd", "diagnosing-bugs"]
 qa = ["code-review", "diagnosing-bugs"]
+review = ["code-review", "diagnosing-bugs"]
 pm = ["handoff", "to-questionnaire"]
 harness = ["writing-for-agents", "retro", "learn-taste"]
 research = ["research"]
+
+[team.first_review]
+# A PR goes to this teammate before QA. Someone other than QA, the reviewer or the project manager
+# who sends a PR to @qa is told to send it to the reviewer first, unless the reviewer already
+# passed it or QA is already on it (QA's own findings go straight back to QA).
+agent = "review"
+final = "qa"
 
 [team.model_limit]
 # Lu, 11-26: when a model's quota is out, research / first drafts / rough prototypes carry on with
@@ -223,6 +231,19 @@ role = "Code Review & QA: reviews PRs and merges code PRs with scripts/merge-pr.
 avatar = "04-code-review-qa-snake.jpg"
 role_card = "roles/code-review-qa.md"
 subagents = "roles/subagents/qa.json"   # test-runner (Haiku), diff-scout (Sonnet): read-only helpers
+
+[agents.review]           # Lu, 11-26: first-pass code review. QA (Opus) reviewed everything alone, docs and
+                          # three-line fixes included. On Claude Sonnet, not ChatGPT: the same evening Lu said she
+                          # needs ChatGPT for her own work and wants Claude's week (42%, 38 h left) used more.
+briefs = ["code"]
+label = "代码初审"
+command = "claude"
+cwd = "~/LuJin-Portfolio"
+worktree = true          # own git worktree next to the project, so parallel edits never collide
+color = "#8bd5ca"
+role = "First Review: reads every PR first against the task and the diff, runs the tests; QA keeps the final check and the merge"
+role_card = "roles/first-review.md"
+autostart = false        # starts when someone @s it
 
 [agents.visual]           # 原设定是 GPT
 briefs = ["build", "design"]

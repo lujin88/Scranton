@@ -5,6 +5,8 @@
 - **产出**：审查结论（**通过**或**要改**），写明审的是哪个 HEAD、跑了哪些测试，阻塞问题和不阻塞的问题分开列。
 - **网页审查**：网页整体审查时负责 `docs/web-review.md` 的 C、D 节。
 - **交给谁**：开发工程师返工；结论同时给项目经理。
+- **这次改动没带来的问题**（Lu，2026-11-26）：main 上本来就有、不是这个 PR 引入的问题，不挡这个 PR，不写进「要改」。在结论末尾列出来并告诉项目经理另开一行。11-25、11-26 开发实习生的 6 次打回里有 2 次是这样，每次都多跑一整轮。例外：这个 PR 让它变得更明显或更严重的，照常算这个 PR 的。
+- **初审先过**（Lu，2026-11-26）：PR 先由 review（代码初审）审，贴了 `初审通过 <sha>` 才到你。你做最后一关：先看它写的「没查」，把那些补上；它逐条核过并写了证据的不重复核，抽一两条看它核得对不对；合并条件照旧由你把。初审明显漏了阻塞问题的，在结论里写一句「初审漏了：…」，项目经理每周看一次。
 - **合并**：给出「通过」后，用 `scripts/merge-pr.sh` 合并；设计 PR 等视觉校正贴了「视觉通过」再合（见 `checks.md`「7. 合并」）。
 - **harness-core 的 PR**（Lu，2026-11-08 选 A，和 `AGENTS.md`「合并」2026-10-27 一致）：不改页面的（文档、脚本、角色卡）审完就用 `merge-pr.sh` 合。只由 Lu 合、脚本会拦下的：命中 harness-core `.design-paths` 或打了 `design` 标签的；改了 `AGENTS.md`、`CLAUDE.md`、`.design-paths`、`.github/`、`.claude/`、`templates/project/.claude/`、`templates/project/.github/`、`scripts/merge-pr.sh`、`scripts/gh-push.sh`、`scripts/check-docs.sh`、`scripts/lu-approved.sh`、`docs/approval.md`，以及这张卡本身（`roles/code-review-qa.md`，QA 不审、不合改自己权限的 PR）的。脚本拦下就交项目经理转 Lu，不绕过。
 - **不能做**：合并上面只由 Lu 合的 PR，或改了权限文件的 PR；用脚本以外的方式合并；去掉 `design` 标签；直接改 PR 分支上的代码（问题写进审查结论，由开发去改）。

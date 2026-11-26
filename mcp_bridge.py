@@ -386,6 +386,7 @@ def chat_send(
         return why_not
     why_not = (_low_lane_hold(sender, message, channel, reply_id)
                or _restate_first(sender, message, channel)
+               or _first_review_gate(sender, message, channel)
                or _merge_in_batch(sender, message, choices) or _motion_needs_motion(sender, message, choices, image_path)
                or _merge_card_gaps(sender, message, choices))
     if why_not:
@@ -1417,6 +1418,46 @@ def _low_lane_hold(sender: str, message: str, channel: str, reply_id) -> str:
     return (f"Not sent. #{channel} is a low-priority project: {owner} is asked about it once a day, by @{lead}, in one list. "
             f"Send this to @{lead} instead (same text and pictures, without @{owner}); it goes into today's list. "
             f"If {owner} is in the channel herself or you are answering her message, write to her as usual.")
+
+
+def _pr_key(text: str) -> tuple[str, str] | None:
+    """(repo, number) of the pull request a message is about, from its link."""
+    m = _re_mod.search(r"github\.com/[\w.-]+/([\w.-]+)/pull/(\d+)", str(text or ""))
+    return (m.group(1).lower(), m.group(2)) if m else None
+
+
+def _first_review_gate(sender: str, message: str, channel: str) -> str:
+    """[team.first_review]: a PR is read by the first reviewer before QA (Lu, 11-26).
+    QA on the most expensive model was reviewing everything alone. Passes when the reviewer already
+    passed this PR, or QA has already spoken about it (fixes for QA's own findings go back to QA)."""
+    cfg = (((config or {}).get("team") or {}).get("first_review") or {})
+    first, final = str(cfg.get("agent") or "").lower(), str(cfg.get("final") or "qa").lower()
+    if not first or first not in ((config or {}).get("agents") or {}):
+        return ""
+    lead = str(((config or {}).get("team") or {}).get("lead") or "pm").lower()
+    base = _re_mod.sub(r"-\d+$", "", str(sender or "").lower())
+    if base in (first, final, lead, _owner_name().lower(), "scranton", "system"):
+        return ""
+    text = str(message or "")
+    if not _re_mod.search(r"@" + _re_mod.escape(final) + r"(?![\w-])", text, _re_mod.I):
+        return ""
+    key = _pr_key(text)
+    if key is None:
+        return ""
+    try:
+        recent = store.get_recent(400, channel=channel)
+    except Exception:
+        return ""
+    for m in recent:
+        who = _re_mod.sub(r"-\d+$", "", str(m.get("sender") or "").lower())
+        if who not in (first, final) or _pr_key(m.get("text")) != key:
+            continue
+        if who == final or "初审通过" in str(m.get("text") or ""):
+            return ""
+    return (f"Not sent. PR #{key[1]} has not had its first review. Send it to @{first} instead of @{final} "
+            f"(same message, same link); @{first} passes it on to @{final} with what it checked and what it did not. "
+            f"Once @{final} has reviewed this PR, your fixes go straight back to @{final}. "
+            f"If @{first} is down, ask @{lead} to hand it to @{final}.")
 
 
 RESTATE_WINDOW_H = 6
