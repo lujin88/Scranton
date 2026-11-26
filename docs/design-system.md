@@ -141,3 +141,7 @@ In the channel panel each preference is the sentence on its own line, actions on
 
 ### Channel groups (11-25)
 Her own headings in the sidebar, below the ungrouped channels: `.sc-group-head` (chevron, name; when folded the channel count and an accent dot if something inside is unread). Channels in a group are `.channel-sidebar-row.sc-in-group`, one step further in. Rename and remove appear on hover, like row actions. A channel goes in through the folder button on its row (`.sc-group-menu`, a `.sc-pop`) or by dragging it onto a heading. Folded state is shared across her devices. Icons: Remix `folder`, `folder-transfer`.
+
+## 接回按钮（2026-11-26）
+
+频道名胶囊右边的第二个浮动胶囊 `#sc-catchup-btn`：高 40px，圆角 999px，和频道名胶囊同一套毛玻璃底和阴影；图标 Remix `history-line` 18px，文字 15px / 500。点了以后文字变成 Asked / Nothing new / Already asked，4 秒后恢复。宽度 720px 以下只留图标（40×40）。只在看频道时显示。

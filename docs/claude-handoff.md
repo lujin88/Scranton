@@ -79,3 +79,9 @@ Shipped today, none of it yet proven in real work:
 - 修：Scranton 代队友发的 5 种额度通知都带 `metadata={"auto": True}`（`app._AUTO_NOTE`），`wrapper._replied_since` 不算它们。
 - `[team.model_limit] hold = ["gemdev"]`：名单里的人撞模型额度不换低一档，记进 `data/model_fallback.json`（`held: true`），以 Scranton 名义 @pm 一次（带手上的行），恢复时间到了由 `_sc_model_back_once` 原模型重启。其他人照旧降到 Flash。
 - 测试：`tests/test_model_limit_hold.py`。
+
+## 2026-11-26 接回、探索先复述目标（Lauren Tan 的两句提示词）
+
+- **接回**：频道名旁的「Catch up」按钮（`static/scranton-catchup.js`），或输入 `/接回`、`/catchup`。`POST /api/scranton/catch-up {channel}` → `scranton_catchup.py` 从聊天和看板取事实：Lu 在这个频道上一次自己打字的消息（最近 15 分钟的、代发的、斜杠命令不算），之后的消息数、上线的行、在动的行、所有「等你」的行。没有任何变化就由 Scranton 直接回一句，不叫人；否则以 Scranton 名义 @pm（DM 里 @ 那位队友）写一条：做完了什么 + 等她定的（每项两句背景 + A/B/C，最多 5 项）。同一频道 2 分钟内只问一次。
+- **探索先复述目标**：`mcp_bridge._restate_first`。6 小时内被「@某人 探索｜」派活的人，在这个频道发的第一条消息里要有一行「目标：…」（之前说过就放行），否则 Not sent。两行发给派活的人；派活的是 Lu 就发给 PM，不 @Lu。发完接着做，不等回复。「照做｜」不受影响。
+- 测试：`tests/test_catchup.py`、`tests/test_restate_first.py`。

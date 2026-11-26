@@ -1868,6 +1868,9 @@ async def websocket_endpoint(websocket: WebSocket):
                         store.clear(channel=channel)
                         await broadcast_clear(channel=channel)
                         continue
+                    if cmd in ("/接回", "/catchup", "/catch-up"):
+                        _sc_catch_up(channel)
+                        continue
                     if cmd == "/continue":
                         # Resume the channel it was typed in (no argument resumed #general),
                         # and say so: the command itself isn't stored as a message.
@@ -6083,6 +6086,42 @@ def _sc_lessons_tick(now: float | None = None) -> list[tuple[str, str]]:
         L.mark_asked(ch, day)
         out.append((ch, scranton_lessons.request_text(ch, items, L.get(ch)["kept"], handle, L.dropped(ch))))
     return out
+
+
+_CATCHUP_AT: dict[str, float] = {}
+
+
+def _sc_catch_up(channel: str) -> dict:
+    """接回: what happened since Lu last spoke here, and what waits for her. See scranton_catchup."""
+    import mcp_bridge, scranton_catchup as cu
+    if channel not in room_settings.get("channels", ["general"]):
+        return {"ok": False, "error": "no such channel"}
+    now = time.time()
+    if now - _CATCHUP_AT.get(channel, 0) < cu.COOLDOWN:
+        return {"ok": True, "state": "already asked"}
+    owner = mcp_bridge._owner_name()
+    msgs = store.get_recent(600, channel=channel)
+    board = mcp_bridge.BOARD
+    rows = [dict(r) for r in (board.rows(channel) if board is not None else [])]
+    info = cu.gather(msgs, rows, owner, now)
+    _CATCHUP_AT[channel] = now
+    if cu.nothing(info):
+        store.add("Scranton", cu.quiet_text(info), channel=channel)
+        return {"ok": True, "state": "nothing new"}
+    agents = (config or {}).get("agents", {})
+    to = channel[3:] if channel.startswith("dm-") and channel[3:] in agents else "pm"
+    store.add("Scranton", cu.request_text(to, info), channel=channel)
+    return {"ok": True, "state": "asked", "to": to, "messages": info["messages"], "for_her": len(info["for_her"])}
+
+
+@app.post("/api/scranton/catch-up")
+async def sc_catch_up(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    out = _sc_catch_up(str((body or {}).get("channel") or "general"))
+    return JSONResponse(out, status_code=200 if out.get("ok") else 400)
 
 
 @app.post("/api/scranton/channel-groups")

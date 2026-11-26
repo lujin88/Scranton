@@ -1504,6 +1504,15 @@ body.sc-in-dm #mention-toggles-row > #sc-attach-btn { display: grid !important; 
 .sc-pill-chev { display: grid; place-items: center; color: var(--text-dim); transition: transform 0.15s ease; }
 #sc-pane-pill[aria-expanded="true"] .sc-pill-chev { transform: rotate(180deg); }
 #sc-pane-head #sc-members-btn { margin-left: auto; background: rgba(var(--float), 0.86); backdrop-filter: blur(12px); border: 0 !important; }
+/* 接回: same floating pill as the channel name, next to it */
+#sc-catchup-btn {
+    display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 14px 0 12px; border: 0; border-radius: 999px;
+    color: var(--text); font: inherit; font-size: 15px; font-weight: 500; cursor: pointer; white-space: nowrap;
+}
+#sc-catchup-btn[hidden] { display: none; }
+#sc-catchup-btn:disabled { cursor: default; color: var(--text-dim); }
+#sc-catchup-btn svg { color: var(--text-dim); }
+@media (max-width: 720px) { #sc-catchup-btn { width: 40px; padding: 0; justify-content: center; } #sc-catchup-btn .sc-catchup-label { display: none; } }
 #sc-float-tools { display: none; gap: 4px; }
 body.sc-sidebar-collapsed #sc-float-tools { display: flex; }
 #sc-float-tools .sc-tool { background: rgba(var(--float), 0.86); backdrop-filter: blur(12px); border-radius: 999px; width: 40px; height: 40px; }

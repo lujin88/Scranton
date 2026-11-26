@@ -385,6 +385,7 @@ def chat_send(
     if why_not:
         return why_not
     why_not = (_low_lane_hold(sender, message, channel, reply_id)
+               or _restate_first(sender, message, channel)
                or _merge_in_batch(sender, message, choices) or _motion_needs_motion(sender, message, choices, image_path)
                or _merge_card_gaps(sender, message, choices))
     if why_not:
@@ -1416,6 +1417,52 @@ def _low_lane_hold(sender: str, message: str, channel: str, reply_id) -> str:
     return (f"Not sent. #{channel} is a low-priority project: {owner} is asked about it once a day, by @{lead}, in one list. "
             f"Send this to @{lead} instead (same text and pictures, without @{owner}); it goes into today's list. "
             f"If {owner} is in the channel herself or you are answering her message, write to her as usual.")
+
+
+RESTATE_WINDOW_H = 6
+
+
+def _restate_first(sender: str, message: str, channel: str) -> str:
+    """探索 work starts with the goal in the teammate's own words (Lu, 11-26, after Lauren Tan's
+    "restate in your own words what you think my goals are and what the problem is"). On 11-25 a PR
+    came back because a requirement nobody spelled out was missed. The line goes to whoever handed
+    out the task (the project manager when that was Lu, so she gets no extra round), and the
+    teammate carries on without waiting."""
+    owner = _owner_name().lower()
+    lead = str(((config or {}).get("team") or {}).get("lead") or "pm").lower()
+    base = _re_mod.sub(r"-\d+$", "", str(sender or "").lower())
+    if base in ("scranton", "system", owner, lead):
+        return ""
+    try:
+        recent = store.get_recent(120, channel=channel)
+    except Exception:
+        return ""
+    cut = time.time() - RESTATE_WINDOW_H * 3600
+    ask_rx = _re_mod.compile(r"@" + _re_mod.escape(base) + r"(?![\w-])[^\n]{0,20}探索｜", _re_mod.I)
+    task = None
+    for m in reversed(recent):
+        if float(m.get("timestamp") or 0) < cut:
+            break
+        who = _re_mod.sub(r"-\d+$", "", str(m.get("sender") or "").lower())
+        if who != base and who not in ("scranton", "system") and ask_rx.search(str(m.get("text") or "")):
+            task = m
+            break
+    if task is None:
+        return ""
+    said = _re_mod.compile(r"(?m)^\s*(?:@\S+\s+)*目标[:：]\s*\S")
+    if said.search(str(message or "")):
+        return ""
+    t0 = float(task.get("timestamp") or 0)
+    for m in recent:
+        if float(m.get("timestamp") or 0) > t0 and _re_mod.sub(r"-\d+$", "", str(m.get("sender") or "").lower()) == base \
+                and said.search(str(m.get("text") or "")):
+            return ""
+    giver = _re_mod.sub(r"-\d+$", "", str(task.get("sender") or "").lower())
+    to = lead if giver == owner else giver
+    return (f"Not sent. Message #{task.get('id')} gave you 探索 work. Before anything else, send @{to} two lines in your own "
+            f"words (do not copy the task): 「目标：what the result is for and who will use it」 and 「要解决的问题：what is wrong "
+            f"today that this fixes」. Then carry on without waiting; @{to} only answers if you got it wrong. "
+            f"Do not @{_owner_name()} for this. If this message already is your result, put those two lines at the top.")
 
 
 def _low_lane_hint(sender: str, message: str, channel: str) -> str:
